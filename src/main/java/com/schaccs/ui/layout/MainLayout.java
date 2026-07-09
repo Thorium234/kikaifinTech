@@ -1,0 +1,69 @@
+package com.schaccs.ui.layout;
+
+import javafx.scene.Node;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.StackPane;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
+
+public class MainLayout extends BorderPane {
+
+    private final Sidebar sidebar = new Sidebar();
+    private final TopBar topBar = new TopBar();
+    private final StatusBar statusBar = new StatusBar();
+    private final StackPane content = new StackPane();
+    private final Map<String, Supplier<Node>> factories = new HashMap<>();
+    private final Map<String, Node> cache = new HashMap<>();
+
+    public MainLayout() {
+        content.getStyleClass().add("content-area");
+        setLeft(sidebar);
+        setTop(topBar);
+        setCenter(content);
+        setBottom(statusBar);
+
+        sidebar.setOnNavigate(this::show);
+    }
+
+    public void register(String key, String title, Supplier<Node> factory) {
+        factories.put(key, factory);
+        // title stored via navigate
+    }
+
+    public void show(String key) {
+        Node node = cache.computeIfAbsent(key, k -> {
+            Supplier<Node> factory = factories.get(k);
+            return factory != null ? factory.get() : new javafx.scene.control.Label("Missing view: " + k);
+        });
+        // refresh if view supports it
+        if (node instanceof Refreshable r) {
+            r.refresh();
+        }
+        content.getChildren().setAll(node);
+        sidebar.setActive(key);
+        topBar.setTitle(key);
+        statusBar.setMessage("Viewing " + key);
+    }
+
+    public Sidebar getSidebar() {
+        return sidebar;
+    }
+
+    public TopBar getTopBar() {
+        return topBar;
+    }
+
+    public StatusBar getStatusBar() {
+        return statusBar;
+    }
+
+    public void invalidate(String key) {
+        cache.remove(key);
+    }
+
+    public interface Refreshable {
+        void refresh();
+    }
+}

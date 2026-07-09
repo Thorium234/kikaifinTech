@@ -1,0 +1,75 @@
+# SCHACCS — School Accounting System (V1)
+
+**School:** Friends School Kikai Boys Secondary School  
+**Location:** P.O. Box 345-50202, Chwele  
+**Ministry:** Republic of Kenya, Ministry of Education
+
+Accounting-first fee management for Kenyan secondary schools. Version 1 focuses on student registry, fee structures, receipting with automatic votehead allocation, core double-entry postings, and bursar reports.
+
+## Requirements
+
+- JDK 21+
+- Maven 3.9+
+- JavaFX (resolved via Maven)
+
+## Run
+
+```bash
+mvn clean javafx:run
+```
+
+Or compile then run:
+
+```bash
+mvn clean compile
+mvn javafx:run
+```
+
+## V1 Modules
+
+| Module | Description |
+|--------|-------------|
+| **Dashboard** | KPIs: collection, outstanding, students, receipts |
+| **Students** | Registry — add, edit, search, boarding status |
+| **Fee Structure** | Year/term voteheads (2026 boarding structure preloaded) |
+| **Receipting** | Search student → pay → auto-allocate voteheads → post ledger |
+| **Reports** | Fee balances, defaulters, daily collection, student statement, votehead summary |
+| **Settings** | School profile, academic year, receipt sequence |
+
+## Architecture
+
+```
+com.schaccs
+  config / enums / model / store / service / accounting
+  validation / util / ui (layout, views, components)
+```
+
+All money movements go through `AccountingEngine` and `ReceiptAllocationEngine`. The UI never updates balances directly.
+
+## School fee data (2026 Boarding)
+
+| Vote Head | Term 1 | Term 2 | Term 3 | Total |
+|-----------|--------|--------|--------|-------|
+| Boarding | 14,000 | 6,500 | 4,000 | 24,500 |
+| EWC | 1,000 | 1,000 | 500 | 2,500 |
+| Personal Emolument | 2,000 | 1,000 | 500 | 3,500 |
+| RMI | 1,000 | 1,000 | 500 | 2,500 |
+| Administration | 1,000 | 1,000 | 500 | 2,500 |
+| L.T & T | 1,000 | 1,000 | 500 | 2,500 |
+| Activity | 1,000 | 1,000 | 500 | 2,500 |
+| **Total** | **21,000** | **12,500** | **7,000** | **40,500** |
+
+Day scholars: lunch KSh 5,500 (Term 1).
+
+## Bank details
+
+- National Bank, Bungoma Branch  
+- A/C: 0121054619700  
+- Pay Bill: 7230546  
+- Account: 1260057495  
+
+> Note: School policy — no cash except bank pay-in slip approved by the Principal.
+
+## Version 2 (planned)
+
+Payment vouchers, commitment register, full cashbook, trial balance, financial statements, audit trail.

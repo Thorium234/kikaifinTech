@@ -1,0 +1,153 @@
+package com.schaccs.model.receipt;
+
+import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.PaymentMode;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public class Receipt {
+
+    private final String id;
+    private long receiptNumber;
+    private LocalDate date;
+    private String studentId;
+    private String admissionNumber;
+    private String studentName;
+    private String classLabel;
+    private BigDecimal amount = CurrencyConfig.zero();
+    private PaymentMode paymentMode = PaymentMode.BANK_SLIP;
+    private String bankReference;
+    private String receivedBy;
+    private String notes;
+    private LocalDateTime createdAt;
+    private final ObservableList<ReceiptLine> lines = FXCollections.observableArrayList();
+
+    public Receipt() {
+        this.id = UUID.randomUUID().toString();
+        this.date = LocalDate.now();
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public long getReceiptNumber() {
+        return receiptNumber;
+    }
+
+    public void setReceiptNumber(long receiptNumber) {
+        this.receiptNumber = receiptNumber;
+    }
+
+    public String getReceiptNumberDisplay() {
+        return String.valueOf(receiptNumber);
+    }
+
+    public LocalDate getDate() {
+        return date;
+    }
+
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
+
+    public String getStudentId() {
+        return studentId;
+    }
+
+    public void setStudentId(String studentId) {
+        this.studentId = studentId;
+    }
+
+    public String getAdmissionNumber() {
+        return admissionNumber;
+    }
+
+    public void setAdmissionNumber(String admissionNumber) {
+        this.admissionNumber = admissionNumber;
+    }
+
+    public String getStudentName() {
+        return studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+
+    public String getClassLabel() {
+        return classLabel;
+    }
+
+    public void setClassLabel(String classLabel) {
+        this.classLabel = classLabel;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public void setAmount(BigDecimal amount) {
+        this.amount = CurrencyConfig.money(amount);
+    }
+
+    public PaymentMode getPaymentMode() {
+        return paymentMode;
+    }
+
+    public void setPaymentMode(PaymentMode paymentMode) {
+        this.paymentMode = paymentMode;
+    }
+
+    public String getBankReference() {
+        return bankReference;
+    }
+
+    public void setBankReference(String bankReference) {
+        this.bankReference = bankReference;
+    }
+
+    public String getReceivedBy() {
+        return receivedBy;
+    }
+
+    public void setReceivedBy(String receivedBy) {
+        this.receivedBy = receivedBy;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public ObservableList<ReceiptLine> getLines() {
+        return lines;
+    }
+
+    public void addLine(ReceiptLine line) {
+        lines.add(line);
+    }
+
+    public BigDecimal linesTotal() {
+        return lines.stream()
+                .map(ReceiptLine::getAmount)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+    }
+}

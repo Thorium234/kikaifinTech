@@ -1,0 +1,25 @@
+package com.schaccs.service.fee;
+
+import com.schaccs.accounting.ReceiptAllocationEngine;
+import com.schaccs.model.fee.FeeAllocation;
+import com.schaccs.model.student.StudentFeeLedger;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+public class FeeAllocationService {
+
+    private final ReceiptAllocationEngine engine;
+
+    public FeeAllocationService() {
+        this(new ReceiptAllocationEngine());
+    }
+
+    public FeeAllocationService(ReceiptAllocationEngine engine) {
+        this.engine = engine;
+    }
+
+    public List<FeeAllocation> preview(StudentFeeLedger ledger, BigDecimal amount) {
+        return engine.allocate(ledger, amount);
+    }
+}
