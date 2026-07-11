@@ -1,0 +1,439 @@
+This is a good start, but if you're building a system that schools will actually use, Version 1 needs to be designed around how bursars work, not around database tables. The information you've gathered is enough to design the first production architecture.
+
+The biggest thing I would change is this:
+
+**Do not build a "Fee Management System." Build an "Accounting System whose first module is Fee Management."**
+
+That decision affects everything that follows.
+
+## Version 1 Scope
+
+I would structure SCHACCS V1 into six core modules.
+
+### 1. Student Registry
+
+Purpose
+
+The master record of every student.
+
+Fields
+
+```
+Admission Number
+UPI (optional)
+Name
+Gender
+Class
+Stream
+Boarding Status (Boarding/Day)
+Parent Name
+Phone
+Year of Admission
+Current Academic Year
+Status
+```
+
+Capabilities
+
+* Add student
+* Edit student
+* Transfer class
+* Mark inactive
+* Search instantly
+* Import CSV
+
+---
+
+### 2. Fee Structure Module
+
+Instead of hardcoding amounts, allow the bursar to define yearly structures.
+
+Example
+
+```
+Academic Year
+2026
+
+Form One Boarding
+
+Boarding
+24000
+
+RMI
+2500
+
+Activity
+2500
+
+Administration
+2500
+
+LT&T
+2500
+
+EWC
+2500
+
+Personal Emolument
+3500
+
+Total
+40500
+```
+
+The system automatically creates
+
+```
+Term One
+
+Boarding
+14000
+
+...
+
+Term Two
+
+...
+
+Term Three
+
+...
+```
+
+One click duplicates the structure for another class.
+
+---
+
+### 3. Receipting Module
+
+This becomes the heart of the application.
+
+Workflow
+
+```
+Search Student
+
+↓
+
+Student appears
+
+↓
+
+Outstanding Balance
+
+↓
+
+Enter Amount
+
+↓
+
+Select
+
+Cash
+Bank Slip
+Cheque
+M-Pesa
+
+↓
+
+Click Receive
+
+↓
+
+Automatic Votehead Distribution
+
+↓
+
+Official Receipt
+
+↓
+
+Ledger Updated
+
+↓
+
+Student Balance Updated
+```
+
+No manual calculations.
+
+The system performs everything.
+
+---
+
+### 4. Finance Engine
+
+This is the actual accounting engine.
+
+Three accounts
+
+```
+School Fund
+
+FSE Operations
+
+FSE Tuition
+```
+
+Every transaction belongs to one account.
+
+Every transaction has
+
+```
+Debit
+
+Credit
+
+Reference
+
+Votehead
+
+Date
+
+User
+
+Description
+```
+
+No screen should update balances manually.
+
+Everything must pass through
+
+```
+AccountingEngine.postTransaction()
+```
+
+Exactly like commercial accounting software.
+
+---
+
+### 5. Reports
+
+For Version 1
+
+```
+Student Statement
+
+Fees Balance
+
+Defaulters
+
+Daily Collection
+
+Cash Book
+
+Votehead Summary
+
+Collection Summary
+
+Receipt Reprint
+```
+
+Those seven reports alone cover almost everything a bursar uses daily.
+
+---
+
+### 6. Administration
+
+```
+Users
+
+Roles
+
+Backups
+
+Restore
+
+Academic Years
+
+School Details
+
+Receipt Number Settings
+
+Printer Settings
+```
+
+---
+
+# Architecture
+
+Instead of
+
+```
+Model
+
+View
+
+Store
+```
+
+I recommend
+
+```
+com.schaccs
+
+    model
+
+    store
+
+    service
+
+    accounting
+
+    report
+
+    receipt
+
+    util
+
+    view
+
+    component
+
+    style
+
+    validation
+```
+
+The service layer should contain business logic.
+
+Example
+
+```
+StudentService
+
+ReceiptService
+
+AccountingService
+
+FeeStructureService
+
+ReportService
+```
+
+The UI should never manipulate ObservableLists directly.
+
+---
+
+# Receipt Distribution
+
+One thing from your collected requirements is extremely important.
+
+The school receipt contains
+
+```
+Boarding
+
+RMI
+
+Administration
+
+LT&T
+
+Activity
+
+Personal Emolument
+
+...
+
+Outstanding Fees
+```
+
+That tells me the school **does not expect the bursar to decide how money is split**.
+
+Instead
+
+```
+Student owes
+
+Boarding
+
+12000
+
+Activity
+
+1500
+
+RMI
+
+2000
+
+Administration
+
+2500
+```
+
+If the parent pays
+
+```
+15000
+```
+
+The engine should automatically produce
+
+```
+Boarding
+
+12000
+
+Remaining
+
+3000
+
+↓
+
+Activity
+
+1500
+
+Remaining
+
+1500
+
+↓
+
+RMI
+
+1500
+```
+
+Everything updates automatically.
+
+This is the behavior your `ReceiptAllocationEngine` should implement.
+
+---
+
+# Missing Modules
+
+From the documents, I noticed several important modules are not yet represented.
+
+* Invoice Register
+* Creditors
+* Commitment Register
+* LPO Register
+* Payment Voucher Register
+* Cashbook
+* Bank Deposit Register
+* General Ledger
+* Trial Balance
+* Financial Statements
+* Audit Trail
+
+These can wait until Version 2 if your immediate goal is to get the school using the software.
+
+---
+
+# My recommendation
+
+Do **not** try to build every accounting feature at once. Schools adopt software gradually, and a stable Version 1 is more valuable than an unfinished "everything" system.
+
+I would prioritize this roadmap:
+
+1. Student Management
+2. Fee Structure Management
+3. Receipting with automatic votehead allocation
+4. Student statements and balances
+5. Daily collection and receipt reprints
+6. Core accounting engine with the three accounts (School Fund, FSE Operations, FSE Tuition)
+
+Once those are stable, Version 2 can add payment vouchers, commitment registers, cashbooks, ledgers, trial balances, and full financial statements. This phased approach gives the school immediate operational value while providing a solid foundation for a complete MoE and PFM compliant accounting platform.
