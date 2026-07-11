@@ -10,10 +10,12 @@ import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.student.Student;
+import com.schaccs.model.voucher.Creditor;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.StudentStore;
+import com.schaccs.store.VoucherStore;
 
 import java.time.LocalDate;
 
@@ -31,6 +33,17 @@ public final class MockData {
         loadStudents();
         chargeFees();
         sampleReceipts();
+        sampleCreditors();
+    }
+
+    private static void sampleCreditors() {
+        VoucherStore vs = VoucherStore.getInstance();
+        Creditor c1 = new Creditor("Kikai Hardware Suppliers", "0700111222");
+        c1.setDescription("RMI materials");
+        vs.addCreditor(c1);
+        Creditor c2 = new Creditor("Chwele Bookshop", "0700333444");
+        c2.setDescription("LT&T / stationery");
+        vs.addCreditor(c2);
     }
 
     private static void loadVoteheads() {

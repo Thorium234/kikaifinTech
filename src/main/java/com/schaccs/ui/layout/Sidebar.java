@@ -17,6 +17,7 @@ public class Sidebar extends VBox {
     public static final String STUDENTS = "Students";
     public static final String FEES = "Fee Structure";
     public static final String RECEIPTS = "Receipting";
+    public static final String VOUCHERS = "Payment Vouchers";
     public static final String REPORTS = "Reports";
     public static final String SETTINGS = "Settings";
 
@@ -39,12 +40,13 @@ public class Sidebar extends VBox {
         addNav(STUDENTS, "Students");
         addNav(FEES, "Fee Structure");
         addNav(RECEIPTS, "Receipting");
+        addNav(VOUCHERS, "Payment Vouchers");
         addNav(REPORTS, "Reports");
         addNav(SETTINGS, "Settings");
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
-        Label version = new Label("Version 1.0.0");
+        Label version = new Label("Version 1.1.0");
         version.getStyleClass().add("sidebar-sub");
         version.setPadding(new Insets(12, 16, 16, 16));
         getChildren().addAll(spacer, version);

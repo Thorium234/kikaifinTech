@@ -30,6 +30,15 @@ public class Student {
         this.id = UUID.randomUUID().toString();
     }
 
+    private Student(String id) {
+        this.id = id != null ? id : UUID.randomUUID().toString();
+    }
+
+    /** Restore a student with a known id (persistence). */
+    public static Student withId(String id) {
+        return new Student(id);
+    }
+
     public Student(String admissionNumber, String name, String formClass, String stream,
                    BoardingStatus boardingStatus, String phone) {
         this();

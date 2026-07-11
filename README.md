@@ -25,6 +25,18 @@ mvn clean compile
 mvn javafx:run
 ```
 
+## Data storage
+
+SQLite database (auto-created on first run):
+
+```text
+~/.schaccs/schaccs.db
+```
+
+- First launch seeds sample school data, then persists it.
+- Later launches load from the database (receipts, students, ledgers, vouchers survive restarts).
+- Saves run after student/receipt/voucher/settings changes and on exit.
+
 ## V1 Modules
 
 | Module | Description |

@@ -36,5 +36,6 @@ public final class AccountStore {
         fees().clear();
         receipts().clear();
         ledger().clear();
+        VoucherStore.getInstance().clear();
     }
 }

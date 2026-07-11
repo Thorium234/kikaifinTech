@@ -1,6 +1,7 @@
 package com.schaccs.service.student;
 
 import com.schaccs.model.student.Student;
+import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.StudentStore;
 import com.schaccs.validation.StudentValidator;
 import javafx.collections.ObservableList;
@@ -38,6 +39,7 @@ public class StudentService {
         List<String> errors = validator.validate(student, true);
         if (errors.isEmpty()) {
             store.add(student);
+            PersistenceService.getInstance().saveAll();
         }
         return errors;
     }
@@ -52,11 +54,15 @@ public class StudentService {
                 }
             });
         }
+        if (errors.isEmpty()) {
+            PersistenceService.getInstance().saveAll();
+        }
         return errors;
     }
 
     public void markInactive(Student student) {
         student.setStatus(com.schaccs.enums.StudentStatus.INACTIVE);
+        PersistenceService.getInstance().saveAll();
     }
 
     public long activeCount() {

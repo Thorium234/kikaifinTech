@@ -2,6 +2,8 @@ package com.schaccs.ui.settings;
 
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.SchoolProfile;
+import com.schaccs.repository.Database;
+import com.schaccs.repository.PersistenceService;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import javafx.geometry.Insets;
@@ -105,7 +107,9 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
             p.setNextReceiptNumber(Long.parseLong(nextReceipt.getText().trim()));
             p.setCashPolicy(cashPolicy.getText().trim());
             AppConfig.getInstance().setCurrentUser(currentUser.getText().trim());
-            AlertUtil.info("Saved", "Settings updated.");
+            PersistenceService.getInstance().saveAll();
+            AlertUtil.info("Saved", "Settings updated and stored in "
+                    + Database.getInstance().getDatabasePath());
         } catch (NumberFormatException ex) {
             AlertUtil.error("Invalid input", "Academic year and receipt number must be numeric.");
         }

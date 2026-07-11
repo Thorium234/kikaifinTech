@@ -22,6 +22,7 @@ public class FinancialTransaction {
     private BigDecimal credit = CurrencyConfig.zero();
     private String studentId;
     private String receiptId;
+    private String voucherId;
     private String createdBy;
     private LocalDateTime createdAt;
 
@@ -29,6 +30,16 @@ public class FinancialTransaction {
         this.id = UUID.randomUUID().toString();
         this.date = LocalDate.now();
         this.createdAt = LocalDateTime.now();
+    }
+
+    private FinancialTransaction(String id) {
+        this.id = id != null ? id : UUID.randomUUID().toString();
+        this.date = LocalDate.now();
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public static FinancialTransaction withId(String id) {
+        return new FinancialTransaction(id);
     }
 
     public String getId() {
@@ -113,6 +124,14 @@ public class FinancialTransaction {
 
     public void setReceiptId(String receiptId) {
         this.receiptId = receiptId;
+    }
+
+    public String getVoucherId() {
+        return voucherId;
+    }
+
+    public void setVoucherId(String voucherId) {
+        this.voucherId = voucherId;
     }
 
     public String getCreatedBy() {

@@ -1,6 +1,7 @@
 package com.schaccs;
 
 import com.schaccs.config.AppConfig;
+import com.schaccs.repository.AppBootstrap;
 import com.schaccs.ui.dashboard.DashboardView;
 import com.schaccs.ui.fees.FeeStructureView;
 import com.schaccs.ui.layout.MainLayout;
@@ -9,7 +10,7 @@ import com.schaccs.ui.receipts.ReceiptView;
 import com.schaccs.ui.reports.ReportsView;
 import com.schaccs.ui.settings.SettingsView;
 import com.schaccs.ui.students.StudentView;
-import com.schaccs.util.MockData;
+import com.schaccs.ui.vouchers.VoucherView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
@@ -20,13 +21,14 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage stage) {
-        MockData.load();
+        AppBootstrap.initialize();
 
         MainLayout layout = new MainLayout();
         layout.register(Sidebar.DASHBOARD, Sidebar.DASHBOARD, DashboardView::new);
         layout.register(Sidebar.STUDENTS, Sidebar.STUDENTS, StudentView::new);
         layout.register(Sidebar.FEES, Sidebar.FEES, FeeStructureView::new);
         layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);
+        layout.register(Sidebar.VOUCHERS, Sidebar.VOUCHERS, VoucherView::new);
         layout.register(Sidebar.REPORTS, Sidebar.REPORTS, ReportsView::new);
         layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
 
@@ -40,7 +42,13 @@ public class MainApp extends Application {
         stage.setScene(scene);
         stage.setMinWidth(1100);
         stage.setMinHeight(700);
+        stage.setOnCloseRequest(e -> AppBootstrap.shutdown());
         stage.show();
+    }
+
+    @Override
+    public void stop() {
+        AppBootstrap.shutdown();
     }
 
     public static void main(String[] args) {

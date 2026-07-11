@@ -33,6 +33,16 @@ public class Receipt {
         this.createdAt = LocalDateTime.now();
     }
 
+    private Receipt(String id) {
+        this.id = id != null ? id : UUID.randomUUID().toString();
+        this.date = LocalDate.now();
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public static Receipt withId(String id) {
+        return new Receipt(id);
+    }
+
     public String getId() {
         return id;
     }

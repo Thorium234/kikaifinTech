@@ -24,6 +24,14 @@ public class LedgerEntry {
         this.id = UUID.randomUUID().toString();
     }
 
+    private LedgerEntry(String id) {
+        this.id = id != null ? id : UUID.randomUUID().toString();
+    }
+
+    public static LedgerEntry withId(String id) {
+        return new LedgerEntry(id);
+    }
+
     public String getId() {
         return id;
     }

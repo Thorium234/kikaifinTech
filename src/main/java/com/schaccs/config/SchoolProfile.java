@@ -16,6 +16,7 @@ public final class SchoolProfile {
     private String cashPolicy = "NO CASH WILL BE ACCEPTED EXCEPT BANK PAY IN SLIP BY THE SCHOOL PRINCIPAL - MR. KITUYI S.A.";
     private int academicYear = 2026;
     private long nextReceiptNumber = 21571;
+    private long nextVoucherNumber = 1001;
 
     public String getSchoolName() {
         return schoolName;
@@ -107,5 +108,17 @@ public final class SchoolProfile {
 
     public synchronized long allocateReceiptNumber() {
         return nextReceiptNumber++;
+    }
+
+    public long getNextVoucherNumber() {
+        return nextVoucherNumber;
+    }
+
+    public void setNextVoucherNumber(long nextVoucherNumber) {
+        this.nextVoucherNumber = nextVoucherNumber;
+    }
+
+    public synchronized long allocateVoucherNumber() {
+        return nextVoucherNumber++;
     }
 }

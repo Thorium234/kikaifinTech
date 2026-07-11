@@ -12,6 +12,7 @@ import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
@@ -117,6 +118,7 @@ public class ReceiptService {
         }
 
         receiptStore.add(receipt);
+        PersistenceService.getInstance().saveAll();
         return Result.success(receipt, allocations);
     }
 

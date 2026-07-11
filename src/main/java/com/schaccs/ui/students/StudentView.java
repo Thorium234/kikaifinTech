@@ -3,6 +3,7 @@ package com.schaccs.ui.students;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
+import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.ui.component.SearchBar;
@@ -209,6 +210,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 return;
             }
             feeService.chargeAnnualFees(s);
+            PersistenceService.getInstance().saveAll();
             AlertUtil.info("Saved", "Student " + s.getAdmissionNumber() + " added and fees charged.");
             clearForm();
         } else {
