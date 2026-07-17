@@ -22,8 +22,11 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.Separator;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
@@ -60,6 +63,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
     private final TextField admField = new TextField();
     private final TextField nameField = new TextField();
+    private final TextField upiField = new TextField();
     private final TextField formField = new TextField();
     private final TextField streamField = new TextField();
     private final TextField phoneField = new TextField();
@@ -71,6 +75,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final TextField avatarPathField = new TextField();
     private final ImageView avatarPreview = new ImageView();
     private final StackPane avatarPane = new StackPane();
+    private final Label validationBanner = new Label();
+    private final Label modeBadge = new Label();
 
     private Student editing;
 
@@ -109,13 +115,25 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         inactiveBtn.getStyleClass().add("secondary-button");
         inactiveBtn.setOnAction(e -> markInactive());
 
+        Label tableBadge = new Label("Student Registry Workspace");
+        tableBadge.getStyleClass().add("student-header-badge");
+        VBox toolbarHeader = new VBox(4, tableBadge, heading);
+
         HBox toolbar = new HBox(10, searchBar, addBtn, saveBtn, importBtn, exportBtn, templateBtn, inactiveBtn);
+        toolbar.getStyleClass().add("student-toolbar");
         toolbar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
+        VBox toolbarCard = new VBox(10, toolbarHeader, toolbar);
+        toolbarCard.getStyleClass().addAll("card", "student-toolbar-card");
+
         setupTable();
-        VBox tableCard = new VBox(8, table);
-        tableCard.getStyleClass().add("card");
+        Label registryTitle = new Label("Registered Students");
+        registryTitle.getStyleClass().add("section-title");
+        Label registrySub = new Label("Browse, search, and select a student to edit details.");
+        registrySub.getStyleClass().add("muted");
+        VBox tableCard = new VBox(10, registryTitle, registrySub, table);
+        tableCard.getStyleClass().addAll("card", "student-table-card");
         VBox.setVgrow(table, Priority.ALWAYS);
         VBox.setVgrow(tableCard, Priority.ALWAYS);
 
@@ -134,7 +152,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         HBox.setHgrow(formScroll, Priority.NEVER);
         VBox.setVgrow(body, Priority.ALWAYS);
 
-        getChildren().addAll(heading, toolbar, body);
+        getChildren().addAll(toolbarCard, body);
+        configureLiveValidation();
+        updateModeBadge();
     }
 
     private void setupTable() {
@@ -165,7 +185,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         cls.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getClassLabel()));
         cls.setPrefWidth(80);
 
-        TableColumn<Student, String> board = new TableColumn<>("Status");
+        TableColumn<Student, String> board = new TableColumn<>("Boarding");
         board.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().getBoardingStatus() != null ? c.getValue().getBoardingStatus().getDisplayName() : ""));
         board.setPrefWidth(90);
@@ -174,14 +194,50 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         phone.setCellValueFactory(c -> c.getValue().phoneProperty());
         phone.setPrefWidth(110);
 
-        TableColumn<Student, String> st = new TableColumn<>("Active");
+        TableColumn<Student, String> st = new TableColumn<>("Status");
         st.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().getStatus() != null ? c.getValue().getStatus().getDisplayName() : ""));
-        st.setPrefWidth(90);
+        st.setPrefWidth(100);
+        st.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                getStyleClass().removeAll("student-status-active", "student-status-inactive");
+                if (empty || item == null || item.isBlank()) {
+                    setText(null);
+                    return;
+                }
+                setText(item);
+                Student student = getTableRow() != null ? (Student) getTableRow().getItem() : null;
+                if (student != null && student.getStatus() != null) {
+                    switch (student.getStatus()) {
+                        case ACTIVE -> getStyleClass().add("student-status-active");
+                        case INACTIVE -> getStyleClass().add("student-status-inactive");
+                        default -> {
+                        }
+                    }
+                }
+            }
+        });
 
         table.getColumns().addAll(avatar, adm, name, cls, board, phone, st);
         table.setItems(filtered);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setRowFactory(tv -> new TableRow<>() {
+            @Override
+            protected void updateItem(Student item, boolean empty) {
+                super.updateItem(item, empty);
+                getStyleClass().removeAll("student-row-active", "student-row-inactive");
+                if (!empty && item != null && item.getStatus() != null) {
+                    switch (item.getStatus()) {
+                        case ACTIVE -> getStyleClass().add("student-row-active");
+                        case INACTIVE -> getStyleClass().add("student-row-inactive");
+                        default -> {
+                        }
+                    }
+                }
+            }
+        });
         table.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> {
             if (s != null) {
                 loadForm(s);
@@ -190,8 +246,14 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     }
 
     private VBox buildForm() {
-        Label title = new Label("Student Details");
+        Label title = new Label("New Student / Edit Student");
         title.getStyleClass().add("section-title");
+        Label subtitle = new Label("Capture identity, class placement, guardian details, and student profile image.");
+        subtitle.getStyleClass().addAll("muted", "student-form-subtitle");
+        modeBadge.getStyleClass().add("student-mode-badge");
+        validationBanner.getStyleClass().add("student-validation-banner");
+        validationBanner.setManaged(false);
+        validationBanner.setVisible(false);
 
         boardingBox.getItems().setAll(BoardingStatus.values());
         boardingBox.setValue(BoardingStatus.BOARDING);
@@ -205,46 +267,74 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         nameField.textProperty().addListener((obs, oldValue, newValue) -> refreshAvatarPreview(editing));
         avatarPathField.textProperty().addListener((obs, oldValue, newValue) -> refreshAvatarPreview(editing));
         GridPane grid = new GridPane();
+        grid.getStyleClass().add("student-form-grid");
         grid.setHgap(10);
         grid.setVgap(10);
         int r = 0;
-        grid.add(new Label("Admission No"), 0, r);
-        grid.add(admField, 1, r++);
-        grid.add(new Label("Full Name"), 0, r);
-        grid.add(nameField, 1, r++);
-        grid.add(new Label("Gender"), 0, r);
-        grid.add(genderBox, 1, r++);
-        grid.add(new Label("Form / Class"), 0, r);
-        grid.add(formField, 1, r++);
-        grid.add(new Label("Stream"), 0, r);
-        grid.add(streamField, 1, r++);
-        grid.add(new Label("Boarding"), 0, r);
-        grid.add(boardingBox, 1, r++);
-        grid.add(new Label("Parent"), 0, r);
-        grid.add(parentField, 1, r++);
-        grid.add(new Label("Guardian Key"), 0, r);
-        grid.add(guardianField, 1, r++);
-        grid.add(new Label("Phone"), 0, r);
-        grid.add(phoneField, 1, r++);
-        grid.add(new Label("Student Picture"), 0, r);
+        Label identityLabel = new Label("Student Identity");
+        identityLabel.getStyleClass().add("student-form-section");
+        grid.add(identityLabel, 0, r++, 2, 1);
+        grid.add(formLabel("Admission No"), 0, r);
+        grid.add(formFieldBox(admField, "Required. Use the official admission number format."), 1, r++);
+        grid.add(formLabel("Full Name"), 0, r);
+        grid.add(formFieldBox(nameField, "Enter full student name as per admission records."), 1, r++);
+        grid.add(formLabel("UPI"), 0, r);
+        grid.add(formFieldBox(upiField, "Kenyan learner UPI identifier, if assigned."), 1, r++);
+        grid.add(formLabel("Gender"), 0, r);
+        grid.add(formFieldBox(genderBox, "Select the student gender."), 1, r++);
+        grid.add(formLabel("Form / Class"), 0, r);
+        grid.add(formFieldBox(formField, "Example: Form 1, Form 2, Form 3, Form 4."), 1, r++);
+        grid.add(formLabel("Stream"), 0, r);
+        grid.add(formFieldBox(streamField, "Example: A, B, North, East."), 1, r++);
+        grid.add(formLabel("Boarding"), 0, r);
+        grid.add(formFieldBox(boardingBox, "Select boarding or day status."), 1, r++);
+        grid.add(new Separator(), 0, r++, 2, 1);
+        Label guardianLabel = new Label("Guardian & Contact");
+        guardianLabel.getStyleClass().add("student-form-section");
+        grid.add(guardianLabel, 0, r++, 2, 1);
+        grid.add(formLabel("Parent / Guardian"), 0, r);
+        grid.add(formFieldBox(parentField, "Primary parent or guardian full name."), 1, r++);
+        grid.add(formLabel("Guardian Key"), 0, r);
+        grid.add(formFieldBox(guardianField, "Shared family key used for sibling discount linking."), 1, r++);
+        grid.add(formLabel("Phone"), 0, r);
+        grid.add(formFieldBox(phoneField, "Allowed: +254..., 07..., or 01..."), 1, r++);
+        grid.add(new Separator(), 0, r++, 2, 1);
+        Label profileLabel = new Label("Profile & Status");
+        profileLabel.getStyleClass().add("student-form-section");
+        grid.add(profileLabel, 0, r++, 2, 1);
+        grid.add(formLabel("Student Picture"), 0, r);
         Button browseAvatar = new Button("Browse...");
         browseAvatar.getStyleClass().add("secondary-button");
         browseAvatar.setOnAction(e -> chooseAvatar());
         Button clearAvatar = new Button("Clear");
         clearAvatar.getStyleClass().add("secondary-button");
         clearAvatar.setOnAction(e -> clearAvatar());
-        grid.add(new VBox(6, new HBox(8, avatarPathField, browseAvatar, clearAvatar), avatarPane), 1, r++);
-        grid.add(new Label("Status"), 0, r);
-        grid.add(statusBox, 1, r);
+        HBox avatarActions = new HBox(8, avatarPathField, browseAvatar, clearAvatar);
+        avatarActions.getStyleClass().add("student-avatar-actions");
+        VBox avatarBox = new VBox(8, avatarPane, avatarActions);
+        avatarBox.getStyleClass().add("student-avatar-box");
+        grid.add(avatarBox, 1, r++);
+        grid.add(formLabel("Status"), 0, r);
+        grid.add(formFieldBox(statusBox, "Inactive students remain in history but are not active in operations."), 1, r);
 
         admField.setPromptText("2026/009");
         nameField.setPromptText("Student full name");
+        upiField.setPromptText("e.g. UPI001234");
         formField.setPromptText("Form 1");
         streamField.setPromptText("A");
         guardianField.setPromptText("e.g. KIT-001 (links siblings)");
 
-        VBox box = new VBox(12, title, grid);
-        box.getStyleClass().add("card");
+        HBox actionBar = new HBox(10);
+        Button clearBtn = new Button("Clear Form");
+        clearBtn.getStyleClass().add("secondary-button");
+        clearBtn.setOnAction(e -> clearForm());
+        Label actionHint = new Label("Save posts the student and charges annual fees for new records.");
+        actionHint.getStyleClass().addAll("muted", "student-action-hint");
+        actionBar.getChildren().addAll(clearBtn, actionHint);
+        actionBar.getStyleClass().add("student-form-actions");
+
+        VBox box = new VBox(14, modeBadge, title, subtitle, validationBanner, grid, actionBar);
+        box.getStyleClass().addAll("card", "student-form-card");
         return box;
     }
 
@@ -253,6 +343,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         table.getSelectionModel().clearSelection();
         admField.clear();
         nameField.clear();
+        upiField.clear();
         formField.clear();
         streamField.clear();
         phoneField.clear();
@@ -264,6 +355,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         statusBox.setValue(StudentStatus.ACTIVE);
         genderBox.setValue("Male");
         admField.setDisable(false);
+        setValidationBanner(List.of());
+        updateModeBadge();
+        refreshValidationState();
     }
 
     private void loadForm(Student s) {
@@ -271,6 +365,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         admField.setText(s.getAdmissionNumber());
         admField.setDisable(true);
         nameField.setText(s.getName());
+        upiField.setText(s.getUpi());
         formField.setText(s.getFormClass());
         streamField.setText(s.getStream());
         phoneField.setText(s.getPhone());
@@ -281,6 +376,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         boardingBox.setValue(s.getBoardingStatus());
         statusBox.setValue(s.getStatus());
         genderBox.setValue(s.getGender() != null ? s.getGender() : "Male");
+        setValidationBanner(List.of());
+        updateModeBadge();
+        refreshValidationState();
     }
 
     private void save() {
@@ -289,28 +387,34 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             applyForm(s);
             List<String> errors = studentService.addStudent(s);
             if (!errors.isEmpty()) {
+                setValidationBanner(errors);
                 AlertUtil.warn("Validation", String.join("\n", errors));
                 return;
             }
             feeService.chargeAnnualFees(s);
             PersistenceService.getInstance().saveAll();
+            setValidationBanner(List.of());
             AlertUtil.info("Saved", "Student " + s.getAdmissionNumber() + " added and fees charged.");
             clearForm();
         } else {
             applyForm(editing);
             List<String> errors = studentService.updateStudent(editing);
             if (!errors.isEmpty()) {
+                setValidationBanner(errors);
                 AlertUtil.warn("Validation", String.join("\n", errors));
             } else {
+                setValidationBanner(List.of());
                 AlertUtil.info("Saved", "Student details updated.");
             }
         }
         table.refresh();
+        refreshValidationState();
     }
 
     private void applyForm(Student s) {
         s.setAdmissionNumber(admField.getText().trim());
         s.setName(nameField.getText().trim());
+        s.setUpi(upiField.getText().trim());
         s.setFormClass(formField.getText().trim());
         s.setStream(streamField.getText().trim());
         s.setPhone(phoneField.getText().trim());
@@ -528,6 +632,109 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         String first = parts[0].substring(0, 1).toUpperCase();
         String second = parts.length > 1 ? parts[1].substring(0, 1).toUpperCase() : "";
         return (first + second).trim();
+    }
+
+    private Label formLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("student-form-label");
+        return label;
+    }
+
+    private VBox formFieldBox(javafx.scene.Node field, String hint) {
+        Label hintLabel = new Label(hint);
+        hintLabel.getStyleClass().addAll("muted", "student-field-hint");
+        VBox box = new VBox(4, field, hintLabel);
+        box.getStyleClass().add("student-field-box");
+        if (field instanceof javafx.scene.layout.Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        return box;
+    }
+
+    private void setValidationBanner(List<String> errors) {
+        boolean hasErrors = errors != null && !errors.isEmpty();
+        validationBanner.setText(hasErrors ? String.join("\n", errors) : "");
+        validationBanner.setManaged(hasErrors);
+        validationBanner.setVisible(hasErrors);
+    }
+
+    private void configureLiveValidation() {
+        admField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        nameField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        upiField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        formField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        streamField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        phoneField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        parentField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        guardianField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        avatarPathField.textProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        genderBox.valueProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        boardingBox.valueProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+        statusBox.valueProperty().addListener((obs, oldValue, newValue) -> refreshValidationState());
+    }
+
+    private void refreshValidationState() {
+        setFieldState(admField, requiredFilled(admField));
+        setFieldState(nameField, requiredFilled(nameField));
+        setFieldState(formField, requiredFilled(formField));
+        setFieldState(streamField, optionalFilled(streamField));
+        setFieldState(parentField, optionalFilled(parentField));
+        setFieldState(guardianField, optionalFilled(guardianField));
+        setFieldState(avatarPathField, optionalFilled(avatarPathField));
+        setFieldState(upiField, optionalValidUpi());
+        setFieldState(phoneField, optionalValidPhone());
+        setComboState(genderBox, genderBox.getValue() != null);
+        setComboState(boardingBox, boardingBox.getValue() != null);
+        setComboState(statusBox, statusBox.getValue() != null);
+    }
+
+    private boolean requiredFilled(TextField field) {
+        return field.getText() != null && !field.getText().trim().isEmpty();
+    }
+
+    private boolean optionalFilled(TextField field) {
+        return field.getText() == null || field.getText().trim().isEmpty() || field.getText().trim().length() >= 2;
+    }
+
+    private boolean optionalValidPhone() {
+        String value = phoneField.getText();
+        if (value == null || value.trim().isEmpty()) {
+            return true;
+        }
+        String normalized = value.replaceAll("\\s+", "");
+        return normalized.matches("^(\\+254|254|0)(7\\d{8}|1\\d{8})$");
+    }
+
+    private boolean optionalValidUpi() {
+        String value = upiField.getText();
+        if (value == null || value.trim().isEmpty()) {
+            return true;
+        }
+        return value.trim().matches("(?i)^[A-Z0-9]{8,20}$");
+    }
+
+    private void setFieldState(TextField field, boolean valid) {
+        field.getStyleClass().removeAll("student-field-valid", "student-field-invalid");
+        String value = field.getText();
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        field.getStyleClass().add(valid ? "student-field-valid" : "student-field-invalid");
+    }
+
+    private void setComboState(ComboBox<?> comboBox, boolean valid) {
+        comboBox.getStyleClass().removeAll("student-field-valid", "student-field-invalid");
+        if (comboBox.getValue() == null) {
+            return;
+        }
+        comboBox.getStyleClass().add(valid ? "student-field-valid" : "student-field-invalid");
+    }
+
+    private void updateModeBadge() {
+        boolean editingMode = editing != null;
+        modeBadge.setText(editingMode ? "Editing Existing Student" : "Create New Student");
+        modeBadge.getStyleClass().removeAll("student-mode-create", "student-mode-edit");
+        modeBadge.getStyleClass().add(editingMode ? "student-mode-edit" : "student-mode-create");
     }
 
     private String safe(String value) {

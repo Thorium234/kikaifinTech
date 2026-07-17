@@ -152,6 +152,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         card.getStyleClass().add("card");
         ScrollPane cardScroll = new ScrollPane(card);
         cardScroll.setFitToWidth(true);
+        cardScroll.setFitToHeight(false);
         cardScroll.setPannable(true);
         cardScroll.getStyleClass().add("inline-scroll-pane");
 

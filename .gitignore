@@ -3,7 +3,7 @@
 *.class
 *.jar
 *.war
-
+*.pdf
 # Local worktrees / scratch
 /v2/
 

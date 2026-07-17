@@ -137,9 +137,9 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         setupInvoiceTable();
         setupImprestTable();
         TabPane extraTabs = new TabPane(
-                new Tab("LPOs", buildLpoTab()),
-                new Tab("Invoices", buildInvoiceTab()),
-                new Tab("Imprests", buildImprestTab())
+                new Tab("LPOs", wrapTabContent(buildLpoTab())),
+                new Tab("Invoices", wrapTabContent(buildInvoiceTab())),
+                new Tab("Imprests", wrapTabContent(buildImprestTab()))
         );
         extraTabs.getTabs().forEach(t -> t.setClosable(false));
         VBox.setVgrow(extraTabs, Priority.ALWAYS);
@@ -427,6 +427,15 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         form.add(invoiceDate, 1, 6);
         HBox actions = new HBox(10, create, update, cancel, delete, exportButton("Export PDF", this::exportInvoicesPdf));
         return new VBox(10, form, actions, invoiceTable);
+    }
+
+    private ScrollPane wrapTabContent(VBox content) {
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setPannable(true);
+        scrollPane.getStyleClass().add("inline-scroll-pane");
+        return scrollPane;
     }
 
     private VBox buildImprestTab() {

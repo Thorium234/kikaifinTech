@@ -57,13 +57,16 @@ public class MainLayout extends BorderPane {
         }
         ScrollPane scrollPane = new ScrollPane(view);
         scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(true);
+        scrollPane.setFitToHeight(false);
         scrollPane.setPannable(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.getStyleClass().add("content-scroll");
         if (view instanceof Region region) {
             region.setMaxWidth(Double.MAX_VALUE);
         }
         VBox container = new VBox(scrollPane);
+        container.setFillWidth(true);
         VBox.setVgrow(scrollPane, javafx.scene.layout.Priority.ALWAYS);
         return container;
     }

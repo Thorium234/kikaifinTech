@@ -16,6 +16,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -68,18 +69,27 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         VBox vhCard = new VBox(8, new Label("Vote Heads"), voteheadTable);
         vhCard.getStyleClass().add("card");
         vhCard.setPrefWidth(360);
+        vhCard.setMinWidth(300);
         VBox.setVgrow(voteheadTable, Priority.ALWAYS);
 
         HBox body = new HBox(16, itemsCard, vhCard);
+        body.setFillHeight(true);
         HBox.setHgrow(itemsCard, Priority.ALWAYS);
         VBox.setVgrow(body, Priority.ALWAYS);
+
+        ScrollPane bodyScroll = new ScrollPane(body);
+        bodyScroll.setFitToWidth(true);
+        bodyScroll.setFitToHeight(true);
+        bodyScroll.setPannable(true);
+        bodyScroll.getStyleClass().add("inline-scroll-pane");
 
         VBox structureToolbar = buildStructureToolbar();
 
         Label note = new Label("2026 boarding totals: Term 1 = 21,000 · Term 2 = 12,500 · Term 3 = 7,000 · Year = 40,500");
         note.getStyleClass().add("muted");
 
-        getChildren().addAll(heading, structureToolbar, filters, body, note);
+        VBox.setVgrow(bodyScroll, Priority.ALWAYS);
+        getChildren().addAll(heading, structureToolbar, filters, bodyScroll, note);
         loadItems();
     }
 

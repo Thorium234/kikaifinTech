@@ -180,3 +180,135 @@
     -fx-padding: 8 12;
     -fx-background-radius: 6;
 }
+
+.student-toolbar-card {
+    -fx-padding: 16;
+}
+
+.student-toolbar {
+    -fx-alignment: center-left;
+}
+
+.student-header-badge {
+    -fx-background-color: #EAF2F8;
+    -fx-text-fill: #1B4F72;
+    -fx-background-radius: 999;
+    -fx-padding: 4 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.student-table-card {
+    -fx-padding: 16;
+}
+
+.student-form-card {
+    -fx-padding: 18;
+    -fx-background-color: linear-gradient(to bottom, #ffffff 0%, #fbfcfd 100%);
+    -fx-border-color: #DDE6EB;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.student-form-subtitle {
+    -fx-wrap-text: true;
+    -fx-padding: 0 0 6 0;
+}
+
+.student-mode-badge {
+    -fx-background-radius: 999;
+    -fx-padding: 5 12;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.student-mode-create {
+    -fx-background-color: #E8F8F5;
+    -fx-text-fill: #117864;
+}
+
+.student-mode-edit {
+    -fx-background-color: #FEF5E7;
+    -fx-text-fill: #AF601A;
+}
+
+.student-validation-banner {
+    -fx-background-color: #FDEDEC;
+    -fx-text-fill: #922B21;
+    -fx-background-radius: 8;
+    -fx-padding: 10 12;
+    -fx-border-color: #F5B7B1;
+    -fx-border-radius: 8;
+}
+
+.student-form-grid {
+    -fx-padding: 4 0 0 0;
+}
+
+.student-form-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #29465B;
+    -fx-padding: 8 10 0 0;
+    -fx-min-width: 120;
+}
+
+.student-field-box {
+    -fx-padding: 0 0 2 0;
+}
+
+.student-field-hint {
+    -fx-font-size: 11px;
+    -fx-wrap-text: true;
+}
+
+.student-field-valid {
+    -fx-border-color: #27AE60;
+    -fx-border-width: 1.4;
+}
+
+.student-field-invalid {
+    -fx-border-color: #E74C3C;
+    -fx-border-width: 1.4;
+}
+
+.student-form-section {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1B4F72;
+    -fx-padding: 10 0 4 0;
+}
+
+.student-avatar-box {
+    -fx-padding: 10;
+    -fx-border-color: #D5D8DC;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-background-color: #F9FBFC;
+}
+
+.student-avatar-actions {
+    -fx-alignment: center-left;
+}
+
+.student-form-actions {
+    -fx-alignment: center-left;
+    -fx-padding: 6 0 0 0;
+}
+
+.student-action-hint {
+    -fx-padding: 8 0 0 6;
+}
+
+.student-status-active {
+    -fx-text-fill: #1E8449;
+    -fx-font-weight: bold;
+}
+
+.student-status-inactive {
+    -fx-text-fill: #AF601A;
+    -fx-font-weight: bold;
+}
+
+.table-row-cell.student-row-inactive {
+    -fx-opacity: 0.85;
+}
