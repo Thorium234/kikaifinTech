@@ -1,18 +1,37 @@
 package com.schaccs.ui.settings;
 
 import com.schaccs.config.AppConfig;
+import com.schaccs.config.CurrencyConfig;
 import com.schaccs.config.SchoolProfile;
 import com.schaccs.repository.Database;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import javafx.geometry.Insets;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.control.Button;
+
 import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.geometry.Pos;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 public class SettingsView extends VBox implements MainLayout.Refreshable {
 
@@ -27,6 +46,24 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final TextField nextReceipt = new TextField();
     private final TextField currentUser = new TextField();
     private final TextArea cashPolicy = new TextArea();
+    private final javafx.scene.control.CheckBox siblingDiscount = new javafx.scene.control.CheckBox("Enable sibling discount");
+    private final TextField siblingRate = new TextField();
+    private final TextField logoPath = new TextField();
+    private final TextField stampPath = new TextField();
+    private final TextField signaturePath = new TextField();
+    private final ImageView logoPreview = new ImageView();
+    private final ImageView stampPreview = new ImageView();
+    private final ImageView signaturePreview = new ImageView();
+    private final ImageView receiptMockLogo = new ImageView();
+    private final ImageView receiptMockStamp = new ImageView();
+    private final ImageView receiptMockSignature = new ImageView();
+    private final Label receiptMockSchool = new Label();
+    private final Label receiptMockLocation = new Label();
+    private final Label receiptMockPrincipal = new Label();
+    private final Label logoWarning = new Label();
+    private final Label stampWarning = new Label();
+    private final Label signatureWarning = new Label();
+    private final TableView<String[]> migrationTable = new TableView<>();
 
     public SettingsView() {
         setSpacing(14);
@@ -62,19 +99,74 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         grid.add(new Label("Cash Policy"), 0, r);
         cashPolicy.setPrefRowCount(3);
         cashPolicy.setWrapText(true);
-        grid.add(cashPolicy, 1, r);
+        grid.add(cashPolicy, 1, r++);
+        grid.add(new Label("Sibling Discount"), 0, r);
+        siblingRate.setPromptText("e.g. 0.10 = 10%");
+        grid.add(new HBox(8, siblingDiscount, siblingRate), 1, r++);
+        grid.add(new Label("Receipt Logo"), 0, r);
+        logoPath.setPromptText("Optional logo image path for receipt PDFs");
+        Button browseLogo = new Button("Browse...");
+        browseLogo.getStyleClass().add("secondary-button");
+        browseLogo.setOnAction(e -> chooseImage(logoPath, logoPreview, receiptMockLogo, "Choose School Logo"));
+        Button clearLogo = new Button("Clear");
+        clearLogo.getStyleClass().add("secondary-button");
+        clearLogo.setOnAction(e -> clearImage(logoPath, logoPreview, receiptMockLogo));
+        grid.add(new VBox(6, new HBox(8, logoPath, browseLogo, clearLogo), buildPreviewBox("Logo Preview", logoPreview), logoWarning), 1, r++);
+        grid.add(new Label("School Stamp"), 0, r);
+        stampPath.setPromptText("Optional school stamp image path for receipt PDFs");
+        Button browseStamp = new Button("Browse...");
+        browseStamp.getStyleClass().add("secondary-button");
+        browseStamp.setOnAction(e -> chooseImage(stampPath, stampPreview, receiptMockStamp, "Choose School Stamp"));
+        Button clearStamp = new Button("Clear");
+        clearStamp.getStyleClass().add("secondary-button");
+        clearStamp.setOnAction(e -> clearImage(stampPath, stampPreview, receiptMockStamp));
+        grid.add(new VBox(6, new HBox(8, stampPath, browseStamp, clearStamp), buildPreviewBox("Stamp Preview", stampPreview), stampWarning), 1, r++);
+        grid.add(new Label("Signature Image"), 0, r);
+        signaturePath.setPromptText("Optional signature image path for receipt PDFs");
+        Button browseSignature = new Button("Browse...");
+        browseSignature.getStyleClass().add("secondary-button");
+        browseSignature.setOnAction(e -> chooseImage(signaturePath, signaturePreview, receiptMockSignature, "Choose Signature Image"));
+        Button clearSignature = new Button("Clear");
+        clearSignature.getStyleClass().add("secondary-button");
+        clearSignature.setOnAction(e -> clearImage(signaturePath, signaturePreview, receiptMockSignature));
+        grid.add(new VBox(6, new HBox(8, signaturePath, browseSignature, clearSignature), buildPreviewBox("Signature Preview", signaturePreview), signatureWarning), 1, r);
 
         schoolName.setPrefWidth(420);
         location.setPrefWidth(420);
+        configureWarning(logoWarning);
+        configureWarning(stampWarning);
+        configureWarning(signatureWarning);
+        configurePreview(logoPreview);
+        configurePreview(stampPreview);
+        configurePreview(signaturePreview);
+        configureMockPreview(receiptMockLogo, 50, 90);
+        configureMockPreview(receiptMockStamp, 36, 70);
+        configureMockPreview(receiptMockSignature, 26, 90);
 
         Button save = new Button("Save Settings");
         save.getStyleClass().add("primary-button");
         save.setOnAction(e -> save());
 
-        VBox card = new VBox(14, grid, save);
+        VBox card = new VBox(14, grid, buildReceiptBrandingMockup(), save);
         card.getStyleClass().add("card");
 
-        getChildren().addAll(heading, card);
+        setupMigrationTable();
+        Button refreshHistory = new Button("Refresh Migration History");
+        refreshHistory.getStyleClass().add("secondary-button");
+        refreshHistory.setOnAction(e -> loadMigrationHistory());
+        Button exportHistoryPdf = new Button("Export Migration History PDF");
+        exportHistoryPdf.getStyleClass().add("secondary-button");
+        exportHistoryPdf.setOnAction(e -> exportMigrationHistoryPdf());
+        VBox historyCard = new VBox(10,
+                new Label("Schema Migration History"),
+                new Label("Debug/admin view of applied schema migrations."),
+                new HBox(8, refreshHistory, exportHistoryPdf),
+                migrationTable);
+        historyCard.getStyleClass().add("card");
+        VBox.setVgrow(migrationTable, Priority.ALWAYS);
+
+        setupLivePreviewListeners();
+        getChildren().addAll(heading, card, historyCard);
         load();
     }
 
@@ -91,6 +183,194 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         nextReceipt.setText(String.valueOf(p.getNextReceiptNumber()));
         currentUser.setText(AppConfig.getInstance().getCurrentUser());
         cashPolicy.setText(p.getCashPolicy());
+        siblingDiscount.setSelected(p.isSiblingDiscountEnabled());
+        siblingRate.setText(p.getSiblingDiscountRate().toPlainString());
+        logoPath.setText(p.getLogoPath() == null ? "" : p.getLogoPath());
+        stampPath.setText(p.getStampPath() == null ? "" : p.getStampPath());
+        signaturePath.setText(p.getSignaturePath() == null ? "" : p.getSignaturePath());
+        refreshImagePreview(logoPath, logoPreview, receiptMockLogo, logoWarning, "logo");
+        refreshImagePreview(stampPath, stampPreview, receiptMockStamp, stampWarning, "stamp");
+        refreshImagePreview(signaturePath, signaturePreview, receiptMockSignature, signatureWarning, "signature");
+        refreshReceiptBrandingMockup();
+        loadMigrationHistory();
+    }
+
+    private void setupMigrationTable() {
+        TableColumn<String[], String> versionCol = new TableColumn<>("Version");
+        versionCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()[0]));
+        TableColumn<String[], String> nameCol = new TableColumn<>("Migration");
+        nameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()[1]));
+        TableColumn<String[], String> descCol = new TableColumn<>("Description");
+        descCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()[2]));
+        TableColumn<String[], String> checksumCol = new TableColumn<>("Checksum");
+        checksumCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()[3]));
+        TableColumn<String[], String> appliedCol = new TableColumn<>("Applied At");
+        appliedCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()[4]));
+        migrationTable.getColumns().addAll(versionCol, nameCol, descCol, checksumCol, appliedCol);
+        migrationTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        migrationTable.setPrefHeight(220);
+    }
+
+    private void loadMigrationHistory() {
+        migrationTable.getItems().setAll(Database.getInstance().migrationHistory());
+    }
+
+    private void configureWarning(Label label) {
+        label.getStyleClass().add("muted");
+        label.setStyle("-fx-text-fill: #b00020;");
+        label.setWrapText(true);
+        label.setManaged(false);
+        label.setVisible(false);
+    }
+
+    private void setupLivePreviewListeners() {
+        schoolName.textProperty().addListener((obs, oldValue, value) -> refreshReceiptBrandingMockup());
+        location.textProperty().addListener((obs, oldValue, value) -> refreshReceiptBrandingMockup());
+        principal.textProperty().addListener((obs, oldValue, value) -> refreshReceiptBrandingMockup());
+        logoPath.textProperty().addListener((obs, oldValue, value) -> refreshImagePreview(logoPath, logoPreview, receiptMockLogo, logoWarning, "logo"));
+        stampPath.textProperty().addListener((obs, oldValue, value) -> refreshImagePreview(stampPath, stampPreview, receiptMockStamp, stampWarning, "stamp"));
+        signaturePath.textProperty().addListener((obs, oldValue, value) -> refreshImagePreview(signaturePath, signaturePreview, receiptMockSignature, signatureWarning, "signature"));
+    }
+
+    private VBox buildPreviewBox(String title, ImageView imageView) {
+        Label label = new Label(title);
+        label.getStyleClass().add("muted");
+        VBox box = new VBox(4, label, imageView);
+        box.setPadding(new Insets(6));
+        box.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
+        return box;
+    }
+
+    private VBox buildReceiptBrandingMockup() {
+        Label title = new Label("Live Receipt Branding Preview");
+        title.getStyleClass().add("section-title");
+
+        receiptMockSchool.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1a472a;");
+        receiptMockLocation.getStyleClass().add("muted");
+        receiptMockPrincipal.getStyleClass().add("muted");
+
+        VBox header = new VBox(4, receiptMockLogo, receiptMockSchool, receiptMockLocation, receiptMockPrincipal);
+        header.setAlignment(Pos.CENTER);
+
+        Label banner = new Label("OFFICIAL FEE RECEIPT");
+        banner.setMaxWidth(Double.MAX_VALUE);
+        banner.setAlignment(Pos.CENTER);
+        banner.setStyle("-fx-background-color: #1a472a; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 6 10 6 10;");
+
+        Label tableHeader = new Label("Vote Head                     Amount (KSh)");
+        tableHeader.setStyle("-fx-background-color: #e1efe5; -fx-text-fill: #1a472a; -fx-font-weight: bold; -fx-padding: 4 8 4 8; -fx-border-color: #b0b0b0;");
+        Label tableRow = new Label("Boarding                              4,000.00");
+        tableRow.setStyle("-fx-padding: 4 8 4 8; -fx-border-color: #d0d0d0;");
+        Label total = new Label("TOTAL PAID: 4,000.00");
+        total.setStyle("-fx-background-color: #f7e7ce; -fx-font-weight: bold; -fx-padding: 6 8 6 8; -fx-border-color: #b0b0b0;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox approvals = new HBox(8, receiptMockStamp, spacer, receiptMockSignature);
+        approvals.setAlignment(Pos.CENTER_LEFT);
+
+        VBox mock = new VBox(8, header, banner, tableHeader, tableRow, total, approvals);
+        mock.setPadding(new Insets(12));
+        mock.setStyle("-fx-background-color: white; -fx-border-color: #b8c9bb; -fx-border-radius: 6; -fx-background-radius: 6;");
+        return new VBox(8, title, mock);
+    }
+
+    private void configurePreview(ImageView imageView) {
+        imageView.setPreserveRatio(true);
+        imageView.setFitHeight(80);
+        imageView.setFitWidth(180);
+        imageView.setSmooth(true);
+    }
+
+    private void configureMockPreview(ImageView imageView, double fitHeight, double fitWidth) {
+        imageView.setPreserveRatio(true);
+        imageView.setFitHeight(fitHeight);
+        imageView.setFitWidth(fitWidth);
+        imageView.setSmooth(true);
+    }
+
+    private void refreshImagePreview(TextField field, ImageView imageView, ImageView mockImageView,
+                                     Label warningLabel, String assetName) {
+        String value = field.getText();
+        if (value == null || value.isBlank()) {
+            imageView.setImage(null);
+            mockImageView.setImage(null);
+            setWarning(warningLabel, null);
+            return;
+        }
+        Path path = Path.of(value);
+        if (!Files.exists(path)) {
+            imageView.setImage(null);
+            mockImageView.setImage(null);
+            setWarning(warningLabel, "The selected " + assetName + " file does not exist.");
+            return;
+        }
+        try {
+            Image image = new Image(path.toUri().toString(), true);
+            imageView.setImage(image);
+            mockImageView.setImage(image);
+            setWarning(warningLabel, null);
+        } catch (Exception ex) {
+            imageView.setImage(null);
+            mockImageView.setImage(null);
+            setWarning(warningLabel, "Could not load the selected " + assetName + " image.");
+        }
+    }
+
+    private void refreshReceiptBrandingMockup() {
+        receiptMockSchool.setText(schoolName.getText() == null || schoolName.getText().isBlank()
+                ? "School Name Preview" : schoolName.getText().trim());
+        receiptMockLocation.setText(location.getText() == null || location.getText().isBlank()
+                ? "Address / Location Preview" : location.getText().trim());
+        receiptMockPrincipal.setText(principal.getText() == null || principal.getText().isBlank()
+                ? "Principal Preview" : "Principal: " + principal.getText().trim());
+    }
+
+    private void chooseImage(TextField field, ImageView preview, ImageView mockPreview, String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp"),
+                new FileChooser.ExtensionFilter("All files", "*.*")
+        );
+        File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file != null) {
+            field.setText(file.getAbsolutePath());
+        }
+    }
+
+    private void setWarning(Label label, String message) {
+        boolean visible = message != null && !message.isBlank();
+        label.setText(visible ? message : "");
+        label.setVisible(visible);
+        label.setManaged(visible);
+    }
+
+    private void clearImage(TextField field, ImageView preview, ImageView mockPreview) {
+        field.clear();
+        preview.setImage(null);
+        mockPreview.setImage(null);
+    }
+
+    private void exportMigrationHistoryPdf() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export Migration History PDF");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
+        chooser.setInitialFileName("migration-history.pdf");
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) {
+            return;
+        }
+        try {
+            List<String> headers = List.of("Version", "Migration", "Description", "Checksum", "Applied At");
+            List<List<String>> rows = migrationTable.getItems().stream()
+                    .map(row -> Arrays.asList(row[0], row[1], row[2], row[3], row[4]))
+                    .toList();
+            new com.schaccs.service.export.PdfExportService().exportTable(file.toPath(), "Schema Migration History", headers, rows);
+            AlertUtil.info("Export complete", "Migration history PDF exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
     }
 
     private void save() {
@@ -106,7 +386,14 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
             p.setAcademicYear(Integer.parseInt(academicYear.getText().trim()));
             p.setNextReceiptNumber(Long.parseLong(nextReceipt.getText().trim()));
             p.setCashPolicy(cashPolicy.getText().trim());
+            p.setSiblingDiscountEnabled(siblingDiscount.isSelected());
+            p.setSiblingDiscountRate(CurrencyConfig.money(siblingRate.getText().trim().isEmpty()
+                    ? "0.00" : siblingRate.getText().trim()));
+            p.setLogoPath(logoPath.getText().trim().isEmpty() ? null : logoPath.getText().trim());
+            p.setStampPath(stampPath.getText().trim().isEmpty() ? null : stampPath.getText().trim());
+            p.setSignaturePath(signaturePath.getText().trim().isEmpty() ? null : signaturePath.getText().trim());
             AppConfig.getInstance().setCurrentUser(currentUser.getText().trim());
+            refreshReceiptBrandingMockup();
             PersistenceService.getInstance().saveAll();
             AlertUtil.info("Saved", "Settings updated and stored in "
                     + Database.getInstance().getDatabasePath());

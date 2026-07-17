@@ -1,18 +1,24 @@
 package com.schaccs.ui.fees;
 
 import com.schaccs.enums.AcademicTerm;
+import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.finance.Votehead;
+import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.ui.layout.MainLayout;
+import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -50,12 +56,12 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
                 new Label("Structure:"), structureBox,
                 new Label("Term:"), termBox,
                 totalLabel);
-        filters.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        filters.setAlignment(Pos.CENTER_LEFT);
 
         setupItemTable();
         setupVoteheadTable();
 
-        VBox itemsCard = new VBox(8, new Label("Fee Lines"), itemTable);
+        VBox itemsCard = new VBox(8, new Label("Fee Lines"), itemTable, buildItemToolbar());
         itemsCard.getStyleClass().add("card");
         VBox.setVgrow(itemTable, Priority.ALWAYS);
 
@@ -68,10 +74,115 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         HBox.setHgrow(itemsCard, Priority.ALWAYS);
         VBox.setVgrow(body, Priority.ALWAYS);
 
+        VBox structureToolbar = buildStructureToolbar();
+
         Label note = new Label("2026 boarding totals: Term 1 = 21,000 · Term 2 = 12,500 · Term 3 = 7,000 · Year = 40,500");
         note.getStyleClass().add("muted");
 
-        getChildren().addAll(heading, filters, body, note);
+        getChildren().addAll(heading, structureToolbar, filters, body, note);
+        loadItems();
+    }
+
+    private VBox buildStructureToolbar() {
+        Button newStruct = new Button("New Structure");
+        newStruct.getStyleClass().add("primary-button");
+        newStruct.setOnAction(e -> createStructure());
+
+        Button delStruct = new Button("Delete Structure");
+        delStruct.getStyleClass().add("secondary-button");
+        delStruct.setOnAction(e -> deleteStructure());
+
+        HBox bar = new HBox(10, newStruct, delStruct);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        VBox box = new VBox(8, new Label("Structures"), bar);
+        box.getStyleClass().add("card");
+        return box;
+    }
+
+    private HBox buildItemToolbar() {
+        ComboBox<Votehead> vhBox = new ComboBox<>(store.getVoteheads());
+        vhBox.setPromptText("Vote head");
+        vhBox.setPrefWidth(160);
+        ComboBox<AcademicTerm> term = new ComboBox<>();
+        term.getItems().setAll(AcademicTerm.TERM_1, AcademicTerm.TERM_2, AcademicTerm.TERM_3);
+        term.setPromptText("Term");
+        TextField amount = new TextField();
+        amount.setPromptText("Amount");
+        amount.setPrefWidth(100);
+        Button add = new Button("Add Line");
+        add.getStyleClass().add("success-button");
+        add.setOnAction(e -> addItem(vhBox, term, amount));
+        Button remove = new Button("Remove Selected");
+        remove.getStyleClass().add("secondary-button");
+        remove.setOnAction(e -> removeItem());
+
+        HBox bar = new HBox(8, vhBox, term, amount, add, remove);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        return bar;
+    }
+
+    private void createStructure() {
+        FeeStructure s = new FeeStructure(2026, "ALL", BoardingStatus.BOARDING, "New Fee Structure");
+        store.addStructure(s);
+        structureBox.getSelectionModel().select(s);
+        PersistenceService.getInstance().saveAll();
+        AlertUtil.info("Created", "New fee structure added. Add fee lines, then it saves automatically.");
+    }
+
+    private void deleteStructure() {
+        FeeStructure s = structureBox.getValue();
+        if (s == null) {
+            AlertUtil.warn("Select structure", "Select a structure to delete.");
+            return;
+        }
+        if (!AlertUtil.confirm("Confirm", "Delete structure '" + s.getName() + "'?")) {
+            return;
+        }
+        store.getStructures().remove(s);
+        PersistenceService.getInstance().saveAll();
+        if (!store.getStructures().isEmpty()) {
+            structureBox.getSelectionModel().selectFirst();
+        }
+        loadItems();
+    }
+
+    private void addItem(ComboBox<Votehead> vhBox, ComboBox<AcademicTerm> term, TextField amount) {
+        FeeStructure s = structureBox.getValue();
+        if (s == null) {
+            AlertUtil.warn("Select structure", "Select a structure first.");
+            return;
+        }
+        Votehead vh = vhBox.getValue();
+        AcademicTerm t = term.getValue();
+        if (vh == null || t == null) {
+            AlertUtil.warn("Missing", "Select a vote head and term.");
+            return;
+        }
+        try {
+            java.math.BigDecimal amt = com.schaccs.config.CurrencyConfig.money(amount.getText());
+            if (amt.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                AlertUtil.warn("Invalid", "Amount must be greater than zero.");
+                return;
+            }
+            s.addItem(new FeeStructureItem(vh.getCode(), vh.getName(), t,
+                    s.getBoardingStatus(), amt));
+            amount.clear();
+            PersistenceService.getInstance().saveAll();
+            loadItems();
+        } catch (NumberFormatException ex) {
+            AlertUtil.warn("Invalid", "Enter a valid amount.");
+        }
+    }
+
+    private void removeItem() {
+        FeeStructure s = structureBox.getValue();
+        FeeStructureItem item = itemTable.getSelectionModel().getSelectedItem();
+        if (s == null || item == null) {
+            AlertUtil.warn("Select line", "Select a fee line to remove.");
+            return;
+        }
+        s.getItems().remove(item);
+        PersistenceService.getInstance().saveAll();
         loadItems();
     }
 
@@ -137,6 +248,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
 
     @Override
     public void refresh() {
+        structureBox.setItems(store.getStructures());
         loadItems();
         voteheadTable.refresh();
     }

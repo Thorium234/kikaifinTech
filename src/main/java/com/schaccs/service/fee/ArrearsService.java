@@ -27,4 +27,24 @@ public class ArrearsService {
     public BigDecimal getArrears(Student student) {
         return studentStore.getLedger(student.getId()).getArrears();
     }
+
+    /**
+     * Move each active student's current outstanding balance into arrears
+     * (e.g. at term close). Already-reversed/paid amounts are untouched.
+     */
+    public void rolloverAll() {
+        for (Student s : studentStore.getStudents()) {
+            if (s.getStatus() != com.schaccs.enums.StudentStatus.ACTIVE) {
+                continue;
+            }
+            StudentFeeLedger ledger = studentStore.getLedger(s.getId());
+            BigDecimal currentOutstanding = ledger.getTotalCharged().subtract(ledger.getTotalPaid())
+                    .max(CurrencyConfig.zero());
+            if (currentOutstanding.compareTo(CurrencyConfig.zero()) > 0) {
+                ledger.setArrears(CurrencyConfig.money(ledger.getArrears().add(currentOutstanding)));
+                ledger.clearCurrentCycle();
+            }
+        }
+    }
+
 }

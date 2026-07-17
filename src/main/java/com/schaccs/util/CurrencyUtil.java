@@ -29,6 +29,10 @@ public final class CurrencyUtil {
         if (cleaned.isEmpty()) {
             return CurrencyConfig.zero();
         }
+        // Reject malformed input (e.g. multiple decimal points) instead of mis-parsing.
+        if (!cleaned.matches("[0-9]+(\\.[0-9]+)?")) {
+            return CurrencyConfig.zero();
+        }
         return CurrencyConfig.money(cleaned);
     }
 
@@ -37,13 +41,23 @@ public final class CurrencyUtil {
      */
     public static String toWords(BigDecimal amount) {
         if (amount == null) {
-            return "Zero only";
+            return "Zero shillings only";
         }
-        long value = amount.setScale(0, CurrencyConfig.ROUNDING).longValue();
-        if (value == 0) {
-            return "Zero only";
+        BigDecimal rounded = CurrencyConfig.money(amount);
+        long shillings = rounded.longValue();
+        int cents = rounded.remainder(BigDecimal.ONE)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(0, CurrencyConfig.ROUNDING)
+                .intValue();
+        if (shillings == 0 && cents == 0) {
+            return "Zero shillings only";
         }
-        return capitalize(convert(value)) + " only";
+        String shillingWords = shillings == 0 ? "" : capitalize(convert(shillings)) + " shillings";
+        if (cents == 0) {
+            return shillingWords + " only";
+        }
+        String centWords = capitalize(convert(cents)) + " cents";
+        return (shillings == 0 ? centWords : shillingWords + " and " + centWords) + " only";
     }
 
     private static String convert(long n) {

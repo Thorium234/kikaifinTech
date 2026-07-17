@@ -25,7 +25,6 @@ import com.schaccs.model.voucher.PaymentVoucher;
 import com.schaccs.model.voucher.Lpo;
 import com.schaccs.model.voucher.Invoice;
 import com.schaccs.model.voucher.Imprest;
-import com.schaccs.store.AccountStore;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
@@ -78,7 +77,6 @@ public final class PersistenceService {
             Connection conn = Database.getInstance().getConnection();
             conn.setAutoCommit(false);
             try {
-                clearTables(conn);
                 saveSettings(conn);
                 markInitialized(conn);
                 saveVoteheads(conn);
@@ -107,7 +105,10 @@ public final class PersistenceService {
     public synchronized void loadAll() {
         try {
             Connection conn = Database.getInstance().getConnection();
-            AccountStore.getInstance().clearAll();
+            StudentStore.getInstance().clear();
+            FeeStructureStore.getInstance().clear();
+            ReceiptStore.getInstance().clear();
+            LedgerStore.getInstance().clear();
             VoucherStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
@@ -153,8 +154,20 @@ public final class PersistenceService {
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO school_settings (id, school_name, location, ministry, principal,
                     bank_name, bank_account, pay_bill, pay_bill_account, cash_policy,
-                    academic_year, next_receipt_number, next_voucher_number, current_user)
-                VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    academic_year, next_receipt_number, next_voucher_number, current_user,
+                    sibling_discount_enabled, sibling_discount_rate, logo_path, stamp_path, signature_path)
+                VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET
+                    school_name=excluded.school_name, location=excluded.location, ministry=excluded.ministry,
+                    principal=excluded.principal, bank_name=excluded.bank_name, bank_account=excluded.bank_account,
+                    pay_bill=excluded.pay_bill, pay_bill_account=excluded.pay_bill_account, cash_policy=excluded.cash_policy,
+                    academic_year=excluded.academic_year, next_receipt_number=excluded.next_receipt_number,
+                    next_voucher_number=excluded.next_voucher_number, current_user=excluded.current_user,
+                    sibling_discount_enabled=excluded.sibling_discount_enabled,
+                    sibling_discount_rate=excluded.sibling_discount_rate,
+                    logo_path=excluded.logo_path,
+                    stamp_path=excluded.stamp_path,
+                    signature_path=excluded.signature_path
                 """)) {
             ps.setString(1, p.getSchoolName());
             ps.setString(2, p.getLocation());
@@ -169,6 +182,11 @@ public final class PersistenceService {
             ps.setLong(11, p.getNextReceiptNumber());
             ps.setLong(12, p.getNextVoucherNumber());
             ps.setString(13, AppConfig.getInstance().getCurrentUser());
+            ps.setInt(14, p.isSiblingDiscountEnabled() ? 1 : 0);
+            ps.setString(15, money(p.getSiblingDiscountRate()));
+            ps.setString(16, p.getLogoPath());
+            ps.setString(17, p.getStampPath());
+            ps.setString(18, p.getSignaturePath());
             ps.executeUpdate();
         }
     }
@@ -200,6 +218,11 @@ public final class PersistenceService {
             p.setAcademicYear(rs.getInt("academic_year"));
             p.setNextReceiptNumber(rs.getLong("next_receipt_number"));
             p.setNextVoucherNumber(rs.getLong("next_voucher_number"));
+            p.setSiblingDiscountEnabled(rs.getInt("sibling_discount_enabled") == 1);
+            p.setSiblingDiscountRate(parseMoney(rs.getString("sibling_discount_rate")));
+            p.setLogoPath(rs.getString("logo_path"));
+            p.setStampPath(rs.getString("stamp_path"));
+            p.setSignaturePath(rs.getString("signature_path"));
             String user = rs.getString("current_user");
             if (user != null && !user.isBlank()) {
                 AppConfig.getInstance().setCurrentUser(user);
@@ -210,7 +233,10 @@ public final class PersistenceService {
     private void saveVoteheads(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO voteheads (code, id, name, account_type, priority, active, annual_budget, termly_budget) "
-                        + "VALUES (?,?,?,?,?,?,?,?)")) {
+                        + "VALUES (?,?,?,?,?,?,?,?) "
+                        + "ON CONFLICT(code) DO UPDATE SET id=excluded.id, name=excluded.name, "
+                        + "account_type=excluded.account_type, priority=excluded.priority, active=excluded.active, "
+                        + "annual_budget=excluded.annual_budget, termly_budget=excluded.termly_budget")) {
             for (Votehead v : FeeStructureStore.getInstance().getVoteheads()) {
                 ps.setString(1, v.getCode());
                 ps.setString(2, v.getId());
@@ -246,9 +272,14 @@ public final class PersistenceService {
 
     private void saveFeeStructures(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO fee_structures (id, academic_year, form_class, boarding_status, name) VALUES (?,?,?,?,?)");
+                "INSERT INTO fee_structures (id, academic_year, form_class, boarding_status, name) VALUES (?,?,?,?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET academic_year=excluded.academic_year, "
+                        + "form_class=excluded.form_class, boarding_status=excluded.boarding_status, name=excluded.name");
              PreparedStatement itemPs = conn.prepareStatement(
-                     "INSERT INTO fee_structure_items (id, structure_id, votehead_code, votehead_name, term, boarding_status, amount) VALUES (?,?,?,?,?,?,?)")) {
+                     "INSERT INTO fee_structure_items (id, structure_id, votehead_code, votehead_name, term, boarding_status, amount) "
+                             + "VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET structure_id=excluded.structure_id, "
+                             + "votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name, "
+                             + "term=excluded.term, boarding_status=excluded.boarding_status, amount=excluded.amount")) {
             for (FeeStructure s : FeeStructureStore.getInstance().getStructures()) {
                 ps.setString(1, s.getId());
                 ps.setInt(2, s.getAcademicYear());
@@ -313,11 +344,18 @@ public final class PersistenceService {
                 INSERT INTO students (id, admission_number, upi, name, gender, form_class, stream,
                     boarding_status, parent_name, phone, year_of_admission, academic_year, status)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET admission_number=excluded.admission_number, upi=excluded.upi,
+                    name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, stream=excluded.stream,
+                    boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, phone=excluded.phone,
+                    year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status
                 """);
              PreparedStatement ledPs = conn.prepareStatement(
-                     "INSERT INTO student_ledgers (student_id, arrears, advance, current_term) VALUES (?,?,?,?)");
+                     "INSERT INTO student_ledgers (student_id, arrears, advance, current_term) VALUES (?,?,?,?) "
+                             + "ON CONFLICT(student_id) DO UPDATE SET arrears=excluded.arrears, "
+                             + "advance=excluded.advance, current_term=excluded.current_term");
              PreparedStatement linePs = conn.prepareStatement(
-                     "INSERT INTO student_ledger_lines (student_id, votehead_code, kind, amount) VALUES (?,?,?,?)")) {
+                     "INSERT INTO student_ledger_lines (student_id, votehead_code, kind, amount) VALUES (?,?,?,?) "
+                             + "ON CONFLICT(student_id, votehead_code, kind) DO UPDATE SET amount=excluded.amount")) {
             for (Student s : store.getStudents()) {
                 ps.setString(1, s.getId());
                 ps.setString(2, s.getAdmissionNumber());
@@ -426,11 +464,20 @@ public final class PersistenceService {
     private void saveReceipts(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO receipts (id, receipt_number, date, student_id, admission_number, student_name,
-                    class_label, amount, payment_mode, bank_reference, received_by, notes, created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    class_label, amount, payment_mode, bank_reference, received_by, notes, created_at, reversed)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET receipt_number=excluded.receipt_number, date=excluded.date,
+                    student_id=excluded.student_id, admission_number=excluded.admission_number,
+                    student_name=excluded.student_name, class_label=excluded.class_label, amount=excluded.amount,
+                    payment_mode=excluded.payment_mode, bank_reference=excluded.bank_reference,
+                    received_by=excluded.received_by, notes=excluded.notes, created_at=excluded.created_at,
+                    reversed=excluded.reversed
                 """);
              PreparedStatement linePs = conn.prepareStatement(
-                     "INSERT INTO receipt_lines (id, receipt_id, votehead_code, votehead_name, amount) VALUES (?,?,?,?,?)")) {
+                     "INSERT INTO receipt_lines (id, receipt_id, votehead_code, votehead_name, amount) "
+                             + "VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET receipt_id=excluded.receipt_id, "
+                             + "votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name, "
+                             + "amount=excluded.amount")) {
             for (Receipt r : ReceiptStore.getInstance().getReceipts()) {
                 ps.setString(1, r.getId());
                 ps.setLong(2, r.getReceiptNumber());
@@ -445,6 +492,7 @@ public final class PersistenceService {
                 ps.setString(11, r.getReceivedBy());
                 ps.setString(12, r.getNotes());
                 ps.setString(13, dateTime(r.getCreatedAt()));
+                ps.setInt(14, r.isReversed() ? 1 : 0);
                 ps.addBatch();
                 for (ReceiptLine line : r.getLines()) {
                     linePs.setString(1, line.getId());
@@ -484,6 +532,7 @@ public final class PersistenceService {
                 if (created != null) {
                     r.setCreatedAt(LocalDateTime.parse(created));
                 }
+                r.setReversed(rs.getInt("reversed") == 1);
                 loadReceiptLines(conn, r);
                 store.add(r);
             }
@@ -511,6 +560,11 @@ public final class PersistenceService {
                 INSERT INTO transactions (id, date, type, account_type, votehead_code, reference, description,
                     debit, credit, student_id, receipt_id, voucher_id, created_by, created_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET date=excluded.date, type=excluded.type, account_type=excluded.account_type,
+                    votehead_code=excluded.votehead_code, reference=excluded.reference, description=excluded.description,
+                    debit=excluded.debit, credit=excluded.credit, student_id=excluded.student_id,
+                    receipt_id=excluded.receipt_id, voucher_id=excluded.voucher_id, created_by=excluded.created_by,
+                    created_at=excluded.created_at
                 """)) {
             for (FinancialTransaction tx : store.getTransactions()) {
                 ps.setString(1, tx.getId());
@@ -535,6 +589,10 @@ public final class PersistenceService {
                 INSERT INTO ledger_entries (id, date, account_type, votehead_code, reference, description,
                     debit, credit, balance, transaction_id)
                 VALUES (?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET date=excluded.date, account_type=excluded.account_type,
+                    votehead_code=excluded.votehead_code, reference=excluded.reference, description=excluded.description,
+                    debit=excluded.debit, credit=excluded.credit, balance=excluded.balance,
+                    transaction_id=excluded.transaction_id
                 """)) {
             for (LedgerEntry e : store.getLedgerEntries()) {
                 ps.setString(1, e.getId());
@@ -617,7 +675,9 @@ public final class PersistenceService {
 
     private void saveCreditors(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO creditors (id, name, phone, description) VALUES (?,?,?,?)")) {
+                "INSERT INTO creditors (id, name, phone, description) VALUES (?,?,?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, "
+                        + "description=excluded.description")) {
             for (Creditor c : VoucherStore.getInstance().getCreditors()) {
                 ps.setString(1, c.getId());
                 ps.setString(2, c.getName());
@@ -647,6 +707,11 @@ public final class PersistenceService {
                 INSERT INTO commitments (id, date, creditor_id, creditor_name, votehead_code, votehead_name,
                     account_type, description, amount, amount_paid, status, reference)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET date=excluded.date, creditor_id=excluded.creditor_id,
+                    creditor_name=excluded.creditor_name, votehead_code=excluded.votehead_code,
+                    votehead_name=excluded.votehead_name, account_type=excluded.account_type,
+                    description=excluded.description, amount=excluded.amount, amount_paid=excluded.amount_paid,
+                    status=excluded.status, reference=excluded.reference
                 """)) {
             for (Commitment c : VoucherStore.getInstance().getCommitments()) {
                 ps.setString(1, c.getId());
@@ -697,6 +762,13 @@ public final class PersistenceService {
                     votehead_code, votehead_name, account_type, amount, description, status, payment_mode,
                     bank_reference, prepared_by, approved_by, notes, created_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET voucher_number=excluded.voucher_number, date=excluded.date,
+                    creditor_id=excluded.creditor_id, creditor_name=excluded.creditor_name,
+                    commitment_id=excluded.commitment_id, votehead_code=excluded.votehead_code,
+                    votehead_name=excluded.votehead_name, account_type=excluded.account_type, amount=excluded.amount,
+                    description=excluded.description, status=excluded.status, payment_mode=excluded.payment_mode,
+                    bank_reference=excluded.bank_reference, prepared_by=excluded.prepared_by,
+                    approved_by=excluded.approved_by, notes=excluded.notes, created_at=excluded.created_at
                 """)) {
             for (PaymentVoucher v : VoucherStore.getInstance().getVouchers()) {
                 ps.setString(1, v.getId());
@@ -767,6 +839,11 @@ public final class PersistenceService {
                 INSERT INTO lpos (id, lpo_number, date, creditor_id, creditor_name, votehead_code,
                     votehead_name, account_type, description, amount, status)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET lpo_number=excluded.lpo_number, date=excluded.date,
+                    creditor_id=excluded.creditor_id, creditor_name=excluded.creditor_name,
+                    votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name,
+                    account_type=excluded.account_type, description=excluded.description, amount=excluded.amount,
+                    status=excluded.status
                 """)) {
             for (Lpo l : VoucherStore.getInstance().getLpos()) {
                 ps.setString(1, l.getId());
@@ -814,6 +891,11 @@ public final class PersistenceService {
                 INSERT INTO invoices (id, invoice_number, date, creditor_id, creditor_name, lpo_id,
                     votehead_code, votehead_name, account_type, description, amount, status)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET invoice_number=excluded.invoice_number, date=excluded.date,
+                    creditor_id=excluded.creditor_id, creditor_name=excluded.creditor_name, lpo_id=excluded.lpo_id,
+                    votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name,
+                    account_type=excluded.account_type, description=excluded.description, amount=excluded.amount,
+                    status=excluded.status
                 """)) {
             for (Invoice i : VoucherStore.getInstance().getInvoices()) {
                 ps.setString(1, i.getId());
@@ -863,6 +945,10 @@ public final class PersistenceService {
                 INSERT INTO imprests (id, staff_name, date, amount, votehead_code, votehead_name,
                     account_type, purpose, status, surrendered_amount, surrender_date)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET staff_name=excluded.staff_name, date=excluded.date,
+                    amount=excluded.amount, votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name,
+                    account_type=excluded.account_type, purpose=excluded.purpose, status=excluded.status,
+                    surrendered_amount=excluded.surrendered_amount, surrender_date=excluded.surrender_date
                 """)) {
             for (Imprest imp : VoucherStore.getInstance().getImprests()) {
                 ps.setString(1, imp.getId());

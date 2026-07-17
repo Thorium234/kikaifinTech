@@ -25,6 +25,7 @@ public class Receipt {
     private String receivedBy;
     private String notes;
     private LocalDateTime createdAt;
+    private boolean reversed = false;
     private final ObservableList<ReceiptLine> lines = FXCollections.observableArrayList();
 
     public Receipt() {
@@ -145,6 +146,14 @@ public class Receipt {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public boolean isReversed() {
+        return reversed;
+    }
+
+    public void setReversed(boolean reversed) {
+        this.reversed = reversed;
     }
 
     public ObservableList<ReceiptLine> getLines() {

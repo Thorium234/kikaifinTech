@@ -21,6 +21,7 @@ public class Student {
     private final StringProperty stream = new SimpleStringProperty();
     private final ObjectProperty<BoardingStatus> boardingStatus = new SimpleObjectProperty<>(BoardingStatus.BOARDING);
     private final StringProperty parentName = new SimpleStringProperty();
+    private final StringProperty guardianKey = new SimpleStringProperty();
     private final StringProperty phone = new SimpleStringProperty();
     private final ObjectProperty<Integer> yearOfAdmission = new SimpleObjectProperty<>(2026);
     private final ObjectProperty<Integer> academicYear = new SimpleObjectProperty<>(2026);
@@ -154,6 +155,19 @@ public class Student {
 
     public StringProperty parentNameProperty() {
         return parentName;
+    }
+
+    /** Shared key linking siblings/children of the same guardian for multi-child discounts. */
+    public String getGuardianKey() {
+        return guardianKey.get();
+    }
+
+    public void setGuardianKey(String value) {
+        guardianKey.set(value);
+    }
+
+    public StringProperty guardianKeyProperty() {
+        return guardianKey;
     }
 
     public String getPhone() {

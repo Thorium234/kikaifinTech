@@ -48,11 +48,7 @@ public final class LedgerStore {
         AccountType type = entry.getAccountType();
         if (type != null) {
             BigDecimal current = accountBalances.getOrDefault(type, CurrencyConfig.zero());
-            BigDecimal next = current;
-            if ("CASH_BANK".equals(entry.getVoteheadCode())) {
-                // Debit to cash increases it; Credit decreases it
-                next = current.add(entry.getDebit()).subtract(entry.getCredit());
-            }
+            BigDecimal next = current.add(entry.getDebit()).subtract(entry.getCredit());
             accountBalances.put(type, CurrencyConfig.money(next));
             entry.setBalance(accountBalances.get(type));
         }

@@ -9,7 +9,6 @@ import com.schaccs.model.finance.LedgerEntry;
 import com.schaccs.store.LedgerStore;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 /**
  * Posts balanced journal entries into the ledger store.
@@ -47,7 +46,7 @@ public class DoubleEntryEngine {
             tx.setReceiptId(receiptId);
             tx.setVoucherId(voucherId);
             tx.setCreatedBy(createdBy);
-            tx.setCreatedAt(LocalDateTime.now());
+            tx.setCreatedAt(journal.getDate().atStartOfDay());
             ledgerStore.addTransaction(tx);
 
             LedgerEntry entry = new LedgerEntry();

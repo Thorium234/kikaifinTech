@@ -25,6 +25,48 @@ mvn clean compile
 mvn javafx:run
 ```
 
+## Student import
+
+You can bulk import students from the **Students** module using either:
+
+- `.csv`
+- `.xlsx`
+
+Recommended columns:
+
+```text
+Admission Number, Full Name, Gender, Form Class, Stream, Boarding Status,
+Parent Name, Guardian Key, Phone, UPI, Academic Year, Year Of Admission, Student Status
+```
+
+Column names are matched flexibly, so common variants like `Adm No`, `Name`, `Class`, and `Boarding` also work.
+
+You can also download a ready-made import template from the **Students** module.
+
+## Exporting
+
+The app can export students and report outputs to:
+
+- `.csv`
+- `.xlsx`
+
+Supported export points include student registry, fee balances, defaulters, daily collection, votehead summary, ageing, trial balance, statements, and receipts.
+
+## Printing
+
+Receipts can be previewed and printed from:
+
+- **Receipting** after posting a payment
+- **Reports → Receipt Reprint** for existing receipts
+
+## Testing
+
+Run the automated test suite with:
+
+```bash
+mvn test
+```
+
 ## Data storage
 
 SQLite database (auto-created on first run):

@@ -1,5 +1,7 @@
 package com.schaccs.config;
 
+import java.math.BigDecimal;
+
 /**
  * School identity and banking details for Friends School Kikai Boys.
  */
@@ -17,6 +19,11 @@ public final class SchoolProfile {
     private int academicYear = 2026;
     private long nextReceiptNumber = 21571;
     private long nextVoucherNumber = 1001;
+    private boolean siblingDiscountEnabled = false;
+    private BigDecimal siblingDiscountRate = CurrencyConfig.money("0.10");
+    private String logoPath;
+    private String stampPath;
+    private String signaturePath;
 
     public String getSchoolName() {
         return schoolName;
@@ -120,5 +127,45 @@ public final class SchoolProfile {
 
     public synchronized long allocateVoucherNumber() {
         return nextVoucherNumber++;
+    }
+
+    public boolean isSiblingDiscountEnabled() {
+        return siblingDiscountEnabled;
+    }
+
+    public void setSiblingDiscountEnabled(boolean siblingDiscountEnabled) {
+        this.siblingDiscountEnabled = siblingDiscountEnabled;
+    }
+
+    public BigDecimal getSiblingDiscountRate() {
+        return siblingDiscountRate;
+    }
+
+    public void setSiblingDiscountRate(BigDecimal siblingDiscountRate) {
+        this.siblingDiscountRate = CurrencyConfig.money(siblingDiscountRate);
+    }
+
+    public String getLogoPath() {
+        return logoPath;
+    }
+
+    public void setLogoPath(String logoPath) {
+        this.logoPath = logoPath;
+    }
+
+    public String getStampPath() {
+        return stampPath;
+    }
+
+    public void setStampPath(String stampPath) {
+        this.stampPath = stampPath;
+    }
+
+    public String getSignaturePath() {
+        return signaturePath;
+    }
+
+    public void setSignaturePath(String signaturePath) {
+        this.signaturePath = signaturePath;
     }
 }

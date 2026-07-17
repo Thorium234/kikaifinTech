@@ -171,4 +171,60 @@ public class ReceiptService {
             return errors;
         }
     }
+
+    /**
+     * Reverse a previously posted receipt without deleting it: posts a contra
+     * double-entry (credit bank / debit income) and unwinds the student ledger so
+     * balances return to their pre-receipt state. No-op if already reversed.
+     */
+    public Result reverseReceipt(Receipt receipt, String reason) {
+        if (receipt == null) {
+            return Result.failure(List.of("No receipt selected."));
+        }
+        if (receipt.isReversed()) {
+            return Result.failure(List.of("Receipt " + receipt.getReceiptNumberDisplay() + " is already reversed."));
+        }
+        Student student = studentStore.findById(receipt.getStudentId()).orElse(null);
+        if (student == null) {
+            return Result.failure(List.of("Linked student not found; cannot reverse."));
+        }
+        StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+
+        String ref = "RCPT-RV-" + receipt.getReceiptNumber();
+        // Reverse each allocation line (credit income, debit bank)
+        for (ReceiptLine line : receipt.getLines()) {
+            if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
+                ledger.reduceAdvance(line.getAmount());
+                continue;
+            }
+            if ("ARREARS".equals(line.getVoteheadCode())) {
+                ledger.setArrears(ledger.getArrears().add(line.getAmount()));
+            } else {
+                ledger.reversePayment(line.getVoteheadCode(), line.getAmount());
+            }
+            AccountType accountType = feeStore.findVoteheadByCode(line.getVoteheadCode())
+                    .map(Votehead::getAccountType)
+                    .orElse(AccountType.SCHOOL_FUND);
+            accountingEngine.postFeeReceiptLine(
+                    ref,
+                    "Reversal of receipt " + receipt.getReceiptNumberDisplay()
+                            + " — " + line.getVoteheadName() + (reason != null ? " (" + reason + ")" : ""),
+                    accountType,
+                    line.getVoteheadCode(),
+                    line.getAmount().negate(),
+                    student.getId(),
+                    receipt.getId(),
+                    null,
+                    LocalDate.now());
+        }
+
+        receipt.setReversed(true);
+        if (receipt.getNotes() == null || receipt.getNotes().isBlank()) {
+            receipt.setNotes("REVERSED" + (reason != null ? ": " + reason : ""));
+        } else {
+            receipt.setNotes(receipt.getNotes() + " | REVERSED" + (reason != null ? ": " + reason : ""));
+        }
+        PersistenceService.getInstance().saveAll();
+        return Result.success(receipt, List.of());
+    }
 }

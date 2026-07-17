@@ -69,12 +69,24 @@ public final class VoucherStore {
         lpos.add(0, l);
     }
 
+    public void removeLpo(Lpo l) {
+        lpos.remove(l);
+    }
+
     public void addInvoice(Invoice i) {
         invoices.add(0, i);
     }
 
+    public void removeInvoice(Invoice i) {
+        invoices.remove(i);
+    }
+
     public void addImprest(Imprest imp) {
         imprests.add(0, imp);
+    }
+
+    public void removeImprest(Imprest imp) {
+        imprests.remove(imp);
     }
 
     public Optional<Creditor> findCreditor(String id) {

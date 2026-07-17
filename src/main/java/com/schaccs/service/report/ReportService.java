@@ -1,5 +1,6 @@
 package com.schaccs.service.report;
 
+import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.AccountType;
 import com.schaccs.enums.PaymentMode;
@@ -7,6 +8,7 @@ import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.finance.FinancialTransaction;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.receipt.Receipt;
+import com.schaccs.model.report.AgeingBucket;
 import com.schaccs.model.report.CollectionSummary;
 import com.schaccs.model.report.TrialBalanceRow;
 import com.schaccs.model.report.VoteheadSummary;
@@ -67,6 +69,79 @@ public class ReportService {
                 .filter(b -> b.getBalance().compareTo(min) > 0)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * Term-scoped balances: expected fee for the given term (from the fee structure)
+     * minus total paid to date. When term is null, falls back to full-year balances.
+     */
+    public List<StudentBalance> feeBalances(com.schaccs.enums.AcademicTerm term) {
+        if (term == null) {
+            return feeBalances();
+        }
+        List<StudentBalance> list = new ArrayList<>();
+        for (Student s : studentStore.getStudents()) {
+            if (s.getStatus() != StudentStatus.ACTIVE) {
+                continue;
+            }
+            StudentFeeLedger ledger = studentStore.getLedger(s.getId());
+            BigDecimal expected = expectedTermFee(s, term);
+            BigDecimal paid = ledger.getTotalPaid();
+            BigDecimal balance = CurrencyConfig.money(expected.subtract(paid).max(CurrencyConfig.zero()));
+            list.add(new StudentBalance(s, expected, paid, CurrencyConfig.zero(), balance));
+        }
+        list.sort(Comparator.comparing(StudentBalance::getBalance).reversed());
+        return list;
+    }
+
+    public List<StudentBalance> defaulters(com.schaccs.enums.AcademicTerm term, BigDecimal threshold) {
+        BigDecimal min = threshold != null ? threshold : CurrencyConfig.zero();
+        return feeBalances(term).stream()
+                .filter(b -> b.getBalance().compareTo(min) > 0)
+                .collect(Collectors.toList());
+    }
+
+    public BigDecimal expectedTermFee(Student student, com.schaccs.enums.AcademicTerm term) {
+        int year = student.getAcademicYear() != null
+                ? student.getAcademicYear() : com.schaccs.config.AppConfig.getInstance().getAcademicYear();
+        return feeStore.findStructure(year, student.getBoardingStatus())
+                .map(s -> s.totalForTerm(term))
+                .orElse(CurrencyConfig.zero());
+    }
+
+    /**
+     * Coarse ageing of outstanding balances based on the student's year of
+     * admission / academic year as the oldest known billing baseline. This is
+     * not invoice-level receivables ageing, but provides a useful operational
+     * view until dated charge lines are introduced.
+     */
+    public List<AgeingBucket> ageing() {
+        long[] floors = {0, 31, 61, 91};
+        String[] labels = {"Current (0-30)", "31-60 days", "61-90 days", "90+ days"};
+        BigDecimal[] totals = {CurrencyConfig.zero(), CurrencyConfig.zero(),
+                CurrencyConfig.zero(), CurrencyConfig.zero()};
+        long[] counts = {0, 0, 0, 0};
+
+        for (StudentBalance b : feeBalances()) {
+            if (b.getBalance().compareTo(CurrencyConfig.zero()) <= 0) {
+                continue;
+            }
+            Student student = studentStore.findById(b.getStudentId()).orElse(null);
+            int year = student != null && student.getYearOfAdmission() != null
+                    ? student.getYearOfAdmission()
+                    : AppConfig.getInstance().getAcademicYear();
+            LocalDate baseline = LocalDate.of(year, 1, 1);
+            long daysElapsed = java.time.temporal.ChronoUnit.DAYS.between(baseline, LocalDate.now());
+            int idx = daysElapsed <= 30 ? 0 : daysElapsed <= 60 ? 1 : daysElapsed <= 90 ? 2 : 3;
+            totals[idx] = CurrencyConfig.money(totals[idx].add(b.getBalance()));
+            counts[idx]++;
+        }
+        List<AgeingBucket> result = new java.util.ArrayList<>();
+        for (int i = 0; i < labels.length; i++) {
+            result.add(new AgeingBucket(labels[i], totals[i], counts[i]));
+        }
+        return result;
+    }
+
 
     public StudentBalance studentStatement(Student student) {
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
@@ -157,5 +232,16 @@ public class ReportService {
             rows.add(new TrialBalanceRow(t, debits.get(t), credits.get(t)));
         }
         return rows;
+    }
+
+    /** True when total debits equal total credits across the whole ledger. */
+    public boolean isLedgerBalanced() {
+        BigDecimal totalDebit = ledgerStore.getTransactions().stream()
+                .map(FinancialTransaction::getDebit)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+        BigDecimal totalCredit = ledgerStore.getTransactions().stream()
+                .map(FinancialTransaction::getCredit)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+        return totalDebit.compareTo(totalCredit) == 0;
     }
 }

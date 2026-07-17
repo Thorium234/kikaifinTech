@@ -4,6 +4,7 @@ import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.AcademicTerm;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -57,7 +58,13 @@ public class StudentFeeLedger {
      * Records an overpayment as carry-forward credit.
      */
     public void addAdvance(BigDecimal amount) {
-        this.advance = CurrencyConfig.money(this.advance.add(CurrencyConfig.money(amount)));
+        BigDecimal next = this.advance.add(CurrencyConfig.money(amount));
+        this.advance = CurrencyConfig.money(next.max(CurrencyConfig.zero()));
+    }
+
+    public void reduceAdvance(BigDecimal amount) {
+        BigDecimal next = this.advance.subtract(CurrencyConfig.money(amount));
+        this.advance = CurrencyConfig.money(next.max(CurrencyConfig.zero()));
     }
 
     /**
@@ -75,6 +82,22 @@ public class StudentFeeLedger {
 
     public void pay(String voteheadCode, BigDecimal amount) {
         paidByVotehead.merge(voteheadCode, CurrencyConfig.money(amount), BigDecimal::add);
+    }
+
+    public void reversePayment(String voteheadCode, BigDecimal amount) {
+        BigDecimal current = getPaid(voteheadCode);
+        BigDecimal next = current.subtract(CurrencyConfig.money(amount));
+        if (next.compareTo(BigDecimal.ZERO) <= 0) {
+            paidByVotehead.remove(voteheadCode);
+        } else {
+            paidByVotehead.put(voteheadCode, CurrencyConfig.money(next));
+        }
+    }
+
+    public void clearCurrentCycle() {
+        chargedByVotehead.clear();
+        paidByVotehead.clear();
+        advance = CurrencyConfig.zero();
     }
 
     public BigDecimal getCharged(String voteheadCode) {
@@ -117,10 +140,10 @@ public class StudentFeeLedger {
     }
 
     public Map<String, BigDecimal> getChargedByVotehead() {
-        return chargedByVotehead;
+        return Collections.unmodifiableMap(chargedByVotehead);
     }
 
     public Map<String, BigDecimal> getPaidByVotehead() {
-        return paidByVotehead;
+        return Collections.unmodifiableMap(paidByVotehead);
     }
 }

@@ -1,10 +1,13 @@
 package com.schaccs.ui.receipts;
 
+import com.schaccs.config.AppConfig;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.fee.FeeAllocation;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.service.Services;
+import com.schaccs.service.export.PdfExportService;
 import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.CurrencyField;
@@ -12,6 +15,7 @@ import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
+import com.schaccs.util.PrintUtil;
 import com.schaccs.util.ReceiptPrinter;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
@@ -28,15 +32,19 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
 public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
-    private final ReceiptService receiptService = new ReceiptService();
+    private final ReceiptService receiptService = Services.getInstance().receipt();
     private final StudentStore studentStore = StudentStore.getInstance();
+    private final PdfExportService pdfExportService = new PdfExportService();
 
     private final SearchBar searchBar = new SearchBar("Search student by admission no or name…");
     private final TableView<Student> studentTable = new TableView<>();
@@ -73,7 +81,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         studentSummary.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
         balanceLabel.getStyleClass().add("muted");
 
-        modeBox.getItems().setAll(PaymentMode.values());
+        modeBox.getItems().setAll(PaymentMode.allowedModes());
         modeBox.setValue(PaymentMode.BANK_SLIP);
         refField.setPromptText("Bank slip / M-Pesa / cheque reference");
 
@@ -86,6 +94,14 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         Button receiveBtn = new Button("Receive Payment");
         receiveBtn.getStyleClass().add("success-button");
         receiveBtn.setOnAction(e -> receive());
+
+        Button printBtn = new Button("Print Preview");
+        printBtn.getStyleClass().add("primary-button");
+        printBtn.setOnAction(e -> printPreview());
+
+        Button pdfBtn = new Button("Export Receipt PDF");
+        pdfBtn.getStyleClass().add("secondary-button");
+        pdfBtn.setOnAction(e -> exportReceiptPdf());
 
         GridPane form = new GridPane();
         form.setHgap(10);
@@ -102,7 +118,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         modeBox.setPrefWidth(200);
         refField.setPrefWidth(200);
 
-        HBox actions = new HBox(10, previewBtn, receiveBtn);
+        HBox actions = new HBox(10, previewBtn, receiveBtn, printBtn, pdfBtn);
         actions.setAlignment(Pos.CENTER_LEFT);
 
         setupAllocationTable();
@@ -237,6 +253,66 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         refField.clear();
         selectStudent(selected);
         studentTable.refresh();
+    }
+
+    private void exportReceiptPdf() {
+        String content = previewArea.getText();
+        if (content == null || content.isBlank()) {
+            AlertUtil.warn("No receipt", "Generate or select a receipt preview first.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export Receipt PDF");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
+        chooser.setInitialFileName(selected != null ? "receipt-preview-" + selected.getAdmissionNumber() + ".pdf" : "receipt-preview.pdf");
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) {
+            return;
+        }
+        try {
+            String previewContent = previewArea.getText();
+            if (previewContent == null || previewContent.isBlank()) {
+                AlertUtil.warn("No receipt", "Generate or select a receipt preview first.");
+                return;
+            }
+            Receipt tempReceipt = new Receipt();
+            tempReceipt.setReceiptNumber(0);
+            tempReceipt.setDate(datePicker.getValue());
+            tempReceipt.setStudentId(selected != null ? selected.getId() : null);
+            tempReceipt.setAdmissionNumber(selected != null ? selected.getAdmissionNumber() : "");
+            tempReceipt.setStudentName(selected != null ? selected.getName() : "");
+            tempReceipt.setClassLabel(selected != null ? selected.getClassLabel() : "");
+            tempReceipt.setAmount(amountField.getAmount());
+            tempReceipt.setPaymentMode(modeBox.getValue());
+            tempReceipt.setBankReference(refField.getText());
+            tempReceipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
+            allocationTable.getItems().forEach(a -> {
+                com.schaccs.model.receipt.ReceiptLine line = new com.schaccs.model.receipt.ReceiptLine();
+                line.setVoteheadCode(a.getVoteheadCode());
+                line.setVoteheadName(a.getVoteheadName());
+                line.setAmount(a.getAllocated());
+                tempReceipt.addLine(line);
+            });
+            pdfExportService.exportReceipt(file.toPath(), tempReceipt);
+            AlertUtil.info("Export complete", "Receipt PDF exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+
+
+    private void printPreview() {
+        String content = previewArea.getText();
+        if (content == null || content.isBlank()) {
+            AlertUtil.warn("No receipt", "Generate or select a receipt preview first.");
+            return;
+        }
+        boolean printed = PrintUtil.printText("Receipt Preview", content,
+                getScene() != null ? getScene().getWindow() : null);
+        if (!printed) {
+            AlertUtil.warn("Print cancelled", "No receipt was printed.");
+        }
     }
 
     @Override

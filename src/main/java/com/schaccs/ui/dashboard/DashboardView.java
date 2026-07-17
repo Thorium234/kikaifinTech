@@ -4,6 +4,7 @@ import com.schaccs.config.ThemeConfig;
 import com.schaccs.enums.AccountType;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.student.StudentBalance;
+import com.schaccs.service.Services;
 import com.schaccs.service.finance.AccountingService;
 import com.schaccs.service.report.ReportService;
 import com.schaccs.service.student.StudentService;
@@ -26,9 +27,9 @@ import java.util.List;
 
 public class DashboardView extends VBox implements MainLayout.Refreshable {
 
-    private final ReportService reportService = new ReportService();
-    private final StudentService studentService = new StudentService();
-    private final AccountingService accountingService = new AccountingService();
+    private final ReportService reportService = Services.getInstance().report();
+    private final StudentService studentService = Services.getInstance().student();
+    private final AccountingService accountingService = Services.getInstance().accounting();
 
     private final DashboardCard studentsCard;
     private final DashboardCard collectionCard;
@@ -37,7 +38,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
     private final DashboardCard schoolFundCard;
     private final TableView<Receipt> recentReceipts = new TableView<>();
     private final TableView<StudentBalance> topDefaulters = new TableView<>();
-
+    private final Label integrityBanner = new Label();
     public DashboardView() {
         setSpacing(16);
         setPadding(new Insets(4));
@@ -76,7 +77,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         defBox.setPrefWidth(420);
         VBox.setVgrow(tables, Priority.ALWAYS);
 
-        getChildren().addAll(heading, cards, tables);
+        getChildren().addAll(heading, integrityBanner, cards, tables);
         refresh();
     }
 
@@ -128,6 +129,14 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         outstandingCard.setValue(CurrencyUtil.format(reportService.totalOutstanding()));
         schoolFundCard.setValue(CurrencyUtil.format(accountingService.balance(AccountType.SCHOOL_FUND)));
 
+        if (reportService.isLedgerBalanced()) {
+            integrityBanner.setText("");
+            integrityBanner.getStyleClass().removeAll("policy-banner", "danger-banner");
+        } else {
+            integrityBanner.setText("⚠ Ledger is out of balance — debits do not equal credits. "
+                    + "Run the Trial Balance report and review recent postings.");
+            integrityBanner.getStyleClass().setAll("policy-banner", "danger-banner");
+        }
         List<Receipt> receipts = ReceiptStore.getInstance().getReceipts();
         recentReceipts.getItems().setAll(receipts.stream().limit(10).toList());
 

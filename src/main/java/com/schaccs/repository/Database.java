@@ -1,11 +1,22 @@
 package com.schaccs.repository;
 
+import com.schaccs.repository.migration.MigrationV1SchoolSettingsDiscount;
+import com.schaccs.repository.migration.MigrationV2ReceiptReversed;
+import com.schaccs.repository.migration.MigrationV3SchoolLogoPath;
+import com.schaccs.repository.migration.MigrationV4ReceiptStampSignaturePaths;
+import com.schaccs.repository.migration.SchemaMigration;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * SQLite connection + schema. Data lives under ~/.schaccs/schaccs.db
@@ -46,12 +57,87 @@ public final class Database {
         return Path.of(DB_DIR, "schaccs.db");
     }
 
+    private int schemaVersion(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT value FROM meta WHERE key = 'schema_version'")) {
+            if (rs.next()) {
+                return Integer.parseInt(rs.getString("value"));
+            }
+        } catch (SQLException ignored) {
+            // meta table may not yet exist
+        }
+        return 0;
+    }
+
+    private void setSchemaVersion(Connection conn, int version) throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.executeUpdate("INSERT INTO meta (key, value) VALUES ('schema_version', '" + version + "') "
+                    + "ON CONFLICT(key) DO UPDATE SET value = '" + version + "'");
+        }
+    }
+
+    private boolean hasMigrationHistory(Connection conn, int version, String checksum) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM migration_history WHERE version = ? AND checksum = ? LIMIT 1")) {
+            ps.setInt(1, version);
+            ps.setString(2, checksum);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private void recordMigrationHistory(Connection conn, SchemaMigration migration) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO migration_history(version, migration_name, description, checksum, applied_at) VALUES (?, ?, ?, ?, ?)")) {
+            ps.setInt(1, migration.version());
+            ps.setString(2, migration.getClass().getSimpleName());
+            ps.setString(3, migration.description());
+            ps.setString(4, migration.checksum());
+            ps.setString(5, LocalDateTime.now().toString());
+            ps.executeUpdate();
+        }
+    }
+
+    private void migrate(Connection conn, int fromVersion) throws SQLException {
+        List<SchemaMigration> migrations = List.of(
+                new MigrationV1SchoolSettingsDiscount(),
+                new MigrationV2ReceiptReversed(),
+                new MigrationV3SchoolLogoPath(),
+                new MigrationV4ReceiptStampSignaturePaths()
+        );
+        int version = fromVersion;
+        for (SchemaMigration migration : migrations) {
+            if (version < migration.version()) {
+                migration.apply(conn);
+                version = migration.version();
+                setSchemaVersion(conn, version);
+                if (!hasMigrationHistory(conn, migration.version(), migration.checksum())) {
+                    recordMigrationHistory(conn, migration);
+                }
+            } else if (!hasMigrationHistory(conn, migration.version(), migration.checksum())) {
+                recordMigrationHistory(conn, migration);
+            }
+        }
+    }
+
     private void initSchema(Connection conn) throws SQLException {
         try (Statement st = conn.createStatement()) {
             st.execute("""
                     CREATE TABLE IF NOT EXISTS meta (
                         key TEXT PRIMARY KEY,
                         value TEXT
+                    )
+                    """);
+            st.execute("""
+                    CREATE TABLE IF NOT EXISTS migration_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        version INTEGER NOT NULL,
+                        migration_name TEXT NOT NULL,
+                        description TEXT,
+                        checksum TEXT NOT NULL,
+                        applied_at TEXT NOT NULL,
+                        UNIQUE(version, checksum)
                     )
                     """);
             st.execute("""
@@ -69,7 +155,12 @@ public final class Database {
                         academic_year INTEGER,
                         next_receipt_number INTEGER,
                         next_voucher_number INTEGER,
-                        current_user TEXT
+                        current_user TEXT,
+                        sibling_discount_enabled INTEGER,
+                        sibling_discount_rate TEXT,
+                        logo_path TEXT,
+                        stamp_path TEXT,
+                        signature_path TEXT
                     )
                     """);
             st.execute("""
@@ -143,7 +234,7 @@ public final class Database {
             st.execute("""
                     CREATE TABLE IF NOT EXISTS receipts (
                         id TEXT PRIMARY KEY,
-                        receipt_number INTEGER,
+                        receipt_number INTEGER UNIQUE,
                         date TEXT,
                         student_id TEXT,
                         admission_number TEXT,
@@ -154,7 +245,8 @@ public final class Database {
                         bank_reference TEXT,
                         received_by TEXT,
                         notes TEXT,
-                        created_at TEXT
+                        created_at TEXT,
+                        reversed INTEGER
                     )
                     """);
             st.execute("""
@@ -226,7 +318,7 @@ public final class Database {
             st.execute("""
                     CREATE TABLE IF NOT EXISTS payment_vouchers (
                         id TEXT PRIMARY KEY,
-                        voucher_number INTEGER,
+                        voucher_number INTEGER UNIQUE,
                         date TEXT,
                         creditor_id TEXT,
                         creditor_name TEXT,
@@ -292,6 +384,29 @@ public final class Database {
                     )
                     """);
         }
+        migrate(conn, schemaVersion(conn));
+    }
+
+    public List<String[]> migrationHistory() {
+        List<String[]> rows = new ArrayList<>();
+        try {
+            Connection conn = getConnection();
+            try (Statement st = conn.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT version, migration_name, description, checksum, applied_at FROM migration_history ORDER BY version ASC, id ASC")) {
+                while (rs.next()) {
+                    rows.add(new String[]{
+                            String.valueOf(rs.getInt("version")),
+                            rs.getString("migration_name"),
+                            rs.getString("description"),
+                            rs.getString("checksum"),
+                            rs.getString("applied_at")
+                    });
+                }
+            }
+        } catch (SQLException e) {
+            rows.add(new String[]{"ERR", "migration_history", e.getMessage(), "", ""});
+        }
+        return rows;
     }
 
     public void close() {

@@ -10,6 +10,9 @@ import com.schaccs.model.finance.JournalEntry;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.voucher.Commitment;
 import com.schaccs.model.voucher.Creditor;
+import com.schaccs.model.voucher.Invoice;
+import com.schaccs.model.voucher.Imprest;
+import com.schaccs.model.voucher.Lpo;
 import com.schaccs.model.voucher.PaymentVoucher;
 import com.schaccs.accounting.AccountingEngine;
 import com.schaccs.repository.PersistenceService;
@@ -142,6 +145,293 @@ public class PaymentVoucherService {
 
         commitment.applyPayment(amount);
         store.addVoucher(voucher);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> createLpo(Creditor creditor, Votehead votehead, BigDecimal amount,
+                                  String lpoNumber, String description, LocalDate date) {
+        List<String> errors = validateVoucherBase(creditor, votehead, amount);
+        if (lpoNumber == null || lpoNumber.isBlank()) {
+            errors.add("LPO number is required.");
+        }
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        Lpo lpo = new Lpo();
+        lpo.setLpoNumber(lpoNumber.trim());
+        lpo.setDate(date != null ? date : LocalDate.now());
+        lpo.setCreditorId(creditor.getId());
+        lpo.setCreditorName(creditor.getName());
+        lpo.setVoteheadCode(votehead.getCode());
+        lpo.setVoteheadName(votehead.getName());
+        lpo.setAccountType(votehead.getAccountType());
+        lpo.setAmount(amount);
+        lpo.setDescription(description);
+        store.addLpo(lpo);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> createInvoice(Creditor creditor, Votehead votehead, BigDecimal amount,
+                                      String invoiceNumber, String description, LocalDate date, Lpo linkedLpo) {
+        List<String> errors = validateVoucherBase(creditor, votehead, amount);
+        if (invoiceNumber == null || invoiceNumber.isBlank()) {
+            errors.add("Invoice number is required.");
+        }
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceNumber(invoiceNumber.trim());
+        invoice.setDate(date != null ? date : LocalDate.now());
+        invoice.setCreditorId(creditor.getId());
+        invoice.setCreditorName(creditor.getName());
+        invoice.setLpoId(linkedLpo != null ? linkedLpo.getId() : null);
+        invoice.setVoteheadCode(votehead.getCode());
+        invoice.setVoteheadName(votehead.getName());
+        invoice.setAccountType(votehead.getAccountType());
+        invoice.setAmount(amount);
+        invoice.setDescription(description);
+        store.addInvoice(invoice);
+        if (linkedLpo != null) {
+            linkedLpo.setStatus(Lpo.INVOICED);
+        }
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> createImprest(String staffName, Votehead votehead, BigDecimal amount,
+                                      String purpose, LocalDate date) {
+        List<String> errors = new ArrayList<>();
+        if (staffName == null || staffName.isBlank()) {
+            errors.add("Staff name is required.");
+        }
+        if (votehead == null) {
+            errors.add("Select a votehead.");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            errors.add("Amount must be greater than zero.");
+        }
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        Imprest imprest = new Imprest();
+        imprest.setStaffName(staffName.trim());
+        imprest.setDate(date != null ? date : LocalDate.now());
+        imprest.setVoteheadCode(votehead.getCode());
+        imprest.setVoteheadName(votehead.getName());
+        imprest.setAccountType(votehead.getAccountType());
+        imprest.setAmount(amount);
+        imprest.setPurpose(purpose);
+        store.addImprest(imprest);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> surrenderImprest(Imprest imprest, BigDecimal surrenderedAmount, LocalDate surrenderDate) {
+        List<String> errors = new ArrayList<>();
+        if (imprest == null) {
+            errors.add("Select an imprest.");
+        } else if (Imprest.SURRENDERED.equals(imprest.getStatus())) {
+            errors.add("Imprest is already surrendered.");
+        }
+        if (surrenderedAmount == null || surrenderedAmount.compareTo(BigDecimal.ZERO) < 0) {
+            errors.add("Surrendered amount cannot be negative.");
+        }
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        imprest.setSurrenderedAmount(surrenderedAmount);
+        imprest.setSurrenderDate(surrenderDate != null ? surrenderDate : LocalDate.now());
+        imprest.setStatus(Imprest.SURRENDERED);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    private List<String> validateVoucherBase(Creditor creditor, Votehead votehead, BigDecimal amount) {
+        List<String> errors = new ArrayList<>();
+        if (creditor == null) {
+            errors.add("Select a creditor.");
+        }
+        if (votehead == null) {
+            errors.add("Select a votehead.");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            errors.add("Amount must be greater than zero.");
+        }
+        return errors;
+    }
+
+    public List<String> updateLpo(Lpo lpo, Creditor creditor, Votehead votehead, BigDecimal amount,
+                                  String lpoNumber, String description, LocalDate date) {
+        List<String> errors = validateVoucherBase(creditor, votehead, amount);
+        if (lpo == null) {
+            errors.add("Select an LPO.");
+        } else if (Lpo.CANCELLED.equals(lpo.getStatus())) {
+            errors.add("Cancelled LPOs cannot be edited.");
+        } else if (Lpo.INVOICED.equals(lpo.getStatus())) {
+            errors.add("Invoiced LPOs cannot be edited.");
+        }
+        if (lpoNumber == null || lpoNumber.isBlank()) {
+            errors.add("LPO number is required.");
+        }
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        lpo.setLpoNumber(lpoNumber.trim());
+        lpo.setDate(date != null ? date : LocalDate.now());
+        lpo.setCreditorId(creditor.getId());
+        lpo.setCreditorName(creditor.getName());
+        lpo.setVoteheadCode(votehead.getCode());
+        lpo.setVoteheadName(votehead.getName());
+        lpo.setAccountType(votehead.getAccountType());
+        lpo.setAmount(amount);
+        lpo.setDescription(description);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> cancelLpo(Lpo lpo) {
+        List<String> errors = new ArrayList<>();
+        if (lpo == null) {
+            errors.add("Select an LPO.");
+            return errors;
+        }
+        if (Lpo.CANCELLED.equals(lpo.getStatus())) {
+            errors.add("LPO is already cancelled.");
+            return errors;
+        }
+        if (Lpo.INVOICED.equals(lpo.getStatus())) {
+            errors.add("Invoiced LPOs cannot be cancelled.");
+            return errors;
+        }
+        lpo.setStatus(Lpo.CANCELLED);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> deleteLpo(Lpo lpo) {
+        List<String> errors = new ArrayList<>();
+        if (lpo == null) {
+            errors.add("Select an LPO.");
+            return errors;
+        }
+        if (Lpo.INVOICED.equals(lpo.getStatus())) {
+            errors.add("Invoiced LPOs cannot be deleted.");
+            return errors;
+        }
+        store.removeLpo(lpo);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> updateInvoice(Invoice invoice, Creditor creditor, Votehead votehead, BigDecimal amount,
+                                      String invoiceNumber, String description, LocalDate date, Lpo linkedLpo) {
+        List<String> errors = validateVoucherBase(creditor, votehead, amount);
+        if (invoice == null) {
+            errors.add("Select an invoice.");
+        } else if (Invoice.CANCELLED.equals(invoice.getStatus())) {
+            errors.add("Cancelled invoices cannot be edited.");
+        } else if (Invoice.PAID.equals(invoice.getStatus())) {
+            errors.add("Paid invoices cannot be edited.");
+        }
+        if (invoiceNumber == null || invoiceNumber.isBlank()) {
+            errors.add("Invoice number is required.");
+        }
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        invoice.setInvoiceNumber(invoiceNumber.trim());
+        invoice.setDate(date != null ? date : LocalDate.now());
+        invoice.setCreditorId(creditor.getId());
+        invoice.setCreditorName(creditor.getName());
+        invoice.setLpoId(linkedLpo != null ? linkedLpo.getId() : null);
+        invoice.setVoteheadCode(votehead.getCode());
+        invoice.setVoteheadName(votehead.getName());
+        invoice.setAccountType(votehead.getAccountType());
+        invoice.setAmount(amount);
+        invoice.setDescription(description);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> cancelInvoice(Invoice invoice) {
+        List<String> errors = new ArrayList<>();
+        if (invoice == null) {
+            errors.add("Select an invoice.");
+            return errors;
+        }
+        if (Invoice.CANCELLED.equals(invoice.getStatus())) {
+            errors.add("Invoice is already cancelled.");
+            return errors;
+        }
+        if (Invoice.PAID.equals(invoice.getStatus())) {
+            errors.add("Paid invoices cannot be cancelled.");
+            return errors;
+        }
+        invoice.setStatus(Invoice.CANCELLED);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> deleteInvoice(Invoice invoice) {
+        List<String> errors = new ArrayList<>();
+        if (invoice == null) {
+            errors.add("Select an invoice.");
+            return errors;
+        }
+        if (Invoice.PAID.equals(invoice.getStatus())) {
+            errors.add("Paid invoices cannot be deleted.");
+            return errors;
+        }
+        store.removeInvoice(invoice);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> updateImprest(Imprest imprest, String staffName, Votehead votehead, BigDecimal amount,
+                                      String purpose, LocalDate date) {
+        List<String> errors = new ArrayList<>();
+        if (imprest == null) {
+            errors.add("Select an imprest.");
+        } else if (Imprest.SURRENDERED.equals(imprest.getStatus())) {
+            errors.add("Surrendered imprests cannot be edited.");
+        }
+        if (staffName == null || staffName.isBlank()) {
+            errors.add("Staff name is required.");
+        }
+        if (votehead == null) {
+            errors.add("Select a votehead.");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            errors.add("Amount must be greater than zero.");
+        }
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        imprest.setStaffName(staffName.trim());
+        imprest.setDate(date != null ? date : LocalDate.now());
+        imprest.setVoteheadCode(votehead.getCode());
+        imprest.setVoteheadName(votehead.getName());
+        imprest.setAccountType(votehead.getAccountType());
+        imprest.setAmount(amount);
+        imprest.setPurpose(purpose);
+        PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    public List<String> deleteImprest(Imprest imprest) {
+        List<String> errors = new ArrayList<>();
+        if (imprest == null) {
+            errors.add("Select an imprest.");
+            return errors;
+        }
+        if (Imprest.SURRENDERED.equals(imprest.getStatus())) {
+            errors.add("Surrendered imprests cannot be deleted.");
+            return errors;
+        }
+        store.removeImprest(imprest);
         PersistenceService.getInstance().saveAll();
         return errors;
     }

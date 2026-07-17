@@ -26,6 +26,10 @@ public class StudentBalance {
     }
 
     public StudentBalance(Student student, BigDecimal charged, BigDecimal paid, BigDecimal arrears) {
+        this(student, charged, paid, arrears, charged.add(arrears).subtract(paid));
+    }
+
+    public StudentBalance(Student student, BigDecimal charged, BigDecimal paid, BigDecimal arrears, BigDecimal balance) {
         this.studentId.set(student.getId());
         this.admissionNumber.set(student.getAdmissionNumber());
         this.studentName.set(student.getName());
@@ -33,7 +37,7 @@ public class StudentBalance {
         this.totalCharged.set(CurrencyConfig.money(charged));
         this.totalPaid.set(CurrencyConfig.money(paid));
         this.arrears.set(CurrencyConfig.money(arrears));
-        this.balance.set(CurrencyConfig.money(charged.add(arrears).subtract(paid)));
+        this.balance.set(CurrencyConfig.money(balance));
     }
 
     public String getStudentId() {

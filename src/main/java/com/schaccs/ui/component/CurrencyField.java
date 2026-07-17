@@ -11,7 +11,7 @@ public class CurrencyField extends TextField {
     public CurrencyField() {
         setPromptText("0.00");
         textProperty().addListener((obs, old, val) -> {
-            if (val != null && !val.matches("[0-9.,]*")) {
+            if (val != null && !val.matches("[0-9,]*(\\.[0-9]{0,2})?")) {
                 setText(old);
             }
         });

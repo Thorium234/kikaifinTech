@@ -4,7 +4,11 @@ import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.repository.PersistenceService;
+import com.schaccs.service.Services;
 import com.schaccs.service.fee.FeeCalculationService;
+import com.schaccs.service.export.SpreadsheetExportService;
+import com.schaccs.service.export.StudentTemplateService;
+import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
@@ -14,7 +18,9 @@ import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -23,13 +29,19 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 public class StudentView extends VBox implements MainLayout.Refreshable {
 
-    private final StudentService studentService = new StudentService();
-    private final FeeCalculationService feeService = new FeeCalculationService();
+    private final StudentService studentService = Services.getInstance().student();
+    private final FeeCalculationService feeService = Services.getInstance().feeCalculation();
+    private final StudentImportService importService = new StudentImportService();
+    private final SpreadsheetExportService exportService = new SpreadsheetExportService();
+    private final StudentTemplateService templateService = new StudentTemplateService(exportService);
 
     private final TableView<Student> table = new TableView<>();
     private final FilteredList<Student> filtered;
@@ -41,6 +53,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final TextField streamField = new TextField();
     private final TextField phoneField = new TextField();
     private final TextField parentField = new TextField();
+    private final TextField guardianField = new TextField();
     private final ComboBox<BoardingStatus> boardingBox = new ComboBox<>();
     private final ComboBox<StudentStatus> statusBox = new ComboBox<>();
     private final ComboBox<String> genderBox = new ComboBox<>();
@@ -66,11 +79,23 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         saveBtn.getStyleClass().add("success-button");
         saveBtn.setOnAction(e -> save());
 
+        Button importBtn = new Button("Import CSV/XLSX");
+        importBtn.getStyleClass().add("secondary-button");
+        importBtn.setOnAction(e -> importStudents());
+
+        Button exportBtn = new Button("Export Students");
+        exportBtn.getStyleClass().add("secondary-button");
+        exportBtn.setOnAction(e -> exportStudents());
+
+        Button templateBtn = new Button("Download Template");
+        templateBtn.getStyleClass().add("secondary-button");
+        templateBtn.setOnAction(e -> downloadTemplate());
+
         Button inactiveBtn = new Button("Mark Inactive");
         inactiveBtn.getStyleClass().add("secondary-button");
         inactiveBtn.setOnAction(e -> markInactive());
 
-        HBox toolbar = new HBox(10, searchBar, addBtn, saveBtn, inactiveBtn);
+        HBox toolbar = new HBox(10, searchBar, addBtn, saveBtn, importBtn, exportBtn, templateBtn, inactiveBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
@@ -156,6 +181,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         grid.add(boardingBox, 1, r++);
         grid.add(new Label("Parent"), 0, r);
         grid.add(parentField, 1, r++);
+        grid.add(new Label("Guardian Key"), 0, r);
+        grid.add(guardianField, 1, r++);
         grid.add(new Label("Phone"), 0, r);
         grid.add(phoneField, 1, r++);
         grid.add(new Label("Status"), 0, r);
@@ -165,6 +192,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         nameField.setPromptText("Student full name");
         formField.setPromptText("Form 1");
         streamField.setPromptText("A");
+        guardianField.setPromptText("e.g. KIT-001 (links siblings)");
 
         VBox box = new VBox(12, title, grid);
         box.getStyleClass().add("card");
@@ -180,6 +208,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         streamField.clear();
         phoneField.clear();
         parentField.clear();
+        guardianField.clear();
         boardingBox.setValue(BoardingStatus.BOARDING);
         statusBox.setValue(StudentStatus.ACTIVE);
         genderBox.setValue("Male");
@@ -195,6 +224,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         streamField.setText(s.getStream());
         phoneField.setText(s.getPhone());
         parentField.setText(s.getParentName());
+        guardianField.setText(s.getGuardianKey());
         boardingBox.setValue(s.getBoardingStatus());
         statusBox.setValue(s.getStatus());
         genderBox.setValue(s.getGender() != null ? s.getGender() : "Male");
@@ -232,6 +262,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         s.setStream(streamField.getText().trim());
         s.setPhone(phoneField.getText().trim());
         s.setParentName(parentField.getText().trim());
+        s.setGuardianKey(guardianField.getText().trim());
         s.setBoardingStatus(boardingBox.getValue());
         s.setStatus(statusBox.getValue());
         s.setGender(genderBox.getValue());
@@ -253,6 +284,130 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             studentService.markInactive(s);
             table.refresh();
         }
+    }
+
+    private void exportStudents() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export Students");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("CSV files", "*.csv"),
+                new FileChooser.ExtensionFilter("Excel files", "*.xlsx")
+        );
+        chooser.setInitialFileName("students-export.csv");
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) {
+            return;
+        }
+        try {
+            List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Form Class", "Stream",
+                    "Boarding Status", "Parent Name", "Guardian Key", "Phone", "UPI", "Academic Year",
+                    "Year Of Admission", "Student Status");
+            List<List<String>> rows = studentService.getAll().stream().map(s -> List.of(
+                    safe(s.getAdmissionNumber()),
+                    safe(s.getName()),
+                    safe(s.getGender()),
+                    safe(s.getFormClass()),
+                    safe(s.getStream()),
+                    s.getBoardingStatus() != null ? s.getBoardingStatus().getDisplayName() : "",
+                    safe(s.getParentName()),
+                    safe(s.getGuardianKey()),
+                    safe(s.getPhone()),
+                    safe(s.getUpi()),
+                    s.getAcademicYear() != null ? String.valueOf(s.getAcademicYear()) : "",
+                    s.getYearOfAdmission() != null ? String.valueOf(s.getYearOfAdmission()) : "",
+                    s.getStatus() != null ? s.getStatus().getDisplayName() : ""
+            )).toList();
+            exportService.export(file.toPath(), "Students", headers, rows);
+            AlertUtil.info("Export complete", "Students exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+    private void downloadTemplate() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save Student Import Template");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("CSV files", "*.csv"),
+                new FileChooser.ExtensionFilter("Excel files", "*.xlsx")
+        );
+        chooser.setInitialFileName("student-import-template.xlsx");
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) {
+            return;
+        }
+        try {
+            templateService.generateTemplate(file.toPath());
+            AlertUtil.info("Template saved", "Template saved to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Template save failed", e.getMessage());
+        }
+    }
+
+    private void importStudents() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Import Students");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Spreadsheet files", "*.csv", "*.xlsx"),
+                new FileChooser.ExtensionFilter("CSV files", "*.csv"),
+                new FileChooser.ExtensionFilter("Excel files", "*.xlsx")
+        );
+        File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) {
+            return;
+        }
+        StudentImportService.ImportResult preview = importService.previewFile(file.toPath());
+        if (!showImportPreviewDialog(preview)) {
+            return;
+        }
+        StudentImportService.ImportResult result = importService.importFile(file.toPath());
+        table.refresh();
+        if (result.getImported() > 0) {
+            AlertUtil.info("Import complete", buildImportMessage(result, false));
+        } else {
+            AlertUtil.warn("Import finished", buildImportMessage(result, false));
+        }
+    }
+
+    private boolean showImportPreviewDialog(StudentImportService.ImportResult result) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Import Preview");
+        dialog.setHeaderText("Review student import before commit");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+
+        Label summary = new Label(buildImportMessage(result, true));
+        summary.setWrapText(true);
+
+        TableView<String> warningTable = new TableView<>();
+        TableColumn<String, String> warningColumn = new TableColumn<>("Validation details");
+        warningColumn.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()));
+        warningTable.getColumns().add(warningColumn);
+        warningTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        warningTable.getItems().setAll(result.getWarnings());
+        warningTable.setPrefHeight(260);
+
+        VBox content = new VBox(10, summary, warningTable);
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().lookupButton(ButtonType.OK).setDisable(result.getImported() <= 0);
+        return dialog.showAndWait().filter(ButtonType.OK::equals).isPresent();
+    }
+
+    private String buildImportMessage(StudentImportService.ImportResult result, boolean preview) {
+        StringBuilder msg = new StringBuilder();
+        msg.append(preview ? "Ready to import: " : "Imported: ").append(result.getImported()).append("\n");
+        msg.append("Skipped: ").append(result.getSkipped());
+        if (result.hasWarnings()) {
+            msg.append("\n\nDetails:\n");
+            result.getWarnings().stream().limit(12).forEach(w -> msg.append("- ").append(w).append("\n"));
+            if (result.getWarnings().size() > 12) {
+                msg.append("...and ").append(result.getWarnings().size() - 12).append(" more");
+            }
+        }
+        return msg.toString().trim();
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
     }
 
     @Override
