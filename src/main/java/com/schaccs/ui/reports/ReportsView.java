@@ -29,6 +29,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
@@ -92,7 +93,12 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     }
 
     private Tab tab(String title, VBox content) {
-        Tab t = new Tab(title, content);
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setPannable(true);
+        scrollPane.getStyleClass().add("inline-scroll-pane");
+        Tab t = new Tab(title, scrollPane);
         t.setClosable(false);
         return t;
     }

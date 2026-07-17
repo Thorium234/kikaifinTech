@@ -10,6 +10,7 @@ public class DashboardCard extends VBox {
 
     private final Label valueLabel;
     private final Label hintLabel;
+    private Tooltip navigationTooltip;
 
     public DashboardCard(String title, String initialValue, String accentColor) {
         getStyleClass().add("kpi-card");
@@ -46,7 +47,14 @@ public class DashboardCard extends VBox {
         hintLabel.setText(hasHint ? hint : "");
         hintLabel.setManaged(hasHint);
         hintLabel.setVisible(hasHint);
-        setTooltip(hasHint ? new Tooltip(hint) : null);
+        if (navigationTooltip != null) {
+            Tooltip.uninstall(this, navigationTooltip);
+            navigationTooltip = null;
+        }
+        if (hasHint) {
+            navigationTooltip = new Tooltip(hint);
+            Tooltip.install(this, navigationTooltip);
+        }
     }
 
     public void setOnNavigate(Runnable action) {

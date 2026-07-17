@@ -17,6 +17,7 @@ import com.schaccs.util.DateUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.FlowPane;
@@ -77,10 +78,19 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         FlowPane tables = new FlowPane(16, 16);
         tables.getChildren().addAll(recentBox, defBox);
         recentBox.setPrefWidth(520);
+        recentBox.setMinWidth(360);
         defBox.setPrefWidth(420);
+        defBox.setMinWidth(320);
         VBox.setVgrow(tables, Priority.ALWAYS);
 
-        getChildren().addAll(heading, integrityBanner, cards, tables);
+        ScrollPane tableScroll = new ScrollPane(tables);
+        tableScroll.setFitToWidth(true);
+        tableScroll.setFitToHeight(true);
+        tableScroll.setPannable(true);
+        tableScroll.getStyleClass().add("inline-scroll-pane");
+        VBox.setVgrow(tableScroll, Priority.ALWAYS);
+
+        getChildren().addAll(heading, integrityBanner, cards, tableScroll);
         refresh();
     }
 

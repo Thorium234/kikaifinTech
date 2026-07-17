@@ -12,6 +12,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.control.Button;
 
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -149,6 +150,10 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
         VBox card = new VBox(14, grid, buildReceiptBrandingMockup(), save);
         card.getStyleClass().add("card");
+        ScrollPane cardScroll = new ScrollPane(card);
+        cardScroll.setFitToWidth(true);
+        cardScroll.setPannable(true);
+        cardScroll.getStyleClass().add("inline-scroll-pane");
 
         setupMigrationTable();
         Button refreshHistory = new Button("Refresh Migration History");
@@ -166,7 +171,8 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         VBox.setVgrow(migrationTable, Priority.ALWAYS);
 
         setupLivePreviewListeners();
-        getChildren().addAll(heading, card, historyCard);
+        VBox.setVgrow(cardScroll, Priority.SOMETIMES);
+        getChildren().addAll(heading, cardScroll, historyCard);
         load();
     }
 

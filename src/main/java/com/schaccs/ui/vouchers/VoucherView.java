@@ -26,6 +26,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
@@ -110,6 +111,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         note.setWrapText(true);
 
         HBox top = new HBox(16, buildCreditorCard(), buildCommitmentForm());
+        top.setFillHeight(true);
         HBox.setHgrow(top.getChildren().get(1), Priority.ALWAYS);
 
         setupCommitmentTable();
@@ -126,6 +128,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         VBox.setVgrow(voucherTable, Priority.ALWAYS);
 
         HBox lower = new HBox(16, commitCard, voucherCard);
+        lower.setFillHeight(true);
         HBox.setHgrow(commitCard, Priority.ALWAYS);
         HBox.setHgrow(voucherCard, Priority.ALWAYS);
         VBox.setVgrow(lower, Priority.ALWAYS);
@@ -148,7 +151,14 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
                 exportButton("Export Imprests", this::exportImprests));
         exportBar.setAlignment(Pos.CENTER_LEFT);
 
-        getChildren().addAll(heading, note, exportBar, top, lower, extraTabs);
+        ScrollPane lowerScroll = new ScrollPane(lower);
+        lowerScroll.setFitToWidth(true);
+        lowerScroll.setFitToHeight(true);
+        lowerScroll.setPannable(true);
+        lowerScroll.getStyleClass().add("inline-scroll-pane");
+        VBox.setVgrow(lowerScroll, Priority.ALWAYS);
+
+        getChildren().addAll(heading, note, exportBar, top, lowerScroll, extraTabs);
         refresh();
     }
 

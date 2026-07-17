@@ -72,6 +72,19 @@
     -fx-padding: 18;
 }
 
+.scroll-pane.content-scroll,
+.scroll-pane.inline-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-border-color: transparent;
+}
+
+.scroll-pane.content-scroll > .viewport,
+.scroll-pane.inline-scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
 .card {
     -fx-background-color: white;
     -fx-background-radius: 10;

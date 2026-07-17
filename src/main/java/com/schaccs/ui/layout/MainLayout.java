@@ -1,8 +1,11 @@
 package com.schaccs.ui.layout;
 
 import javafx.scene.Node;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +38,8 @@ public class MainLayout extends BorderPane {
     public void show(String key) {
         Node node = cache.computeIfAbsent(key, k -> {
             Supplier<Node> factory = factories.get(k);
-            return factory != null ? factory.get() : new javafx.scene.control.Label("Missing view: " + k);
+            Node view = factory != null ? factory.get() : new javafx.scene.control.Label("Missing view: " + k);
+            return wrapForResponsiveLayout(view);
         });
         // refresh if view supports it
         if (node instanceof Refreshable r) {
@@ -45,6 +49,23 @@ public class MainLayout extends BorderPane {
         sidebar.setActive(key);
         topBar.setTitle(key);
         statusBar.setMessage("Viewing " + key);
+    }
+
+    private Node wrapForResponsiveLayout(Node view) {
+        if (view instanceof ScrollPane) {
+            return view;
+        }
+        ScrollPane scrollPane = new ScrollPane(view);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setPannable(true);
+        scrollPane.getStyleClass().add("content-scroll");
+        if (view instanceof Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        VBox container = new VBox(scrollPane);
+        VBox.setVgrow(scrollPane, javafx.scene.layout.Priority.ALWAYS);
+        return container;
     }
 
     public Sidebar getSidebar() {

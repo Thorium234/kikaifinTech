@@ -22,6 +22,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -120,9 +121,17 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
         VBox formCard = buildForm();
         formCard.setPrefWidth(360);
+        formCard.setMinWidth(320);
+        ScrollPane formScroll = new ScrollPane(formCard);
+        formScroll.setFitToWidth(true);
+        formScroll.setPannable(true);
+        formScroll.getStyleClass().add("inline-scroll-pane");
+        formScroll.setPrefWidth(390);
+        formScroll.setMinWidth(340);
 
-        HBox body = new HBox(16, tableCard, formCard);
+        HBox body = new HBox(16, tableCard, formScroll);
         HBox.setHgrow(tableCard, Priority.ALWAYS);
+        HBox.setHgrow(formScroll, Priority.NEVER);
         VBox.setVgrow(body, Priority.ALWAYS);
 
         getChildren().addAll(heading, toolbar, body);
