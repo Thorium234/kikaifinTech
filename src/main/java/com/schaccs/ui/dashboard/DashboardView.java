@@ -11,6 +11,7 @@ import com.schaccs.service.student.StudentService;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.ui.component.DashboardCard;
 import com.schaccs.ui.layout.MainLayout;
+import com.schaccs.ui.layout.Sidebar;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
 import javafx.beans.property.SimpleStringProperty;
@@ -52,6 +53,8 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         outstandingCard = new DashboardCard("Outstanding Fees", "KSh 0", ThemeConfig.DANGER);
         schoolFundCard = new DashboardCard("School Fund Balance", "KSh 0", ThemeConfig.PRIMARY_DARK);
 
+        configureNavigation();
+
         FlowPane cards = new FlowPane(12, 12);
         cards.getChildren().addAll(studentsCard, collectionCard, todayCard, outstandingCard, schoolFundCard);
 
@@ -79,6 +82,39 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
 
         getChildren().addAll(heading, integrityBanner, cards, tables);
         refresh();
+    }
+
+    private void configureNavigation() {
+        studentsCard.setHint("Click to open Students");
+        studentsCard.setOnNavigate(() -> navigateTo(Sidebar.STUDENTS));
+        collectionCard.setHint("Click to open Reports");
+        collectionCard.setOnNavigate(() -> navigateTo(Sidebar.REPORTS));
+        todayCard.setHint("Click to open Receipting");
+        todayCard.setOnNavigate(() -> navigateTo(Sidebar.RECEIPTS));
+        outstandingCard.setHint("Click to open Reports");
+        outstandingCard.setOnNavigate(() -> navigateTo(Sidebar.REPORTS));
+        schoolFundCard.setHint("Click to open Payment Vouchers");
+        schoolFundCard.setOnNavigate(() -> navigateTo(Sidebar.VOUCHERS));
+
+        recentReceipts.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2 && recentReceipts.getSelectionModel().getSelectedItem() != null) {
+                navigateTo(Sidebar.RECEIPTS);
+            }
+        });
+        topDefaulters.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2 && topDefaulters.getSelectionModel().getSelectedItem() != null) {
+                navigateTo(Sidebar.STUDENTS);
+            }
+        });
+    }
+
+    private void navigateTo(String key) {
+        if (getScene() == null || getScene().getRoot() == null) {
+            return;
+        }
+        if (getScene().getRoot() instanceof MainLayout layout) {
+            layout.show(key);
+        }
     }
 
     private void setupRecentReceipts() {
