@@ -1,0 +1,51 @@
+Act as a Senior Java Financial Systems Architect. We are transitioning SCHACCS from V1 to V2. 
+
+The core V1 architecture uses Java 21, JavaFX, Maven, SQLite, and double-entry postings via `AccountingEngine`. Build out the complete V2 architecture, infrastructure, and modules based on the specifications below:
+
+### 1. Payment Vouchers & Expenditure Module
+- Implement a Payment Voucher system for school disbursements (e.g., supplier payments, teacher allowances, utility bills).
+- Voucher Attributes: Voucher Number (auto-incremented), Date, Payee, Description/Particulars, Votehead Debited, Payment Method (Cheque/EFT), Cheque/Ref Number, Amount, Approval Status (Draft, Approved, Paid, Cancelled).
+- Ensure vouchers post double-entry transactions through `AccountingEngine`:
+  - Debit: Specific Expenditure Votehead Account
+  - Credit: Bank Account / Cashbook
+
+### 2. Commitment Register
+- Track encumbrances/commitments against voteheads prior to actual cash payout.
+- When an LPO (Local Purchase Order) or LSO (Local Service Order) is issued, reduce available votehead budget in real-time.
+- Automatically release the commitment when the corresponding Payment Voucher is posted.
+
+### 3. Full School Cashbook & Bank Reconciliation
+- Generate a two-column / multi-column Cashbook integrating both fee collections (receipts) and disbursements (vouchers).
+- Build a Bank Reconciliation feature:
+  - Input monthly Bank Statement balances and uncleared cheques/deposits in transit.
+  - Automatically calculate adjusted bank balance vs. book balance and output a Bank Reconciliation Statement.
+
+### 4. Trial Balance & Financial Statements
+- **Trial Balance Engine:** Aggregate all debit and credit balances across all ledger accounts for any given date range. Highlight imbalances if total debits != total credits.
+- **Financial Statements:**
+  - Income & Expenditure Statement (Revenue from fees vs. Operational Expenses per votehead).
+  - Balance Sheet / Statement of Financial Position (Assets, Liabilities, Accumulated Funds).
+
+### 5. Audit Trail & Security Log
+- Create an immutable `AuditLog` table tracking user actions: `timestamp`, `action_type` (CREATE, POST, REVERSE), `entity_type`, `entity_id`, and `details_json`.
+- Enforce strict reversal rules: receipts and vouchers cannot be modified or deleted. They can only be reversed using a linked Reversal Journal Entry.
+
+### 6. Dynamic Database Configuration, Dual-Storage & Disaster Recovery
+- **Multi-Database Configuration UI (Settings):**
+  - Create a Database Configuration panel in `Settings` allowing an Admin to switch between SQLite (Default local) and Remote Relational DBs (PostgreSQL, MySQL, MariaDB).
+  - Admin inputs: `DB Type` (PostgreSQL / MySQL / MariaDB / SQLite), `Host`, `Port`, `Database Name`, `Username`, `Password`, and `SSL Mode`.
+  - Include a "Test Connection" button that validates credentials and automatically runs schema migration scripts to bootstrap the remote tables if they don't exist yet.
+  - Dynamically configure HikariCP connection pooling to switch active datasources seamlessly without restarting the app.
+
+- **Offline-First Resilience & Dual-Storage Sync:**
+  - Implement a dual-storage strategy using local SQLite (`~/.schaccs/schaccs.db`) as an active local cache/fallback.
+  - **Online Mode:** All ledger entries, receipts, and vouchers write to the primary remote database (PostgreSQL/MySQL) and asynchronously update/mirror to the local SQLite DB for offline redundancy.
+  - **Offline Mode:** If the remote connection drops, automatically fallback to local SQLite without crashing or blocking the bursar. Queue pending transactions in a `SyncQueue` table and automatically push them to the central database once connection is restored.
+
+- **Automated OS Excel Disaster Recovery Engine:**
+  - Create a background schedule (`ScheduledExecutorService`) that runs during key system events (e.g., app shutdown, end-of-day, or after every 20 posted receipts).
+  - Automatically dump essential business tables (Students, Ledger Transactions, Fee Balances, Daily Collections) into formatted Excel `.xlsx` files.
+  - Save these files directly to the OS Documents folder: `~/Documents/SCHACCS_Backups/YYYY-MM-DD/`.
+  - Maintain a rolling retention strategy (e.g., keep daily backups for 30 days) to prevent disk bloat while guaranteeing recovery capability even if both database files fail.
+
+Please outline the required Java packages/classes, generate the database schema migration scripts for PostgreSQL/MySQL/SQLite, and implement the service layer and JavaFX views for these V2 modules.

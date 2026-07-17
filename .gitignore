@@ -1,8 +1,11 @@
 # Build
-target/
+/target/
 *.class
 *.jar
 *.war
+
+# Local worktrees / scratch
+/v2/
 
 # IDE
 .idea/
@@ -16,10 +19,18 @@ target/
 .DS_Store
 Thumbs.db
 
-# Local data (SQLite lives in ~/.schaccs)
+# SQLite / local app data
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 
-# Design notes kept local (optional)
- *.txt
-artifacr/*
+# Local backups / exports
+backups/
+*.xlsx
+*.csv
+
+# Local notes / generated artifacts
+*.txt
+artifact/
+artifacr/
