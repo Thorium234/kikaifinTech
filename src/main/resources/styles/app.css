@@ -312,3 +312,170 @@
 .table-row-cell.student-row-inactive {
     -fx-opacity: 0.85;
 }
+
+.receipt-header-card {
+    -fx-padding: 16;
+}
+
+.receipt-header-badge {
+    -fx-background-color: #EAF7F2;
+    -fx-text-fill: #117A65;
+    -fx-background-radius: 999;
+    -fx-padding: 4 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.receipt-subtitle {
+    -fx-wrap-text: true;
+}
+
+.receipt-search-card {
+    -fx-padding: 16;
+}
+
+.receipt-pay-card {
+    -fx-background-color: linear-gradient(to bottom, #ffffff 0%, #fbfcfd 100%);
+    -fx-border-color: #DDE6EB;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.receipt-preview-card {
+    -fx-background-color: linear-gradient(to bottom, #ffffff 0%, #fbfcfd 100%);
+}
+
+.receipt-student-summary {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0E2F44;
+}
+
+.receipt-balance-summary {
+    -fx-wrap-text: true;
+    -fx-line-spacing: 2px;
+}
+
+.receipt-mode-badge {
+    -fx-background-radius: 999;
+    -fx-padding: 5 12;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.receipt-mode-ready {
+    -fx-background-color: #EBF5FB;
+    -fx-text-fill: #1B4F72;
+}
+
+.receipt-mode-active {
+    -fx-background-color: #E8F8F5;
+    -fx-text-fill: #117864;
+}
+
+.receipt-payment-hint {
+    -fx-wrap-text: true;
+}
+
+.receipt-form-grid {
+    -fx-padding: 4 0 0 0;
+}
+
+.receipt-form-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #29465B;
+    -fx-padding: 8 10 0 0;
+    -fx-min-width: 120;
+}
+
+.receipt-field-box {
+    -fx-padding: 0 0 2 0;
+}
+
+.receipt-field-hint {
+    -fx-font-size: 11px;
+    -fx-wrap-text: true;
+}
+
+.receipt-action-bar {
+    -fx-alignment: center-left;
+    -fx-padding: 6 0 0 0;
+}
+
+.voucher-header-card {
+    -fx-padding: 16;
+}
+
+.voucher-header-badge {
+    -fx-background-color: #F4ECF7;
+    -fx-text-fill: #7D3C98;
+    -fx-background-radius: 999;
+    -fx-padding: 4 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.voucher-subtitle {
+    -fx-wrap-text: true;
+}
+
+.voucher-toolbar {
+    -fx-alignment: center-left;
+    -fx-padding: 6 0 0 0;
+}
+
+.voucher-mode-badge {
+    -fx-background-radius: 999;
+    -fx-padding: 5 12;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.voucher-mode-ready {
+    -fx-background-color: #EBF5FB;
+    -fx-text-fill: #1B4F72;
+}
+
+.voucher-table-card {
+    -fx-background-color: linear-gradient(to bottom, #ffffff 0%, #fbfcfd 100%);
+    -fx-border-color: #DDE6EB;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.voucher-form-card {
+    -fx-background-color: linear-gradient(to bottom, #ffffff 0%, #fbfcfd 100%);
+    -fx-border-color: #DDE6EB;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.voucher-section-header {
+    -fx-alignment: center-left;
+}
+
+.voucher-form-grid {
+    -fx-padding: 4 0 0 0;
+}
+
+.voucher-form-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #29465B;
+    -fx-padding: 8 10 0 0;
+    -fx-min-width: 120;
+}
+
+.voucher-field-box {
+    -fx-padding: 0 0 2 0;
+}
+
+.voucher-field-hint {
+    -fx-font-size: 11px;
+    -fx-wrap-text: true;
+}
+
+.voucher-action-bar,
+.voucher-pay-bar {
+    -fx-alignment: center-left;
+    -fx-padding: 6 0 0 0;
+}

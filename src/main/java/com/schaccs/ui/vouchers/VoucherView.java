@@ -27,6 +27,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
@@ -97,6 +98,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
     private final CurrencyField surrenderAmountField = new CurrencyField();
     private final DatePicker surrenderDate = new DatePicker(LocalDate.now());
     private final TableView<Imprest> imprestTable = new TableView<>();
+    private final Label voucherModeBadge = new Label();
     private Imprest selectedImprest;
 
     public VoucherView() {
@@ -105,9 +107,11 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
 
         Label heading = new Label("Payment Vouchers & Commitments");
         heading.getStyleClass().add("section-title");
+        Label badge = new Label("Expenditure Control Workspace");
+        badge.getStyleClass().add("voucher-header-badge");
 
         Label note = new Label("Record supplier commitments, then pay via voucher. All payments post through AccountingEngine.");
-        note.getStyleClass().add("muted");
+        note.getStyleClass().addAll("muted", "voucher-subtitle");
         note.setWrapText(true);
 
         HBox top = new HBox(16, buildCreditorCard(), buildCommitmentForm());
@@ -118,13 +122,15 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         setupVoucherTable();
 
         HBox commitmentHeader = new HBox(10, new Label("Open Commitments"), exportButton("Export Commitments", this::exportCommitments));
-        VBox commitCard = new VBox(8, commitmentHeader, commitmentTable, buildPayBar());
-        commitCard.getStyleClass().add("card");
+        commitmentHeader.getStyleClass().add("voucher-section-header");
+        VBox commitCard = new VBox(10, commitmentHeader, commitmentTable, buildPayBar());
+        commitCard.getStyleClass().addAll("card", "voucher-table-card");
         VBox.setVgrow(commitmentTable, Priority.ALWAYS);
 
         HBox voucherHeader = new HBox(10, new Label("Paid Vouchers"), exportButton("Export Vouchers", this::exportVouchers));
-        VBox voucherCard = new VBox(8, voucherHeader, voucherTable);
-        voucherCard.getStyleClass().add("card");
+        voucherHeader.getStyleClass().add("voucher-section-header");
+        VBox voucherCard = new VBox(10, voucherHeader, voucherTable);
+        voucherCard.getStyleClass().addAll("card", "voucher-table-card");
         VBox.setVgrow(voucherTable, Priority.ALWAYS);
 
         HBox lower = new HBox(16, commitCard, voucherCard);
@@ -149,6 +155,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
                 exportButton("Export LPOs", this::exportLpos),
                 exportButton("Export Invoices", this::exportInvoices),
                 exportButton("Export Imprests", this::exportImprests));
+        exportBar.getStyleClass().add("voucher-toolbar");
         exportBar.setAlignment(Pos.CENTER_LEFT);
 
         ScrollPane lowerScroll = new ScrollPane(lower);
@@ -158,13 +165,20 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         lowerScroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(lowerScroll, Priority.ALWAYS);
 
-        getChildren().addAll(heading, note, exportBar, top, lowerScroll, extraTabs);
+        VBox headerCard = new VBox(8, badge, heading, note, exportBar);
+        headerCard.getStyleClass().addAll("card", "voucher-header-card");
+        voucherModeBadge.getStyleClass().addAll("voucher-mode-badge", "voucher-mode-ready");
+        voucherModeBadge.setText("Ready for Commitment and Voucher Processing");
+
+        getChildren().addAll(headerCard, voucherModeBadge, top, lowerScroll, extraTabs);
         refresh();
     }
 
     private VBox buildCreditorCard() {
         Label t = new Label("Add Creditor");
         t.getStyleClass().add("section-title");
+        Label sub = new Label("Maintain supplier master data before creating commitments.");
+        sub.getStyleClass().add("muted");
         creditorName.setPromptText("Supplier name");
         creditorPhone.setPromptText("Phone");
         Button add = new Button("Add Creditor");
@@ -180,8 +194,13 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
             refresh();
             AlertUtil.info("Saved", "Creditor added.");
         });
-        VBox box = new VBox(8, t, creditorName, creditorPhone, add);
-        box.getStyleClass().add("card");
+        VBox box = new VBox(10,
+                t,
+                sub,
+                voucherFieldBlock("Creditor Name", creditorName, "Official supplier or service provider name."),
+                voucherFieldBlock("Phone", creditorPhone, "Primary supplier contact number."),
+                add);
+        box.getStyleClass().addAll("card", "voucher-form-card");
         box.setPrefWidth(260);
         return box;
     }
@@ -189,6 +208,8 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
     private VBox buildCommitmentForm() {
         Label t = new Label("New Commitment");
         t.getStyleClass().add("section-title");
+        Label sub = new Label("Capture approved commitments before actual payment is posted.");
+        sub.getStyleClass().add("muted");
 
         creditorBox.setItems(store.getCreditors());
         creditorBox.setPrefWidth(220);
@@ -219,23 +240,24 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         });
 
         GridPane g = new GridPane();
+        g.getStyleClass().add("voucher-form-grid");
         g.setHgap(10);
         g.setVgap(8);
-        g.add(new Label("Creditor"), 0, 0);
-        g.add(creditorBox, 1, 0);
-        g.add(new Label("Votehead"), 0, 1);
-        g.add(voteheadBox, 1, 1);
-        g.add(new Label("Amount"), 0, 2);
-        g.add(commitAmount, 1, 2);
-        g.add(new Label("Reference"), 0, 3);
-        g.add(commitRef, 1, 3);
-        g.add(new Label("Description"), 0, 4);
-        g.add(commitDesc, 1, 4);
-        g.add(new Label("Date"), 0, 5);
-        g.add(commitDate, 1, 5);
+        g.add(voucherLabel("Creditor"), 0, 0);
+        g.add(voucherFieldBox(creditorBox, "Choose the supplier to be committed."), 1, 0);
+        g.add(voucherLabel("Votehead"), 0, 1);
+        g.add(voucherFieldBox(voteheadBox, "Select the expenditure votehead to be debited."), 1, 1);
+        g.add(voucherLabel("Amount"), 0, 2);
+        g.add(voucherFieldBox(commitAmount, "Enter the approved commitment amount."), 1, 2);
+        g.add(voucherLabel("Reference"), 0, 3);
+        g.add(voucherFieldBox(commitRef, "LPO, invoice, or approval reference."), 1, 3);
+        g.add(voucherLabel("Description"), 0, 4);
+        g.add(voucherFieldBox(commitDesc, "Describe the goods, services, or payment purpose."), 1, 4);
+        g.add(voucherLabel("Date"), 0, 5);
+        g.add(voucherFieldBox(commitDate, "Commitment creation date."), 1, 5);
 
-        VBox box = new VBox(10, t, g, create);
-        box.getStyleClass().add("card");
+        VBox box = new VBox(10, t, sub, g, create);
+        box.getStyleClass().addAll("card", "voucher-form-card");
         return box;
     }
 
@@ -290,6 +312,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
                 new Label("Ref:"), payRef,
                 new Label("Date:"), payDate,
                 pay);
+        bar.getStyleClass().add("voucher-pay-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
         return bar;
     }
@@ -351,22 +374,24 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         delete.getStyleClass().add("secondary-button");
         delete.setOnAction(e -> deleteSelectedLpo());
         GridPane form = new GridPane();
+        form.getStyleClass().add("voucher-form-grid");
         form.setHgap(10);
         form.setVgap(8);
-        form.add(new Label("Creditor"), 0, 0);
-        form.add(lpoCreditorBox, 1, 0);
-        form.add(new Label("Votehead"), 0, 1);
-        form.add(lpoVoteheadBox, 1, 1);
-        form.add(new Label("LPO Number"), 0, 2);
-        form.add(lpoNumberField, 1, 2);
-        form.add(new Label("Amount"), 0, 3);
-        form.add(lpoAmountField, 1, 3);
-        form.add(new Label("Description"), 0, 4);
-        form.add(lpoDescField, 1, 4);
-        form.add(new Label("Date"), 0, 5);
-        form.add(lpoDate, 1, 5);
+        form.add(voucherLabel("Creditor"), 0, 0);
+        form.add(voucherFieldBox(lpoCreditorBox, "Supplier for the purchase order."), 1, 0);
+        form.add(voucherLabel("Votehead"), 0, 1);
+        form.add(voucherFieldBox(lpoVoteheadBox, "Budget line against which this LPO is committed."), 1, 1);
+        form.add(voucherLabel("LPO Number"), 0, 2);
+        form.add(voucherFieldBox(lpoNumberField, "Official LPO reference number."), 1, 2);
+        form.add(voucherLabel("Amount"), 0, 3);
+        form.add(voucherFieldBox(lpoAmountField, "Total LPO value."), 1, 3);
+        form.add(voucherLabel("Description"), 0, 4);
+        form.add(voucherFieldBox(lpoDescField, "Describe the procurement request."), 1, 4);
+        form.add(voucherLabel("Date"), 0, 5);
+        form.add(voucherFieldBox(lpoDate, "LPO issue date."), 1, 5);
         HBox actions = new HBox(10, create, update, cancel, delete, exportButton("Export PDF", this::exportLposPdf));
-        return new VBox(10, form, actions, lpoTable);
+        actions.getStyleClass().add("voucher-action-bar");
+        return new VBox(10, sectionTitle("LPO Management", "Create, edit, cancel, or export local purchase orders."), form, actions, new Separator(), lpoTable);
     }
 
     private VBox buildInvoiceTab() {
@@ -409,24 +434,26 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         delete.getStyleClass().add("secondary-button");
         delete.setOnAction(e -> deleteSelectedInvoice());
         GridPane form = new GridPane();
+        form.getStyleClass().add("voucher-form-grid");
         form.setHgap(10);
         form.setVgap(8);
-        form.add(new Label("Creditor"), 0, 0);
-        form.add(invoiceCreditorBox, 1, 0);
-        form.add(new Label("Votehead"), 0, 1);
-        form.add(invoiceVoteheadBox, 1, 1);
-        form.add(new Label("LPO"), 0, 2);
-        form.add(invoiceLpoBox, 1, 2);
-        form.add(new Label("Invoice Number"), 0, 3);
-        form.add(invoiceNumberField, 1, 3);
-        form.add(new Label("Amount"), 0, 4);
-        form.add(invoiceAmountField, 1, 4);
-        form.add(new Label("Description"), 0, 5);
-        form.add(invoiceDescField, 1, 5);
-        form.add(new Label("Date"), 0, 6);
-        form.add(invoiceDate, 1, 6);
+        form.add(voucherLabel("Creditor"), 0, 0);
+        form.add(voucherFieldBox(invoiceCreditorBox, "Supplier issuing the invoice."), 1, 0);
+        form.add(voucherLabel("Votehead"), 0, 1);
+        form.add(voucherFieldBox(invoiceVoteheadBox, "Expense votehead to be charged."), 1, 1);
+        form.add(voucherLabel("LPO"), 0, 2);
+        form.add(voucherFieldBox(invoiceLpoBox, "Optional linked LPO record."), 1, 2);
+        form.add(voucherLabel("Invoice Number"), 0, 3);
+        form.add(voucherFieldBox(invoiceNumberField, "Supplier invoice reference number."), 1, 3);
+        form.add(voucherLabel("Amount"), 0, 4);
+        form.add(voucherFieldBox(invoiceAmountField, "Gross invoice amount."), 1, 4);
+        form.add(voucherLabel("Description"), 0, 5);
+        form.add(voucherFieldBox(invoiceDescField, "Short description of the invoice."), 1, 5);
+        form.add(voucherLabel("Date"), 0, 6);
+        form.add(voucherFieldBox(invoiceDate, "Invoice date."), 1, 6);
         HBox actions = new HBox(10, create, update, cancel, delete, exportButton("Export PDF", this::exportInvoicesPdf));
-        return new VBox(10, form, actions, invoiceTable);
+        actions.getStyleClass().add("voucher-action-bar");
+        return new VBox(10, sectionTitle("Invoice Management", "Capture supplier invoices and track payable status."), form, actions, new Separator(), invoiceTable);
     }
 
     private ScrollPane wrapTabContent(VBox content) {
@@ -483,24 +510,26 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         delete.getStyleClass().add("secondary-button");
         delete.setOnAction(e -> deleteSelectedImprest());
         GridPane form = new GridPane();
+        form.getStyleClass().add("voucher-form-grid");
         form.setHgap(10);
         form.setVgap(8);
-        form.add(new Label("Staff"), 0, 0);
-        form.add(imprestStaffField, 1, 0);
-        form.add(new Label("Votehead"), 0, 1);
-        form.add(imprestVoteheadBox, 1, 1);
-        form.add(new Label("Amount"), 0, 2);
-        form.add(imprestAmountField, 1, 2);
-        form.add(new Label("Purpose"), 0, 3);
-        form.add(imprestPurposeField, 1, 3);
-        form.add(new Label("Date"), 0, 4);
-        form.add(imprestDate, 1, 4);
-        form.add(new Label("Surrender Amount"), 0, 5);
-        form.add(surrenderAmountField, 1, 5);
-        form.add(new Label("Surrender Date"), 0, 6);
-        form.add(surrenderDate, 1, 6);
+        form.add(voucherLabel("Staff"), 0, 0);
+        form.add(voucherFieldBox(imprestStaffField, "Staff member receiving the imprest."), 1, 0);
+        form.add(voucherLabel("Votehead"), 0, 1);
+        form.add(voucherFieldBox(imprestVoteheadBox, "Expense votehead funding the imprest."), 1, 1);
+        form.add(voucherLabel("Amount"), 0, 2);
+        form.add(voucherFieldBox(imprestAmountField, "Amount issued to staff."), 1, 2);
+        form.add(voucherLabel("Purpose"), 0, 3);
+        form.add(voucherFieldBox(imprestPurposeField, "Reason for the imprest issue."), 1, 3);
+        form.add(voucherLabel("Date"), 0, 4);
+        form.add(voucherFieldBox(imprestDate, "Imprest issue date."), 1, 4);
+        form.add(voucherLabel("Surrender Amount"), 0, 5);
+        form.add(voucherFieldBox(surrenderAmountField, "Amount surrendered back or accounted for."), 1, 5);
+        form.add(voucherLabel("Surrender Date"), 0, 6);
+        form.add(voucherFieldBox(surrenderDate, "Date of surrender/accountability."), 1, 6);
         HBox actions = new HBox(10, issue, update, delete, surrender, exportButton("Export PDF", this::exportImprestsPdf));
-        return new VBox(10, form, actions, imprestTable);
+        actions.getStyleClass().add("voucher-action-bar");
+        return new VBox(10, sectionTitle("Imprest Management", "Issue, update, surrender, and export staff imprests."), form, actions, new Separator(), imprestTable);
     }
 
     private void setupLpoTable() {
@@ -944,6 +973,32 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         clearImprestForm();
         refresh();
         AlertUtil.info("Deleted", "Imprest deleted.");
+    }
+
+    private VBox sectionTitle(String title, String hint) {
+        Label heading = new Label(title);
+        heading.getStyleClass().add("section-title");
+        Label sub = new Label(hint);
+        sub.getStyleClass().add("muted");
+        sub.setWrapText(true);
+        return new VBox(4, heading, sub);
+    }
+
+    private Label voucherLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("voucher-form-label");
+        return label;
+    }
+
+    private VBox voucherFieldBox(javafx.scene.Node field, String hint) {
+        Label hintLabel = new Label(hint);
+        hintLabel.getStyleClass().addAll("muted", "voucher-field-hint");
+        VBox box = new VBox(4, field, hintLabel);
+        box.getStyleClass().add("voucher-field-box");
+        if (field instanceof javafx.scene.layout.Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        return box;
     }
 
     private Optional<Creditor> findCreditor(String creditorId) {

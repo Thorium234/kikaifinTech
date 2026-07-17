@@ -65,6 +65,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private final ComboBox<Student> studentBox = new ComboBox<>();
     private final DatePicker dailyDate = new DatePicker(LocalDate.now());
     private final ComboBox<AcademicTerm> termBox = new ComboBox<>();
+    private final Label reportsModeBadge = new Label();
 
     public ReportsView() {
         setSpacing(12);
@@ -72,6 +73,10 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
 
         Label heading = new Label("Reports");
         heading.getStyleClass().add("section-title");
+        Label badge = new Label("Finance Reporting Workspace");
+        badge.getStyleClass().add("reports-header-badge");
+        Label subtitle = new Label("Analyse balances, collections, receipts, ageing, and trial balance outputs from one reporting hub.");
+        subtitle.getStyleClass().addAll("muted", "reports-subtitle");
 
         TabPane tabs = new TabPane();
         tabs.getTabs().addAll(
@@ -89,7 +94,13 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button reportPackBtn = new Button("Export Full Report Pack");
         reportPackBtn.getStyleClass().add("secondary-button");
         reportPackBtn.setOnAction(e -> exportReportPack());
-        getChildren().addAll(heading, reportPackBtn, tabs);
+        HBox headerActions = new HBox(10, reportPackBtn);
+        headerActions.getStyleClass().add("reports-toolbar");
+        reportsModeBadge.getStyleClass().addAll("reports-mode-badge", "reports-mode-ready");
+        reportsModeBadge.setText("Ready to Generate and Export Reports");
+        VBox headerCard = new VBox(8, badge, heading, subtitle, headerActions);
+        headerCard.getStyleClass().addAll("card", "reports-header-card");
+        getChildren().addAll(headerCard, reportsModeBadge, tabs);
         refresh();
     }
 
@@ -119,7 +130,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         pdf.setOnAction(e -> exportStudentBalancesPdf(balancesTable.getItems(), "Fee Balances", "fee-balances.pdf"));
         HBox bar = new HBox(10, new Label("Term:"), termBox, refresh, export, pdf);
         bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        VBox box = new VBox(8, bar, balancesTable);
+        VBox box = new VBox(10, reportSectionTitle("Fee Balances", "Review student balances by term and export as spreadsheet or PDF."), bar, balancesTable);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(balancesTable, Priority.ALWAYS);
         return box;
@@ -141,7 +153,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         pdf.setOnAction(e -> exportStudentBalancesPdf(defaultersTable.getItems(), "Defaulters", "defaulters.pdf"));
         HBox bar = new HBox(10, new Label("Term:"), termBox, refresh, export, pdf, rollover);
         bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        VBox box = new VBox(8, bar, defaultersTable);
+        VBox box = new VBox(10, reportSectionTitle("Defaulters", "Track unpaid balances and optionally roll arrears forward."), bar, defaultersTable);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(defaultersTable, Priority.ALWAYS);
         return box;
@@ -188,7 +201,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportDailyCollectionPdf());
         HBox bar = new HBox(10, new Label("Date:"), dailyDate, load, export, pdf);
-        VBox box = new VBox(8, bar, dailyTable);
+        VBox box = new VBox(10, reportSectionTitle("Daily Collection", "Summarise daily fee collections by payment mode."), bar, dailyTable);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(dailyTable, Priority.ALWAYS);
         return box;
@@ -217,7 +231,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportVoteheadSummaryPdf());
-        VBox box = new VBox(8, new HBox(10, refresh, export, pdf), voteheadTable);
+        VBox box = new VBox(10, reportSectionTitle("Votehead Summary", "Review revenue and outstanding balances by votehead."), new HBox(10, refresh, export, pdf), voteheadTable);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(voteheadTable, Priority.ALWAYS);
         return box;
@@ -265,7 +280,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportStatementPdf());
         HBox bar = new HBox(10, new Label("Student:"), studentBox, load, print, export, pdf);
-        VBox box = new VBox(8, bar, statementArea);
+        VBox box = new VBox(10, reportSectionTitle("Student Statement", "Generate a formal per-student statement and export or print it."), bar, statementArea);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(statementArea, Priority.ALWAYS);
         return box;
@@ -306,7 +322,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         SplitPane body = new SplitPane(reprintTable, previewActions);
         body.setDividerPositions(0.58);
         VBox.setVgrow(reprintPreview, Priority.ALWAYS);
-        VBox box = new VBox(8, body);
+        VBox box = new VBox(10, reportSectionTitle("Receipt Reprint", "Re-open posted receipts for export, printing, or reversal."), body);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(body, Priority.ALWAYS);
         return box;
@@ -373,7 +390,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdfLedger = new Button("PDF Ledger");
         pdfLedger.getStyleClass().add("secondary-button");
         pdfLedger.setOnAction(e -> exportLedgerTransactionsPdf());
-        VBox box = new VBox(8, new HBox(10, refresh, export, pdf, exportLedger, pdfLedger), trialTable);
+        VBox box = new VBox(10, reportSectionTitle("Trial Balance", "Validate ledger equality and export trial balance or ledger transaction data."), new HBox(10, refresh, export, pdf, exportLedger, pdfLedger), trialTable);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(trialTable, Priority.ALWAYS);
         return box;
@@ -412,10 +430,20 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportAgeingPdf(table));
-        VBox box = new VBox(8, new HBox(10, refresh, export, pdf), table);
+        VBox box = new VBox(10, reportSectionTitle("Ageing Analysis", "Break down unpaid balances by ageing buckets for follow-up."), new HBox(10, refresh, export, pdf), table);
+        box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(table, Priority.ALWAYS);
         return box;
+    }
+
+    private VBox reportSectionTitle(String title, String hint) {
+        Label heading = new Label(title);
+        heading.getStyleClass().add("section-title");
+        Label sub = new Label(hint);
+        sub.getStyleClass().add("muted");
+        sub.setWrapText(true);
+        return new VBox(4, heading, sub);
     }
 
     private void printStatement() {

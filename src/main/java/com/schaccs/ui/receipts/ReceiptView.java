@@ -24,6 +24,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.Separator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -57,6 +58,8 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
     private final DatePicker datePicker = new DatePicker(LocalDate.now());
     private final TableView<FeeAllocation> allocationTable = new TableView<>();
     private final TextArea previewArea = new TextArea();
+    private final Label receiptModeBadge = new Label();
+    private final Label paymentHint = new Label();
 
     private Student selected;
 
@@ -66,6 +69,10 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
         Label heading = new Label("Receipting — Automatic Votehead Allocation");
         heading.getStyleClass().add("section-title");
+        Label badge = new Label("Student Fee Collection Workspace");
+        badge.getStyleClass().add("receipt-header-badge");
+        Label subHeading = new Label("Search a student, review outstanding balances, preview allocation, then post an official receipt.");
+        subHeading.getStyleClass().addAll("muted", "receipt-subtitle");
 
         Label policy = new Label("School policy: No cash except bank pay-in slip approved by the Principal.");
         policy.getStyleClass().add("policy-banner");
@@ -75,12 +82,19 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         setupStudentTable();
         searchBar.textProperty().addListener((obs, o, q) -> filterStudents(q));
 
-        VBox searchCard = new VBox(8, searchBar, studentTable);
-        searchCard.getStyleClass().add("card");
+        Label searchTitle = new Label("Student Search & Selection");
+        searchTitle.getStyleClass().add("section-title");
+        Label searchHint = new Label("Use admission number, student name, or class to quickly find a learner.");
+        searchHint.getStyleClass().add("muted");
+        VBox searchCard = new VBox(10, searchTitle, searchHint, searchBar, studentTable);
+        searchCard.getStyleClass().addAll("card", "receipt-search-card");
         studentTable.setPrefHeight(200);
 
-        studentSummary.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
-        balanceLabel.getStyleClass().add("muted");
+        studentSummary.getStyleClass().add("receipt-student-summary");
+        balanceLabel.getStyleClass().addAll("muted", "receipt-balance-summary");
+        receiptModeBadge.getStyleClass().add("receipt-mode-badge");
+        paymentHint.getStyleClass().addAll("muted", "receipt-payment-hint");
+        paymentHint.setText("Select a student and enter an amount to preview exact votehead allocation before posting.");
 
         modeBox.getItems().setAll(PaymentMode.allowedModes());
         modeBox.setValue(PaymentMode.BANK_SLIP);
@@ -105,35 +119,43 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         pdfBtn.setOnAction(e -> exportReceiptPdf());
 
         GridPane form = new GridPane();
+        form.getStyleClass().add("receipt-form-grid");
         form.setHgap(10);
         form.setVgap(10);
-        form.add(new Label("Amount (KSh)"), 0, 0);
-        form.add(amountField, 1, 0);
-        form.add(new Label("Payment Mode"), 0, 1);
-        form.add(modeBox, 1, 1);
-        form.add(new Label("Reference"), 0, 2);
-        form.add(refField, 1, 2);
-        form.add(new Label("Date"), 0, 3);
-        form.add(datePicker, 1, 3);
+        form.add(receiptLabel("Amount (KSh)"), 0, 0);
+        form.add(receiptFieldBox(amountField, "Enter the full amount received from the student."), 1, 0);
+        form.add(receiptLabel("Payment Mode"), 0, 1);
+        form.add(receiptFieldBox(modeBox, "Use approved non-cash collection channels."), 1, 1);
+        form.add(receiptLabel("Reference"), 0, 2);
+        form.add(receiptFieldBox(refField, "Bank slip, cheque, EFT, or M-Pesa transaction reference."), 1, 2);
+        form.add(receiptLabel("Date"), 0, 3);
+        form.add(receiptFieldBox(datePicker, "Posting date for this receipt."), 1, 3);
         amountField.setPrefWidth(200);
         modeBox.setPrefWidth(200);
         refField.setPrefWidth(200);
 
         HBox actions = new HBox(10, previewBtn, receiveBtn, printBtn, pdfBtn);
+        actions.getStyleClass().add("receipt-action-bar");
         actions.setAlignment(Pos.CENTER_LEFT);
 
         setupAllocationTable();
 
-        VBox payCard = new VBox(10, studentSummary, balanceLabel, form, actions,
-                new Label("Automatic Votehead Distribution"), allocationTable);
-        payCard.getStyleClass().add("card");
+        Label allocationTitle = new Label("Automatic Votehead Distribution");
+        allocationTitle.getStyleClass().add("section-title");
+        VBox payCard = new VBox(12, receiptModeBadge, studentSummary, balanceLabel, new Separator(), paymentHint, form, actions,
+                allocationTitle, allocationTable);
+        payCard.getStyleClass().addAll("card", "receipt-pay-card");
         VBox.setVgrow(allocationTable, Priority.SOMETIMES);
 
         previewArea.setEditable(false);
         previewArea.setPrefRowCount(16);
         previewArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px;");
-        VBox previewCard = new VBox(8, new Label("Official Receipt Preview"), previewArea);
-        previewCard.getStyleClass().add("card");
+        Label previewTitle = new Label("Official Receipt Preview");
+        previewTitle.getStyleClass().add("section-title");
+        Label previewHint = new Label("Preview the official receipt wording before printing or exporting PDF.");
+        previewHint.getStyleClass().add("muted");
+        VBox previewCard = new VBox(10, previewTitle, previewHint, previewArea);
+        previewCard.getStyleClass().addAll("card", "receipt-preview-card");
         previewCard.setPrefWidth(420);
         VBox.setVgrow(previewArea, Priority.ALWAYS);
 
@@ -151,7 +173,10 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         lowerScroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(lowerScroll, Priority.ALWAYS);
 
-        getChildren().addAll(heading, policy, searchCard, lowerScroll);
+        VBox headerCard = new VBox(8, badge, heading, subHeading, policy);
+        headerCard.getStyleClass().addAll("card", "receipt-header-card");
+        getChildren().addAll(headerCard, searchCard, lowerScroll);
+        updateReceiptMode();
         filterStudents("");
     }
 
@@ -209,13 +234,22 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
     private void selectStudent(Student s) {
         selected = s;
         if (s == null) {
-            studentSummary.setText("Select a student");
+            studentSummary.setText("Select a student to begin receipting");
             balanceLabel.setText("");
             allocationTable.getItems().clear();
+            updateReceiptMode();
             return;
         }
         StudentFeeLedger ledger = studentStore.getLedger(s.getId());
         studentSummary.setText(s.getAdmissionNumber() + " — " + s.getName() + " (" + s.getClassLabel() + ")");
+         balanceLabel.setText("Outstanding balance: " + CurrencyUtil.format(ledger.getBalance())
+                 + "  |  Charged: " + CurrencyUtil.format(ledger.getTotalCharged())
+                 + "  |  Paid: " + CurrencyUtil.format(ledger.getTotalPaid())
+                 + (ledger.getArrears().compareTo(BigDecimal.ZERO) > 0
+                 ? "  |  Arrears: " + CurrencyUtil.format(ledger.getArrears()) : ""));
++        updateReceiptMode();
+         previewAllocation();
+         studentTable.refresh();
         balanceLabel.setText("Outstanding balance: " + CurrencyUtil.format(ledger.getBalance())
                 + "  |  Charged: " + CurrencyUtil.format(ledger.getTotalCharged())
                 + "  |  Paid: " + CurrencyUtil.format(ledger.getTotalPaid())
@@ -236,6 +270,9 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         }
         List<FeeAllocation> allocs = receiptService.previewAllocation(selected, amount);
         allocationTable.getItems().setAll(allocs);
+        paymentHint.setText(allocs.isEmpty()
+                ? "No allocatable balances found for the entered amount."
+                : "Allocation preview updated. Review votehead distribution before posting.");
     }
 
     private void receive() {
@@ -262,6 +299,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
         amountField.clear();
         refField.clear();
+        paymentHint.setText("Receipt posted successfully. You may print or export the preview.");
         selectStudent(selected);
         studentTable.refresh();
     }
@@ -323,6 +361,35 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
                 getScene() != null ? getScene().getWindow() : null);
         if (!printed) {
             AlertUtil.warn("Print cancelled", "No receipt was printed.");
+        }
+    }
+
+    private Label receiptLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("receipt-form-label");
+        return label;
+    }
+
+    private VBox receiptFieldBox(javafx.scene.Node field, String hint) {
+        Label hintLabel = new Label(hint);
+        hintLabel.getStyleClass().addAll("muted", "receipt-field-hint");
+        VBox box = new VBox(4, field, hintLabel);
+        box.getStyleClass().add("receipt-field-box");
+        if (field instanceof javafx.scene.layout.Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        return box;
+    }
+
+    private void updateReceiptMode() {
+        if (selected == null) {
+            receiptModeBadge.setText("Awaiting Student Selection");
+            receiptModeBadge.getStyleClass().removeAll("receipt-mode-ready", "receipt-mode-active");
+            receiptModeBadge.getStyleClass().add("receipt-mode-ready");
+        } else {
+            receiptModeBadge.setText("Ready to Receipt Selected Student");
+            receiptModeBadge.getStyleClass().removeAll("receipt-mode-ready", "receipt-mode-active");
+            receiptModeBadge.getStyleClass().add("receipt-mode-active");
         }
     }
 
