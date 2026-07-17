@@ -106,8 +106,9 @@ public class PaymentVoucherService {
             return errors;
         }
 
-        PaymentVoucher voucher = new PaymentVoucher();
-        voucher.setVoucherNumber(AppConfig.getInstance().getSchoolProfile().allocateVoucherNumber());
+        try {
+            PaymentVoucher voucher = new PaymentVoucher();
+            voucher.setVoucherNumber(AppConfig.getInstance().getSchoolProfile().allocateVoucherNumber());
         voucher.setDate(date != null ? date : LocalDate.now());
         voucher.setCreditorId(commitment.getCreditorId());
         voucher.setCreditorName(commitment.getCreditorName());
@@ -143,10 +144,14 @@ public class PaymentVoucherService {
 
         // Voucher id is now stamped on the linked ledger transactions for audit tracing.
 
-        commitment.applyPayment(amount);
-        store.addVoucher(voucher);
-        PersistenceService.getInstance().saveAll();
-        return errors;
+            commitment.applyPayment(amount);
+            store.addVoucher(voucher);
+            PersistenceService.getInstance().saveAll();
+            return errors;
+        } catch (Exception e) {
+            errors.add("Failed to post payment voucher: " + e.getMessage());
+            return errors;
+        }
     }
 
     public List<String> createLpo(Creditor creditor, Votehead votehead, BigDecimal amount,

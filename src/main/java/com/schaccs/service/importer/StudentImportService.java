@@ -7,6 +7,7 @@ import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.store.StudentStore;
+import com.schaccs.validation.StudentValidator;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -31,6 +32,7 @@ public class StudentImportService {
     private final StudentService studentService;
     private final FeeCalculationService feeCalculationService;
     private final StudentStore studentStore;
+    private final StudentValidator studentValidator;
 
     public StudentImportService() {
         this(new StudentService(), new FeeCalculationService(), StudentStore.getInstance());
@@ -44,6 +46,7 @@ public class StudentImportService {
         this.studentService = studentService;
         this.feeCalculationService = feeCalculationService;
         this.studentStore = studentStore;
+        this.studentValidator = new StudentValidator(studentStore);
     }
 
     public ImportResult importFile(Path path) {
@@ -144,6 +147,7 @@ public class StudentImportService {
 
     public ImportResult importRows(List<Map<String, String>> rows, boolean commit) {
         List<String> warnings = new ArrayList<>();
+        List<RowFailure> failures = new ArrayList<>();
         int imported = 0;
         int skipped = 0;
         List<Student> stagedStudents = new ArrayList<>();
@@ -173,7 +177,9 @@ public class StudentImportService {
 
             List<String> errors = validateCandidate(student, stagedStudents);
             if (!errors.isEmpty()) {
-                warnings.add("Row " + displayRow + " skipped: " + String.join("; ", errors));
+                String message = String.join("; ", errors);
+                warnings.add("Row " + displayRow + " skipped: " + message);
+                failures.add(new RowFailure(displayRow, message));
                 skipped++;
                 continue;
             }
@@ -187,7 +193,7 @@ public class StudentImportService {
             }
             PersistenceService.getInstance().saveAll();
         }
-        return new ImportResult(imported, skipped, warnings);
+        return new ImportResult(imported, skipped, warnings, failures);
     }
 
     private List<String> splitCsv(String line) {
@@ -249,20 +255,8 @@ public class StudentImportService {
     }
 
     private List<String> validateCandidate(Student student, List<Student> stagedStudents) {
-        List<String> errors = new ArrayList<>();
+        List<String> errors = new ArrayList<>(studentValidator.validate(student, true));
         String admission = student.getAdmissionNumber();
-        if (admission == null || admission.isBlank()) {
-            errors.add("Admission number is required.");
-        }
-        if (student.getName() == null || student.getName().isBlank()) {
-            errors.add("Student name is required.");
-        }
-        if (student.getFormClass() == null || student.getFormClass().isBlank()) {
-            errors.add("Class / Form is required.");
-        }
-        if (student.getBoardingStatus() == null) {
-            errors.add("Boarding status is required.");
-        }
         if (admission != null && !admission.isBlank()) {
             studentService.findByAdmission(admission).ifPresent(existing ->
                     errors.add("Admission number already exists: " + admission));
@@ -290,15 +284,17 @@ public class StudentImportService {
         private final int imported;
         private final int skipped;
         private final List<String> warnings;
+        private final List<RowFailure> failures;
 
-        public ImportResult(int imported, int skipped, List<String> warnings) {
+        public ImportResult(int imported, int skipped, List<String> warnings, List<RowFailure> failures) {
             this.imported = imported;
             this.skipped = skipped;
             this.warnings = List.copyOf(warnings);
+            this.failures = List.copyOf(failures);
         }
 
         public static ImportResult failure(List<String> warnings) {
-            return new ImportResult(0, 0, warnings);
+            return new ImportResult(0, 0, warnings, List.of());
         }
 
         public int getImported() {
@@ -315,6 +311,32 @@ public class StudentImportService {
 
         public boolean hasWarnings() {
             return !warnings.isEmpty();
+        }
+
+        public int getRejected() {
+            return skipped;
+        }
+
+        public List<RowFailure> getFailures() {
+            return failures;
+        }
+    }
+
+    public static final class RowFailure {
+        private final int rowNumber;
+        private final String reason;
+
+        public RowFailure(int rowNumber, String reason) {
+            this.rowNumber = rowNumber;
+            this.reason = reason;
+        }
+
+        public int getRowNumber() {
+            return rowNumber;
+        }
+
+        public String getReason() {
+            return reason;
         }
     }
 }

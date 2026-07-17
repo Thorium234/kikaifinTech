@@ -47,6 +47,7 @@ public final class Database {
                 throw new SQLException("Cannot create data directory: " + DB_DIR, e);
             }
             connection = DriverManager.getConnection(DB_URL);
+            configureConnection(connection);
             connection.setAutoCommit(true);
             initSchema(connection);
         }
@@ -55,6 +56,13 @@ public final class Database {
 
     public Path getDatabasePath() {
         return Path.of(DB_DIR, "schaccs.db");
+    }
+
+    private void configureConnection(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("PRAGMA foreign_keys=ON");
+            st.execute("PRAGMA journal_mode=WAL");
+        }
     }
 
     private int schemaVersion(Connection conn) throws SQLException {

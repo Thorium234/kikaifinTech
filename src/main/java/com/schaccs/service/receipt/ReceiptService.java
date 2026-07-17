@@ -20,6 +20,7 @@ import com.schaccs.validation.ReceiptValidator;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -67,6 +68,7 @@ public class ReceiptService {
 
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
         List<FeeAllocation> allocations = allocationEngine.allocate(ledger, amount);
+        List<ReceiptLine> createdLines = new ArrayList<>();
 
         Receipt receipt = new Receipt();
         receipt.setReceiptNumber(numberService.next());
@@ -87,7 +89,9 @@ public class ReceiptService {
             if (alloc.getAllocated().compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            receipt.addLine(new ReceiptLine(alloc.getVoteheadCode(), alloc.getVoteheadName(), alloc.getAllocated()));
+            ReceiptLine line = new ReceiptLine(alloc.getVoteheadCode(), alloc.getVoteheadName(), alloc.getAllocated());
+            receipt.addLine(line);
+            createdLines.add(line);
 
             if (StudentFeeLedger.ADVANCE_CODE.equals(alloc.getVoteheadCode())) {
                 if (alloc.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
@@ -125,9 +129,23 @@ public class ReceiptService {
             );
         }
 
-        receiptStore.add(receipt);
-        PersistenceService.getInstance().saveAll();
-        return Result.success(receipt, allocations);
+        try {
+            receiptStore.add(receipt);
+            PersistenceService.getInstance().saveAll();
+            return Result.success(receipt, allocations);
+        } catch (Exception e) {
+            for (ReceiptLine line : createdLines) {
+                if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
+                    ledger.reduceAdvance(line.getAmount());
+                } else if ("ARREARS".equals(line.getVoteheadCode())) {
+                    ledger.setArrears(ledger.getArrears().add(line.getAmount()));
+                } else {
+                    ledger.reversePayment(line.getVoteheadCode(), line.getAmount());
+                }
+            }
+            receiptStore.getReceipts().remove(receipt);
+            return Result.failure(List.of("Failed to post receipt: " + e.getMessage()));
+        }
     }
 
     public List<Receipt> allReceipts() {
@@ -188,11 +206,12 @@ public class ReceiptService {
         if (student == null) {
             return Result.failure(List.of("Linked student not found; cannot reverse."));
         }
-        StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+        try {
+            StudentFeeLedger ledger = studentStore.getLedger(student.getId());
 
-        String ref = "RCPT-RV-" + receipt.getReceiptNumber();
-        // Reverse each allocation line (credit income, debit bank)
-        for (ReceiptLine line : receipt.getLines()) {
+            String ref = "RCPT-RV-" + receipt.getReceiptNumber();
+            // Reverse each allocation line (credit income, debit bank)
+            for (ReceiptLine line : receipt.getLines()) {
             if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
                 ledger.reduceAdvance(line.getAmount());
                 continue;
@@ -218,13 +237,16 @@ public class ReceiptService {
                     LocalDate.now());
         }
 
-        receipt.setReversed(true);
-        if (receipt.getNotes() == null || receipt.getNotes().isBlank()) {
-            receipt.setNotes("REVERSED" + (reason != null ? ": " + reason : ""));
-        } else {
-            receipt.setNotes(receipt.getNotes() + " | REVERSED" + (reason != null ? ": " + reason : ""));
+                receipt.setReversed(true);
+                if (receipt.getNotes() == null || receipt.getNotes().isBlank()) {
+                    receipt.setNotes("REVERSED" + (reason != null ? ": " + reason : ""));
+                } else {
+                    receipt.setNotes(receipt.getNotes() + " | REVERSED" + (reason != null ? ": " + reason : ""));
+                }
+            PersistenceService.getInstance().saveAll();
+            return Result.success(receipt, List.of());
+        } catch (Exception e) {
+            return Result.failure(List.of("Failed to reverse receipt: " + e.getMessage()));
         }
-        PersistenceService.getInstance().saveAll();
-        return Result.success(receipt, List.of());
     }
 }
