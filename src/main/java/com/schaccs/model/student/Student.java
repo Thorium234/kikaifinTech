@@ -26,6 +26,7 @@ public class Student {
     private final ObjectProperty<Integer> yearOfAdmission = new SimpleObjectProperty<>(2026);
     private final ObjectProperty<Integer> academicYear = new SimpleObjectProperty<>(2026);
     private final ObjectProperty<StudentStatus> status = new SimpleObjectProperty<>(StudentStatus.ACTIVE);
+    private final StringProperty avatarPath = new SimpleStringProperty();
 
     public Student() {
         this.id = UUID.randomUUID().toString();
@@ -216,6 +217,18 @@ public class Student {
 
     public ObjectProperty<StudentStatus> statusProperty() {
         return status;
+    }
+
+    public String getAvatarPath() {
+        return avatarPath.get();
+    }
+
+    public void setAvatarPath(String value) {
+        avatarPath.set(value);
+    }
+
+    public StringProperty avatarPathProperty() {
+        return avatarPath;
     }
 
     public boolean matchesSearch(String query) {

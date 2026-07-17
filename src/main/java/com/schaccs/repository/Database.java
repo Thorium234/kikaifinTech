@@ -4,6 +4,7 @@ import com.schaccs.repository.migration.MigrationV1SchoolSettingsDiscount;
 import com.schaccs.repository.migration.MigrationV2ReceiptReversed;
 import com.schaccs.repository.migration.MigrationV3SchoolLogoPath;
 import com.schaccs.repository.migration.MigrationV4ReceiptStampSignaturePaths;
+import com.schaccs.repository.migration.MigrationV5StudentAvatarAndGuardianFields;
 import com.schaccs.repository.migration.SchemaMigration;
 
 import java.nio.file.Files;
@@ -17,6 +18,7 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * SQLite connection + schema. Data lives under ~/.schaccs/schaccs.db
@@ -56,6 +58,64 @@ public final class Database {
 
     public Path getDatabasePath() {
         return Path.of(DB_DIR, "schaccs.db");
+    }
+
+    public synchronized void inTransaction(SqlRunnable action) throws SQLException {
+        Connection conn = getConnection();
+        boolean previousAutoCommit = conn.getAutoCommit();
+        if (!previousAutoCommit) {
+            try {
+                action.run(conn);
+                return;
+            } catch (Exception e) {
+                if (e instanceof SQLException sqlException) {
+                    throw sqlException;
+                }
+                throw new SQLException("Transaction failed: " + e.getMessage(), e);
+            }
+        }
+        conn.setAutoCommit(false);
+        try {
+            action.run(conn);
+            conn.commit();
+        } catch (Exception e) {
+            conn.rollback();
+            if (e instanceof SQLException sqlException) {
+                throw sqlException;
+            }
+            throw new SQLException("Transaction failed: " + e.getMessage(), e);
+        } finally {
+            conn.setAutoCommit(true);
+        }
+    }
+
+    public synchronized <T> T inTransaction(SqlFunction<T> action) throws SQLException {
+        Connection conn = getConnection();
+        boolean previousAutoCommit = conn.getAutoCommit();
+        if (!previousAutoCommit) {
+            try {
+                return action.apply(conn);
+            } catch (Exception e) {
+                if (e instanceof SQLException sqlException) {
+                    throw sqlException;
+                }
+                throw new SQLException("Transaction failed: " + e.getMessage(), e);
+            }
+        }
+        conn.setAutoCommit(false);
+        try {
+            T result = action.apply(conn);
+            conn.commit();
+            return result;
+        } catch (Exception e) {
+            conn.rollback();
+            if (e instanceof SQLException sqlException) {
+                throw sqlException;
+            }
+            throw new SQLException("Transaction failed: " + e.getMessage(), e);
+        } finally {
+            conn.setAutoCommit(true);
+        }
     }
 
     private void configureConnection(Connection conn) throws SQLException {
@@ -112,7 +172,8 @@ public final class Database {
                 new MigrationV1SchoolSettingsDiscount(),
                 new MigrationV2ReceiptReversed(),
                 new MigrationV3SchoolLogoPath(),
-                new MigrationV4ReceiptStampSignaturePaths()
+                new MigrationV4ReceiptStampSignaturePaths(),
+                new MigrationV5StudentAvatarAndGuardianFields()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -215,7 +276,9 @@ public final class Database {
                         stream TEXT,
                         boarding_status TEXT,
                         parent_name TEXT,
+                        guardian_key TEXT,
                         phone TEXT,
+                        avatar_path TEXT,
                         year_of_admission INTEGER,
                         academic_year INTEGER,
                         status TEXT
@@ -415,6 +478,16 @@ public final class Database {
             rows.add(new String[]{"ERR", "migration_history", e.getMessage(), "", ""});
         }
         return rows;
+    }
+
+    @FunctionalInterface
+    public interface SqlRunnable {
+        void run(Connection connection) throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface SqlFunction<T> {
+        T apply(Connection connection) throws Exception;
     }
 
     public void close() {

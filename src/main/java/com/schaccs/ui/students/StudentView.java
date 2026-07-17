@@ -25,14 +25,24 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 public class StudentView extends VBox implements MainLayout.Refreshable {
@@ -57,6 +67,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final ComboBox<BoardingStatus> boardingBox = new ComboBox<>();
     private final ComboBox<StudentStatus> statusBox = new ComboBox<>();
     private final ComboBox<String> genderBox = new ComboBox<>();
+    private final TextField avatarPathField = new TextField();
+    private final ImageView avatarPreview = new ImageView();
+    private final StackPane avatarPane = new StackPane();
 
     private Student editing;
 
@@ -116,6 +129,21 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     }
 
     private void setupTable() {
+        TableColumn<Student, String> avatar = new TableColumn<>("Avatar");
+        avatar.setCellValueFactory(c -> c.getValue().avatarPathProperty());
+        avatar.setCellFactory(col -> new javafx.scene.control.TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                    return;
+                }
+                setGraphic(buildStudentAvatarNode((Student) getTableRow().getItem(), 28));
+            }
+        });
+        avatar.setPrefWidth(70);
+
         TableColumn<Student, String> adm = new TableColumn<>("Adm No");
         adm.setCellValueFactory(c -> c.getValue().admissionNumberProperty());
         adm.setPrefWidth(100);
@@ -142,7 +170,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 c.getValue().getStatus() != null ? c.getValue().getStatus().getDisplayName() : ""));
         st.setPrefWidth(90);
 
-        table.getColumns().addAll(adm, name, cls, board, phone, st);
+        table.getColumns().addAll(avatar, adm, name, cls, board, phone, st);
         table.setItems(filtered);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> {
@@ -163,6 +191,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         genderBox.getItems().setAll("Male", "Female");
         genderBox.setValue("Male");
 
+        avatarPathField.setPromptText("Optional student picture path");
+        configureAvatarPreview();
+        nameField.textProperty().addListener((obs, oldValue, newValue) -> refreshAvatarPreview(editing));
+        avatarPathField.textProperty().addListener((obs, oldValue, newValue) -> refreshAvatarPreview(editing));
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
@@ -185,6 +217,14 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         grid.add(guardianField, 1, r++);
         grid.add(new Label("Phone"), 0, r);
         grid.add(phoneField, 1, r++);
+        grid.add(new Label("Student Picture"), 0, r);
+        Button browseAvatar = new Button("Browse...");
+        browseAvatar.getStyleClass().add("secondary-button");
+        browseAvatar.setOnAction(e -> chooseAvatar());
+        Button clearAvatar = new Button("Clear");
+        clearAvatar.getStyleClass().add("secondary-button");
+        clearAvatar.setOnAction(e -> clearAvatar());
+        grid.add(new VBox(6, new HBox(8, avatarPathField, browseAvatar, clearAvatar), avatarPane), 1, r++);
         grid.add(new Label("Status"), 0, r);
         grid.add(statusBox, 1, r);
 
@@ -209,6 +249,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         phoneField.clear();
         parentField.clear();
         guardianField.clear();
+        avatarPathField.clear();
+        refreshAvatarPreview(null);
         boardingBox.setValue(BoardingStatus.BOARDING);
         statusBox.setValue(StudentStatus.ACTIVE);
         genderBox.setValue("Male");
@@ -225,6 +267,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         phoneField.setText(s.getPhone());
         parentField.setText(s.getParentName());
         guardianField.setText(s.getGuardianKey());
+        avatarPathField.setText(s.getAvatarPath());
+        refreshAvatarPreview(s);
         boardingBox.setValue(s.getBoardingStatus());
         statusBox.setValue(s.getStatus());
         genderBox.setValue(s.getGender() != null ? s.getGender() : "Male");
@@ -263,6 +307,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         s.setPhone(phoneField.getText().trim());
         s.setParentName(parentField.getText().trim());
         s.setGuardianKey(guardianField.getText().trim());
+        s.setAvatarPath(avatarPathField.getText().trim().isEmpty() ? null : avatarPathField.getText().trim());
         s.setBoardingStatus(boardingBox.getValue());
         s.setStatus(statusBox.getValue());
         s.setGender(genderBox.getValue());
@@ -404,6 +449,76 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             }
         }
         return msg.toString().trim();
+    }
+
+    private void configureAvatarPreview() {
+        avatarPreview.setFitHeight(110);
+        avatarPreview.setFitWidth(110);
+        avatarPreview.setPreserveRatio(true);
+        avatarPane.setPrefSize(120, 120);
+        avatarPane.setMinSize(120, 120);
+        avatarPane.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 60; -fx-background-radius: 60;");
+    }
+
+    private void chooseAvatar() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Choose Student Picture");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp"),
+                new FileChooser.ExtensionFilter("All files", "*.*")
+        );
+        File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file != null) {
+            avatarPathField.setText(file.getAbsolutePath());
+            refreshAvatarPreview(editing);
+        }
+    }
+
+    private void clearAvatar() {
+        avatarPathField.clear();
+        refreshAvatarPreview(editing);
+    }
+
+    private void refreshAvatarPreview(Student student) {
+        Student source = student != null ? student : new Student();
+        if (student == null) {
+            source.setName(nameField.getText());
+            source.setAvatarPath(avatarPathField.getText());
+        }
+        avatarPane.getChildren().setAll(buildStudentAvatarNode(source, 110));
+    }
+
+    private StackPane buildStudentAvatarNode(Student student, double size) {
+        StackPane pane = new StackPane();
+        Circle bg = new Circle(size / 2, Color.web("#dbe8dd"));
+        String avatarPath = student != null ? student.getAvatarPath() : null;
+        if (avatarPath != null && !avatarPath.isBlank()) {
+            Path path = Path.of(avatarPath);
+            if (Files.exists(path)) {
+                ImageView view = new ImageView(new Image(path.toUri().toString(), true));
+                view.setFitWidth(size);
+                view.setFitHeight(size);
+                view.setPreserveRatio(true);
+                pane.getChildren().addAll(bg, view);
+                return pane;
+            }
+        }
+        String initials = initialsFor(student != null ? student.getName() : "");
+        Text text = new Text(initials);
+        text.setFill(Color.web("#1a472a"));
+        text.setFont(Font.font("System", FontWeight.BOLD, Math.max(12, size / 3.2)));
+        pane.getChildren().addAll(bg, text);
+        return pane;
+    }
+
+    private String initialsFor(String name) {
+        if (name == null || name.isBlank()) {
+            return "A";
+        }
+        String[] parts = name.trim().split("\\s+");
+        String first = parts[0].substring(0, 1).toUpperCase();
+        String second = parts.length > 1 ? parts[1].substring(0, 1).toUpperCase() : "";
+        return (first + second).trim();
     }
 
     private String safe(String value) {

@@ -73,33 +73,21 @@ public final class PersistenceService {
     }
 
     public synchronized void saveAll() {
-        try {
-            Connection conn = Database.getInstance().getConnection();
-            conn.setAutoCommit(false);
-            try {
-                saveSettings(conn);
-                markInitialized(conn);
-                saveVoteheads(conn);
-                saveFeeStructures(conn);
-                saveStudents(conn);
-                saveReceipts(conn);
-                saveLedger(conn);
-                saveCreditors(conn);
-                saveCommitments(conn);
-                saveVouchers(conn);
-                saveLpos(conn);
-                saveInvoices(conn);
-                saveImprests(conn);
-                conn.commit();
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to save data: " + e.getMessage(), e);
-        }
+        transactional(conn -> {
+            saveSettings(conn);
+            markInitialized(conn);
+            saveVoteheads(conn);
+            saveFeeStructures(conn);
+            saveStudents(conn);
+            saveReceipts(conn);
+            saveLedger(conn);
+            saveCreditors(conn);
+            saveCommitments(conn);
+            saveVouchers(conn);
+            saveLpos(conn);
+            saveInvoices(conn);
+            saveImprests(conn);
+        });
     }
 
     public synchronized void loadAll() {
@@ -124,6 +112,22 @@ public final class PersistenceService {
             loadImprests(conn);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load data: " + e.getMessage(), e);
+        }
+    }
+
+    public void transactional(Database.SqlRunnable action) {
+        try {
+            Database.getInstance().inTransaction(action);
+        } catch (SQLException e) {
+            throw new RuntimeException("Transactional operation failed: " + e.getMessage(), e);
+        }
+    }
+
+    public <T> T transactionalResult(Database.SqlFunction<T> action) {
+        try {
+            return Database.getInstance().inTransaction(action);
+        } catch (SQLException e) {
+            throw new RuntimeException("Transactional operation failed: " + e.getMessage(), e);
         }
     }
 
@@ -342,12 +346,12 @@ public final class PersistenceService {
         StudentStore store = StudentStore.getInstance();
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO students (id, admission_number, upi, name, gender, form_class, stream,
-                    boarding_status, parent_name, phone, year_of_admission, academic_year, status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    boarding_status, parent_name, guardian_key, phone, avatar_path, year_of_admission, academic_year, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET admission_number=excluded.admission_number, upi=excluded.upi,
                     name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, stream=excluded.stream,
-                    boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, phone=excluded.phone,
-                    year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status
+                    boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, guardian_key=excluded.guardian_key, phone=excluded.phone,
+                    avatar_path=excluded.avatar_path, year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status
                 """);
              PreparedStatement ledPs = conn.prepareStatement(
                      "INSERT INTO student_ledgers (student_id, arrears, advance, current_term) VALUES (?,?,?,?) "
@@ -366,10 +370,12 @@ public final class PersistenceService {
                 ps.setString(7, s.getStream());
                 ps.setString(8, enumName(s.getBoardingStatus()));
                 ps.setString(9, s.getParentName());
-                ps.setString(10, s.getPhone());
-                ps.setObject(11, s.getYearOfAdmission());
-                ps.setObject(12, s.getAcademicYear());
-                ps.setString(13, enumName(s.getStatus()));
+                ps.setString(10, s.getGuardianKey());
+                ps.setString(11, s.getPhone());
+                ps.setString(12, s.getAvatarPath());
+                ps.setObject(13, s.getYearOfAdmission());
+                ps.setObject(14, s.getAcademicYear());
+                ps.setString(15, enumName(s.getStatus()));
                 ps.addBatch();
 
                 StudentFeeLedger ledger = store.getLedger(s.getId());
@@ -417,7 +423,9 @@ public final class PersistenceService {
                     s.setBoardingStatus(BoardingStatus.valueOf(board));
                 }
                 s.setParentName(rs.getString("parent_name"));
+                s.setGuardianKey(rs.getString("guardian_key"));
                 s.setPhone(rs.getString("phone"));
+                s.setAvatarPath(rs.getString("avatar_path"));
                 int yoa = rs.getInt("year_of_admission");
                 if (!rs.wasNull()) {
                     s.setYearOfAdmission(yoa);
