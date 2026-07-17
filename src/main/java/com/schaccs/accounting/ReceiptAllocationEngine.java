@@ -41,6 +41,16 @@ public class ReceiptAllocationEngine {
         List<String> orderedCodes = new ArrayList<>(outstanding.keySet());
         orderedCodes.sort(Comparator.comparingInt(this::priorityOf));
 
+        // Carry-forward advance credit is applied first (acts like a pre-payment)
+        if (ledger.getAdvance().compareTo(BigDecimal.ZERO) > 0 && remaining.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal available = ledger.getAdvance();
+            BigDecimal take = available.min(remaining);
+            if (take.compareTo(BigDecimal.ZERO) > 0) {
+                allocations.add(new FeeAllocation("ADVANCE", "Advance / Credit", available, take));
+                remaining = remaining.subtract(take);
+            }
+        }
+
         // Arrears first if present (virtual votehead)
         if (ledger.getArrears().compareTo(BigDecimal.ZERO) > 0 && remaining.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal arrears = ledger.getArrears();

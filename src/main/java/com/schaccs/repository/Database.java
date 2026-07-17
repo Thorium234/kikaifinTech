@@ -79,7 +79,9 @@ public final class Database {
                         name TEXT,
                         account_type TEXT,
                         priority INTEGER,
-                        active INTEGER
+                        active INTEGER,
+                        annual_budget TEXT,
+                        termly_budget TEXT
                     )
                     """);
             st.execute("""
@@ -124,6 +126,7 @@ public final class Database {
                     CREATE TABLE IF NOT EXISTS student_ledgers (
                         student_id TEXT PRIMARY KEY,
                         arrears TEXT,
+                        advance TEXT,
                         current_term TEXT,
                         FOREIGN KEY (student_id) REFERENCES students(id)
                     )
@@ -240,6 +243,52 @@ public final class Database {
                         approved_by TEXT,
                         notes TEXT,
                         created_at TEXT
+                    )
+                    """);
+            st.execute("""
+                    CREATE TABLE IF NOT EXISTS lpos (
+                        id TEXT PRIMARY KEY,
+                        lpo_number TEXT,
+                        date TEXT,
+                        creditor_id TEXT,
+                        creditor_name TEXT,
+                        votehead_code TEXT,
+                        votehead_name TEXT,
+                        account_type TEXT,
+                        description TEXT,
+                        amount TEXT,
+                        status TEXT
+                    )
+                    """);
+            st.execute("""
+                    CREATE TABLE IF NOT EXISTS invoices (
+                        id TEXT PRIMARY KEY,
+                        invoice_number TEXT,
+                        date TEXT,
+                        creditor_id TEXT,
+                        creditor_name TEXT,
+                        lpo_id TEXT,
+                        votehead_code TEXT,
+                        votehead_name TEXT,
+                        account_type TEXT,
+                        description TEXT,
+                        amount TEXT,
+                        status TEXT
+                    )
+                    """);
+            st.execute("""
+                    CREATE TABLE IF NOT EXISTS imprests (
+                        id TEXT PRIMARY KEY,
+                        staff_name TEXT,
+                        date TEXT,
+                        amount TEXT,
+                        votehead_code TEXT,
+                        votehead_name TEXT,
+                        account_type TEXT,
+                        purpose TEXT,
+                        status TEXT,
+                        surrendered_amount TEXT,
+                        surrender_date TEXT
                     )
                     """);
         }

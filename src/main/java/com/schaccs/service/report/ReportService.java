@@ -122,10 +122,18 @@ public class ReportService {
         }
 
         List<VoteheadSummary> list = new ArrayList<>();
+        BigDecimal advanceCollected = CurrencyConfig.zero();
+        for (Student s : studentStore.getStudents()) {
+            advanceCollected = advanceCollected.add(studentStore.getLedger(s.getId()).getAdvance());
+        }
         for (Votehead vh : feeStore.getVoteheads()) {
             BigDecimal c = charged.getOrDefault(vh.getCode(), CurrencyConfig.zero());
             BigDecimal p = collected.getOrDefault(vh.getCode(), CurrencyConfig.zero());
             list.add(new VoteheadSummary(vh.getCode(), vh.getName(), c, p));
+        }
+        if (advanceCollected.compareTo(CurrencyConfig.zero()) > 0) {
+            list.add(new VoteheadSummary(StudentFeeLedger.ADVANCE_CODE, "Advance / Credit",
+                    CurrencyConfig.zero(), advanceCollected));
         }
         return list;
     }

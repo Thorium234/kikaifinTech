@@ -136,10 +136,9 @@ public class PaymentVoucherService {
                 "Bank payment — " + voucher.getCreditorName());
 
         accountingEngine.postTransaction(journal, TransactionType.PAYMENT_VOUCHER,
-                null, null);
+                null, null, voucher.getId());
 
-        // Tag last posted txs with voucher id (best-effort without changing DoubleEntryEngine)
-        // Voucher id stored on voucher record only; ledger reference carries PV-number.
+        // Voucher id is now stamped on the linked ledger transactions for audit tracing.
 
         commitment.applyPayment(amount);
         store.addVoucher(voucher);

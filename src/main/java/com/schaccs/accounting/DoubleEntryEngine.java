@@ -27,7 +27,7 @@ public class DoubleEntryEngine {
     }
 
     public void postJournal(JournalEntry journal, String createdBy, String studentId, String receiptId,
-                            TransactionType type) {
+                             String voucherId, TransactionType type) {
         if (!journal.isBalanced()) {
             throw new IllegalStateException("Journal is not balanced: debits="
                     + journal.totalDebits() + " credits=" + journal.totalCredits());
@@ -45,6 +45,7 @@ public class DoubleEntryEngine {
             tx.setCredit(line.getCredit());
             tx.setStudentId(studentId);
             tx.setReceiptId(receiptId);
+            tx.setVoucherId(voucherId);
             tx.setCreatedBy(createdBy);
             tx.setCreatedAt(LocalDateTime.now());
             ledgerStore.addTransaction(tx);
@@ -67,8 +68,8 @@ public class DoubleEntryEngine {
      * Simplified single-account model for V1 school fund collections.
      */
     public void postFeeReceipt(String reference, String narration, AccountType incomeAccount,
-                               String voteheadCode, BigDecimal amount, String studentId,
-                               String receiptId, String createdBy, java.time.LocalDate date) {
+                                String voteheadCode, BigDecimal amount, String studentId,
+                                String receiptId, String voucherId, String createdBy, java.time.LocalDate date) {
         JournalEntry journal = new JournalEntry();
         journal.setDate(date);
         journal.setReference(reference);
@@ -78,6 +79,6 @@ public class DoubleEntryEngine {
                 "Cash/Bank — " + narration);
         // Credit income
         journal.addLine(incomeAccount, voteheadCode, CurrencyConfig.zero(), amount, narration);
-        postJournal(journal, createdBy, studentId, receiptId, TransactionType.FEE_RECEIPT);
+        postJournal(journal, createdBy, studentId, receiptId, voucherId, TransactionType.FEE_RECEIPT);
     }
 }

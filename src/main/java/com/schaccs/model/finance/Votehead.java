@@ -10,6 +10,7 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
+import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -21,6 +22,8 @@ public class Votehead {
     private final ObjectProperty<AccountType> accountType = new SimpleObjectProperty<>(AccountType.SCHOOL_FUND);
     private final IntegerProperty priority = new SimpleIntegerProperty(100);
     private final BooleanProperty active = new SimpleBooleanProperty(true);
+    private final ObjectProperty<BigDecimal> annualBudget = new SimpleObjectProperty<>(BigDecimal.ZERO);
+    private final ObjectProperty<BigDecimal> termlyBudget = new SimpleObjectProperty<>(BigDecimal.ZERO);
 
     public Votehead() {
         this.id = UUID.randomUUID().toString();
@@ -32,6 +35,8 @@ public class Votehead {
         this.name.set(name);
         this.accountType.set(accountType);
         this.priority.set(priority);
+        this.annualBudget.set(BigDecimal.ZERO);
+        this.termlyBudget.set(BigDecimal.ZERO);
     }
 
     public String getId() {
@@ -96,6 +101,30 @@ public class Votehead {
 
     public BooleanProperty activeProperty() {
         return active;
+    }
+
+    public BigDecimal getAnnualBudget() {
+        return annualBudget.get();
+    }
+
+    public void setAnnualBudget(BigDecimal v) {
+        annualBudget.set(v);
+    }
+
+    public ObjectProperty<BigDecimal> annualBudgetProperty() {
+        return annualBudget;
+    }
+
+    public BigDecimal getTermlyBudget() {
+        return termlyBudget.get();
+    }
+
+    public void setTermlyBudget(BigDecimal v) {
+        termlyBudget.set(v);
+    }
+
+    public ObjectProperty<BigDecimal> termlyBudgetProperty() {
+        return termlyBudget;
     }
 
     @Override

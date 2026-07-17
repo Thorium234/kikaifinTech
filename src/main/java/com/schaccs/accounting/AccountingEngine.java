@@ -29,17 +29,18 @@ public class AccountingEngine {
         this.ledgerStore = ledgerStore;
     }
 
-    public void postTransaction(JournalEntry journal, TransactionType type, String studentId, String receiptId) {
+    public void postTransaction(JournalEntry journal, TransactionType type, String studentId,
+                               String receiptId, String voucherId) {
         String user = AppConfig.getInstance().getCurrentUser();
-        doubleEntryEngine.postJournal(journal, user, studentId, receiptId, type);
+        doubleEntryEngine.postJournal(journal, user, studentId, receiptId, voucherId, type);
     }
 
     public void postFeeReceiptLine(String receiptRef, String description, AccountType accountType,
                                    String voteheadCode, BigDecimal amount, String studentId,
-                                   String receiptId, LocalDate date) {
+                                   String receiptId, String voucherId, LocalDate date) {
         String user = AppConfig.getInstance().getCurrentUser();
         doubleEntryEngine.postFeeReceipt(receiptRef, description, accountType, voteheadCode,
-                CurrencyConfig.money(amount), studentId, receiptId, user, date);
+                CurrencyConfig.money(amount), studentId, receiptId, voucherId, user, date);
     }
 
     public BigDecimal accountBalance(AccountType type) {

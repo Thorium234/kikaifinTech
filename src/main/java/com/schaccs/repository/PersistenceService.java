@@ -22,6 +22,9 @@ import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.model.voucher.Commitment;
 import com.schaccs.model.voucher.Creditor;
 import com.schaccs.model.voucher.PaymentVoucher;
+import com.schaccs.model.voucher.Lpo;
+import com.schaccs.model.voucher.Invoice;
+import com.schaccs.model.voucher.Imprest;
 import com.schaccs.store.AccountStore;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
@@ -55,6 +58,14 @@ public final class PersistenceService {
 
     public boolean hasData() {
         try (Statement st = Database.getInstance().getConnection().createStatement();
+             ResultSet rs = st.executeQuery("SELECT value FROM meta WHERE key = 'initialized'")) {
+            if (rs.next() && "true".equals(rs.getString("value"))) {
+                return true;
+            }
+        } catch (SQLException ignored) {
+            // meta table may not exist on very old databases; fall back to student count
+        }
+        try (Statement st = Database.getInstance().getConnection().createStatement();
              ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM students")) {
             return rs.next() && rs.getInt(1) > 0;
         } catch (SQLException e) {
@@ -69,6 +80,7 @@ public final class PersistenceService {
             try {
                 clearTables(conn);
                 saveSettings(conn);
+                markInitialized(conn);
                 saveVoteheads(conn);
                 saveFeeStructures(conn);
                 saveStudents(conn);
@@ -77,6 +89,9 @@ public final class PersistenceService {
                 saveCreditors(conn);
                 saveCommitments(conn);
                 saveVouchers(conn);
+                saveLpos(conn);
+                saveInvoices(conn);
+                saveImprests(conn);
                 conn.commit();
             } catch (Exception e) {
                 conn.rollback();
@@ -103,6 +118,9 @@ public final class PersistenceService {
             loadCreditors(conn);
             loadCommitments(conn);
             loadVouchers(conn);
+            loadLpos(conn);
+            loadInvoices(conn);
+            loadImprests(conn);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load data: " + e.getMessage(), e);
         }
@@ -124,6 +142,9 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM commitments");
             st.executeUpdate("DELETE FROM creditors");
             st.executeUpdate("DELETE FROM school_settings");
+            st.executeUpdate("DELETE FROM lpos");
+            st.executeUpdate("DELETE FROM invoices");
+            st.executeUpdate("DELETE FROM imprests");
         }
     }
 
@@ -148,6 +169,14 @@ public final class PersistenceService {
             ps.setLong(11, p.getNextReceiptNumber());
             ps.setLong(12, p.getNextVoucherNumber());
             ps.setString(13, AppConfig.getInstance().getCurrentUser());
+            ps.executeUpdate();
+        }
+    }
+
+    private void markInitialized(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO meta (key, value) VALUES ('initialized', 'true') "
+                        + "ON CONFLICT(key) DO UPDATE SET value = 'true'")) {
             ps.executeUpdate();
         }
     }
@@ -180,7 +209,8 @@ public final class PersistenceService {
 
     private void saveVoteheads(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO voteheads (code, id, name, account_type, priority, active) VALUES (?,?,?,?,?,?)")) {
+                "INSERT INTO voteheads (code, id, name, account_type, priority, active, annual_budget, termly_budget) "
+                        + "VALUES (?,?,?,?,?,?,?,?)")) {
             for (Votehead v : FeeStructureStore.getInstance().getVoteheads()) {
                 ps.setString(1, v.getCode());
                 ps.setString(2, v.getId());
@@ -188,6 +218,8 @@ public final class PersistenceService {
                 ps.setString(4, enumName(v.getAccountType()));
                 ps.setInt(5, v.getPriority());
                 ps.setInt(6, v.isActive() ? 1 : 0);
+                ps.setString(7, money(v.getAnnualBudget()));
+                ps.setString(8, money(v.getTermlyBudget()));
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -205,6 +237,8 @@ public final class PersistenceService {
                         AccountType.valueOf(rs.getString("account_type")),
                         rs.getInt("priority"));
                 v.setActive(rs.getInt("active") == 1);
+                v.setAnnualBudget(parseMoney(rs.getString("annual_budget")));
+                v.setTermlyBudget(parseMoney(rs.getString("termly_budget")));
                 store.addVotehead(v);
             }
         }
@@ -281,7 +315,7 @@ public final class PersistenceService {
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """);
              PreparedStatement ledPs = conn.prepareStatement(
-                     "INSERT INTO student_ledgers (student_id, arrears, current_term) VALUES (?,?,?)");
+                     "INSERT INTO student_ledgers (student_id, arrears, advance, current_term) VALUES (?,?,?,?)");
              PreparedStatement linePs = conn.prepareStatement(
                      "INSERT INTO student_ledger_lines (student_id, votehead_code, kind, amount) VALUES (?,?,?,?)")) {
             for (Student s : store.getStudents()) {
@@ -303,7 +337,8 @@ public final class PersistenceService {
                 StudentFeeLedger ledger = store.getLedger(s.getId());
                 ledPs.setString(1, s.getId());
                 ledPs.setString(2, money(ledger.getArrears()));
-                ledPs.setString(3, enumName(ledger.getCurrentTerm()));
+                ledPs.setString(3, money(ledger.getAdvance()));
+                ledPs.setString(4, enumName(ledger.getCurrentTerm()));
                 ledPs.addBatch();
 
                 for (Map.Entry<String, BigDecimal> e : ledger.getChargedByVotehead().entrySet()) {
@@ -365,6 +400,7 @@ public final class PersistenceService {
             while (rs.next()) {
                 StudentFeeLedger ledger = store.getLedger(rs.getString("student_id"));
                 ledger.setArrears(parseMoney(rs.getString("arrears")));
+                ledger.setAdvance(parseMoney(rs.getString("advance")));
                 String term = rs.getString("current_term");
                 if (term != null) {
                     ledger.setCurrentTerm(AcademicTerm.valueOf(term));
@@ -722,6 +758,149 @@ public final class PersistenceService {
                     v.setCreatedAt(LocalDateTime.parse(created));
                 }
                 VoucherStore.getInstance().addVoucher(v);
+            }
+        }
+    }
+
+    private void saveLpos(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO lpos (id, lpo_number, date, creditor_id, creditor_name, votehead_code,
+                    votehead_name, account_type, description, amount, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                """)) {
+            for (Lpo l : VoucherStore.getInstance().getLpos()) {
+                ps.setString(1, l.getId());
+                ps.setString(2, l.getLpoNumber());
+                ps.setString(3, date(l.getDate()));
+                ps.setString(4, l.getCreditorId());
+                ps.setString(5, l.getCreditorName());
+                ps.setString(6, l.getVoteheadCode());
+                ps.setString(7, l.getVoteheadName());
+                ps.setString(8, enumName(l.getAccountType()));
+                ps.setString(9, l.getDescription());
+                ps.setString(10, money(l.getAmount()));
+                ps.setString(11, l.getStatus());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadLpos(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM lpos")) {
+            while (rs.next()) {
+                Lpo l = Lpo.withId(rs.getString("id"));
+                l.setLpoNumber(rs.getString("lpo_number"));
+                l.setDate(parseDate(rs.getString("date")));
+                l.setCreditorId(rs.getString("creditor_id"));
+                l.setCreditorName(rs.getString("creditor_name"));
+                l.setVoteheadCode(rs.getString("votehead_code"));
+                l.setVoteheadName(rs.getString("votehead_name"));
+                String acct = rs.getString("account_type");
+                if (acct != null) {
+                    l.setAccountType(AccountType.valueOf(acct));
+                }
+                l.setDescription(rs.getString("description"));
+                l.setAmount(parseMoney(rs.getString("amount")));
+                l.setStatus(rs.getString("status"));
+                VoucherStore.getInstance().addLpo(l);
+            }
+        }
+    }
+
+    private void saveInvoices(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO invoices (id, invoice_number, date, creditor_id, creditor_name, lpo_id,
+                    votehead_code, votehead_name, account_type, description, amount, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """)) {
+            for (Invoice i : VoucherStore.getInstance().getInvoices()) {
+                ps.setString(1, i.getId());
+                ps.setString(2, i.getInvoiceNumber());
+                ps.setString(3, date(i.getDate()));
+                ps.setString(4, i.getCreditorId());
+                ps.setString(5, i.getCreditorName());
+                ps.setString(6, i.getLpoId());
+                ps.setString(7, i.getVoteheadCode());
+                ps.setString(8, i.getVoteheadName());
+                ps.setString(9, enumName(i.getAccountType()));
+                ps.setString(10, i.getDescription());
+                ps.setString(11, money(i.getAmount()));
+                ps.setString(12, i.getStatus());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadInvoices(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM invoices")) {
+            while (rs.next()) {
+                Invoice i = Invoice.withId(rs.getString("id"));
+                i.setInvoiceNumber(rs.getString("invoice_number"));
+                i.setDate(parseDate(rs.getString("date")));
+                i.setCreditorId(rs.getString("creditor_id"));
+                i.setCreditorName(rs.getString("creditor_name"));
+                i.setLpoId(rs.getString("lpo_id"));
+                i.setVoteheadCode(rs.getString("votehead_code"));
+                i.setVoteheadName(rs.getString("votehead_name"));
+                String acct = rs.getString("account_type");
+                if (acct != null) {
+                    i.setAccountType(AccountType.valueOf(acct));
+                }
+                i.setDescription(rs.getString("description"));
+                i.setAmount(parseMoney(rs.getString("amount")));
+                i.setStatus(rs.getString("status"));
+                VoucherStore.getInstance().addInvoice(i);
+            }
+        }
+    }
+
+    private void saveImprests(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO imprests (id, staff_name, date, amount, votehead_code, votehead_name,
+                    account_type, purpose, status, surrendered_amount, surrender_date)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                """)) {
+            for (Imprest imp : VoucherStore.getInstance().getImprests()) {
+                ps.setString(1, imp.getId());
+                ps.setString(2, imp.getStaffName());
+                ps.setString(3, date(imp.getDate()));
+                ps.setString(4, money(imp.getAmount()));
+                ps.setString(5, imp.getVoteheadCode());
+                ps.setString(6, imp.getVoteheadName());
+                ps.setString(7, enumName(imp.getAccountType()));
+                ps.setString(8, imp.getPurpose());
+                ps.setString(9, imp.getStatus());
+                ps.setString(10, money(imp.getSurrenderedAmount()));
+                ps.setString(11, date(imp.getSurrenderDate()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadImprests(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM imprests")) {
+            while (rs.next()) {
+                Imprest imp = Imprest.withId(rs.getString("id"));
+                imp.setStaffName(rs.getString("staff_name"));
+                imp.setDate(parseDate(rs.getString("date")));
+                imp.setAmount(parseMoney(rs.getString("amount")));
+                imp.setVoteheadCode(rs.getString("votehead_code"));
+                imp.setVoteheadName(rs.getString("votehead_name"));
+                String acct = rs.getString("account_type");
+                if (acct != null) {
+                    imp.setAccountType(AccountType.valueOf(acct));
+                }
+                imp.setPurpose(rs.getString("purpose"));
+                imp.setStatus(rs.getString("status"));
+                imp.setSurrenderedAmount(parseMoney(rs.getString("surrendered_amount")));
+                imp.setSurrenderDate(parseDate(rs.getString("surrender_date")));
+                VoucherStore.getInstance().addImprest(imp);
             }
         }
     }

@@ -12,10 +12,13 @@ import java.util.Map;
  */
 public class StudentFeeLedger {
 
+    public static final String ADVANCE_CODE = "ADVANCE";
+
     private final String studentId;
     private final Map<String, BigDecimal> chargedByVotehead = new LinkedHashMap<>();
     private final Map<String, BigDecimal> paidByVotehead = new LinkedHashMap<>();
     private BigDecimal arrears = CurrencyConfig.zero();
+    private BigDecimal advance = CurrencyConfig.zero();
     private AcademicTerm currentTerm = AcademicTerm.TERM_1;
 
     public StudentFeeLedger(String studentId) {
@@ -40,6 +43,30 @@ public class StudentFeeLedger {
 
     public void setArrears(BigDecimal arrears) {
         this.arrears = CurrencyConfig.money(arrears);
+    }
+
+    public BigDecimal getAdvance() {
+        return advance;
+    }
+
+    public void setAdvance(BigDecimal advance) {
+        this.advance = CurrencyConfig.money(advance);
+    }
+
+    /**
+     * Records an overpayment as carry-forward credit.
+     */
+    public void addAdvance(BigDecimal amount) {
+        this.advance = CurrencyConfig.money(this.advance.add(CurrencyConfig.money(amount)));
+    }
+
+    /**
+     * Applies available advance credit against a new payment, returning the amount consumed.
+     */
+    public BigDecimal consumeAdvance(BigDecimal wanted) {
+        BigDecimal take = CurrencyConfig.money(wanted).min(this.advance);
+        this.advance = CurrencyConfig.money(this.advance.subtract(take));
+        return take;
     }
 
     public void charge(String voteheadCode, BigDecimal amount) {
@@ -86,7 +113,7 @@ public class StudentFeeLedger {
     }
 
     public BigDecimal getBalance() {
-        return CurrencyConfig.money(getTotalCharged().add(arrears).subtract(getTotalPaid()));
+        return CurrencyConfig.money(getTotalCharged().add(arrears).subtract(getTotalPaid()).subtract(advance));
     }
 
     public Map<String, BigDecimal> getChargedByVotehead() {

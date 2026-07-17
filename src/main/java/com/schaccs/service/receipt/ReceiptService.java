@@ -89,15 +89,22 @@ public class ReceiptService {
             }
             receipt.addLine(new ReceiptLine(alloc.getVoteheadCode(), alloc.getVoteheadName(), alloc.getAllocated()));
 
-            // Update student ledger
+            if (StudentFeeLedger.ADVANCE_CODE.equals(alloc.getVoteheadCode())) {
+                if (alloc.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
+                    // Applying existing carry-forward credit to this payment
+                    ledger.consumeAdvance(alloc.getAllocated());
+                } else {
+                    // New overpayment recorded as carry-forward credit
+                    ledger.addAdvance(alloc.getAllocated());
+                }
+                continue;
+            }
+
             if ("ARREARS".equals(alloc.getVoteheadCode())) {
                 BigDecimal newArrears = ledger.getArrears().subtract(alloc.getAllocated()).max(BigDecimal.ZERO);
                 ledger.setArrears(newArrears);
-            } else if (!"ADVANCE".equals(alloc.getVoteheadCode())) {
-                ledger.pay(alloc.getVoteheadCode(), alloc.getAllocated());
             } else {
-                // credit advance against a generic ADVANCE paid bucket
-                ledger.pay("ADVANCE", alloc.getAllocated());
+                ledger.pay(alloc.getVoteheadCode(), alloc.getAllocated());
             }
 
             AccountType accountType = feeStore.findVoteheadByCode(alloc.getVoteheadCode())
@@ -113,6 +120,7 @@ public class ReceiptService {
                     alloc.getAllocated(),
                     student.getId(),
                     receipt.getId(),
+                    null,
                     receipt.getDate()
             );
         }
