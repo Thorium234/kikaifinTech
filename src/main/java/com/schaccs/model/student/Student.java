@@ -131,7 +131,10 @@ public class Student {
     public String getClassLabel() {
         String fc = getFormClass() == null ? "" : getFormClass();
         String st = getStream() == null ? "" : getStream();
-        return (fc + st).trim();
+        if (fc.isBlank() && st.isBlank()) return "";
+        if (fc.isBlank()) return st;
+        if (st.isBlank()) return fc;
+        return fc + " " + st;
     }
 
     public BoardingStatus getBoardingStatus() {

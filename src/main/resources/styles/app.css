@@ -373,6 +373,10 @@
     -fx-font-weight: bold;
 }
 
+.table-row-cell.student-row-active {
+    -fx-opacity: 1.0;
+}
+
 .table-row-cell.student-row-inactive {
     -fx-opacity: 0.85;
 }
