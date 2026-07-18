@@ -1,9 +1,11 @@
 package com.schaccs.service;
 
+import com.schaccs.service.audit.AuditService;
 import com.schaccs.service.fee.ArrearsService;
 import com.schaccs.service.fee.FeeAllocationService;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.finance.AccountingService;
+import com.schaccs.service.finance.BankReconciliationService;
 import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.service.report.ReportService;
 import com.schaccs.service.student.StudentService;
@@ -27,6 +29,8 @@ public final class Services {
     private final ReportService reportService = new ReportService();
     private final AccountingService accountingService = new AccountingService();
     private final PaymentVoucherService paymentVoucherService = new PaymentVoucherService();
+    private final AuditService auditService = new AuditService();
+    private final BankReconciliationService bankReconciliationService = new BankReconciliationService();
 
     private Services() {
     }
@@ -65,5 +69,13 @@ public final class Services {
 
     public PaymentVoucherService voucher() {
         return paymentVoucherService;
+    }
+
+    public AuditService audit() {
+        return auditService;
+    }
+
+    public BankReconciliationService bankReconciliation() {
+        return bankReconciliationService;
     }
 }

@@ -186,7 +186,8 @@ public final class Database {
                 new MigrationV2ReceiptReversed(),
                 new MigrationV3SchoolLogoPath(),
                 new MigrationV4ReceiptStampSignaturePaths(),
-                new MigrationV5StudentAvatarAndGuardianFields()
+                new MigrationV5StudentAvatarAndGuardianFields(),
+                new com.schaccs.repository.migration.MigrationV6V2Infrastructure()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -497,6 +498,43 @@ public final class Database {
     @FunctionalInterface
     public interface SqlFunction<T> {
         T apply(Connection connection) throws Exception;
+    }
+
+    public void saveDbConfig(com.schaccs.config.db.DatasourceManager.DbConfig config) {
+        try (PreparedStatement ps = getConnection().prepareStatement(
+                "INSERT OR REPLACE INTO db_config (id, db_type, host, port, database_name, username, password, ssl_mode, active) "
+                        + "VALUES (1,?,?,?,?,?,?,?,?)")) {
+            ps.setString(1, config.getDbType());
+            ps.setString(2, config.getHost());
+            ps.setInt(3, config.getPort());
+            ps.setString(4, config.getDatabaseName());
+            ps.setString(5, config.getUsername());
+            ps.setString(6, config.getPassword());
+            ps.setString(7, config.getSslMode());
+            ps.setInt(8, config.isActive() ? 1 : 0);
+            ps.executeUpdate();
+        } catch (SQLException ignored) {
+        }
+    }
+
+    public com.schaccs.config.db.DatasourceManager.DbConfig loadDbConfig() {
+        try (Statement st = getConnection().createStatement();
+             ResultSet rs = st.executeQuery("SELECT db_type, host, port, database_name, username, password, ssl_mode, active FROM db_config LIMIT 1")) {
+            if (rs.next()) {
+                var config = new com.schaccs.config.db.DatasourceManager.DbConfig();
+                config.setDbType(rs.getString("db_type"));
+                config.setHost(rs.getString("host"));
+                config.setPort(rs.getInt("port"));
+                config.setDatabaseName(rs.getString("database_name"));
+                config.setUsername(rs.getString("username"));
+                config.setPassword(rs.getString("password"));
+                config.setSslMode(rs.getString("ssl_mode"));
+                config.setActive(rs.getInt("active") == 1);
+                return config;
+            }
+        } catch (SQLException ignored) {
+        }
+        return null;
     }
 
     public void close() {

@@ -244,4 +244,69 @@ public class ReportService {
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
         return totalDebit.compareTo(totalCredit) == 0;
     }
+
+    public List<com.schaccs.model.report.CashbookRow> cashbook(java.time.LocalDate from, java.time.LocalDate to) {
+        List<com.schaccs.model.report.CashbookRow> rows = new java.util.ArrayList<>();
+        BigDecimal runningBalance = CurrencyConfig.zero();
+        List<FinancialTransaction> filtered = ledgerStore.getTransactions().stream()
+                .filter(t -> !t.getDate().isBefore(from) && !t.getDate().isAfter(to))
+                .sorted(java.util.Comparator.comparing(FinancialTransaction::getDate))
+                .toList();
+        for (FinancialTransaction tx : filtered) {
+            BigDecimal receipts = tx.getDebit();
+            BigDecimal payments = tx.getCredit();
+            runningBalance = CurrencyConfig.money(runningBalance.add(receipts).subtract(payments));
+            rows.add(new com.schaccs.model.report.CashbookRow(
+                    tx.getDate(), tx.getReference(), tx.getDescription(),
+                    receipts, payments, runningBalance));
+        }
+        return rows;
+    }
+
+    public List<com.schaccs.model.report.IncomeExpenditureRow> incomeExpenditure() {
+        List<com.schaccs.model.report.IncomeExpenditureRow> rows = new java.util.ArrayList<>();
+        for (Votehead vh : feeStore.getVoteheads()) {
+            BigDecimal charged = CurrencyConfig.zero();
+            BigDecimal collected = CurrencyConfig.zero();
+            for (Student s : studentStore.getStudents()) {
+                StudentFeeLedger l = studentStore.getLedger(s.getId());
+                charged = charged.add(l.getCharged(vh.getCode()));
+                collected = collected.add(l.getPaid(vh.getCode()));
+            }
+            rows.add(new com.schaccs.model.report.IncomeExpenditureRow("Income", vh.getName(), collected));
+        }
+        for (var voucher : com.schaccs.store.VoucherStore.getInstance().getVouchers()) {
+            rows.add(new com.schaccs.model.report.IncomeExpenditureRow(
+                    "Expenditure", voucher.getVoteheadName(), voucher.getAmount()));
+        }
+        return rows;
+    }
+
+    public List<com.schaccs.model.report.BalanceSheetRow> balanceSheet() {
+        List<com.schaccs.model.report.BalanceSheetRow> rows = new java.util.ArrayList<>();
+        Map<AccountType, BigDecimal> balances = ledgerStore.getAccountBalances();
+        for (Map.Entry<AccountType, BigDecimal> e : balances.entrySet()) {
+            String section = "Assets";
+            if (e.getKey() == AccountType.SCHOOL_FUND) {
+                section = "Fund Balance";
+            } else if (e.getKey().name().startsWith("FSE")) {
+                section = "Restricted Funds";
+            }
+            rows.add(new com.schaccs.model.report.BalanceSheetRow(section,
+                    e.getKey().getDisplayName(), e.getValue()));
+        }
+        BigDecimal totalIncome = CurrencyConfig.zero();
+        BigDecimal totalExpense = CurrencyConfig.zero();
+        for (var ie : incomeExpenditure()) {
+            if ("Income".equals(ie.getCategory())) {
+                totalIncome = totalIncome.add(ie.getAmount());
+            } else {
+                totalExpense = totalExpense.add(ie.getAmount());
+            }
+        }
+        rows.add(new com.schaccs.model.report.BalanceSheetRow("Fund Balance",
+                "Accumulated Surplus/(Deficit)",
+                CurrencyConfig.money(totalIncome.subtract(totalExpense))));
+        return rows;
+    }
 }

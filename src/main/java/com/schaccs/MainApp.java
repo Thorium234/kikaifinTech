@@ -6,6 +6,8 @@ import com.schaccs.ui.dashboard.DashboardView;
 import com.schaccs.ui.fees.FeeStructureView;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
+import com.schaccs.ui.audit.AuditLogView;
+import com.schaccs.ui.banking.BankReconciliationView;
 import com.schaccs.ui.receipts.ReceiptView;
 import com.schaccs.ui.reports.ReportsView;
 import com.schaccs.ui.settings.SettingsView;
@@ -30,6 +32,8 @@ public class MainApp extends Application {
         layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);
         layout.register(Sidebar.VOUCHERS, Sidebar.VOUCHERS, VoucherView::new);
         layout.register(Sidebar.REPORTS, Sidebar.REPORTS, ReportsView::new);
+        layout.register(Sidebar.AUDIT_LOG, Sidebar.AUDIT_LOG, AuditLogView::new);
+        layout.register(Sidebar.BANK_RECONCILIATION, Sidebar.BANK_RECONCILIATION, BankReconciliationView::new);
         layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
 
         layout.show(Sidebar.DASHBOARD);

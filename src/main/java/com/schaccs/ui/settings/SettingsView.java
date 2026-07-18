@@ -3,6 +3,7 @@ package com.schaccs.ui.settings;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.config.SchoolProfile;
+import com.schaccs.config.db.DatasourceManager;
 import com.schaccs.repository.Database;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.ui.layout.MainLayout;
@@ -11,6 +12,7 @@ import javafx.geometry.Insets;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.control.Button;
 
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
@@ -65,6 +67,14 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final Label stampWarning = new Label();
     private final Label signatureWarning = new Label();
     private final TableView<String[]> migrationTable = new TableView<>();
+    private final ComboBox<String> dbTypeBox = new ComboBox<>();
+    private final TextField dbHost = new TextField();
+    private final TextField dbPort = new TextField();
+    private final TextField dbName = new TextField();
+    private final TextField dbUser = new TextField();
+    private final TextField dbPassword = new TextField();
+    private final ComboBox<String> dbSslMode = new ComboBox<>();
+    private final Label dbStatusLabel = new Label("Not connected");
 
     public SettingsView() {
         setSpacing(14);
@@ -171,10 +181,133 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         historyCard.getStyleClass().add("card");
         VBox.setVgrow(migrationTable, Priority.ALWAYS);
 
+        VBox dbCard = buildDatabaseConfigCard();
         setupLivePreviewListeners();
         VBox.setVgrow(cardScroll, Priority.SOMETIMES);
-        getChildren().addAll(heading, cardScroll, historyCard);
+        getChildren().addAll(heading, cardScroll, historyCard, dbCard);
         load();
+    }
+
+    private VBox buildDatabaseConfigCard() {
+        Label dbHeading = new Label("Multi-Database Configuration");
+        dbHeading.getStyleClass().add("section-title");
+        Label dbSub = new Label("Configure a remote PostgreSQL, MySQL, or MariaDB database for optional centralised storage.");
+        dbSub.getStyleClass().add("muted");
+
+        dbTypeBox.getItems().addAll("postgresql", "mysql", "mariadb");
+        dbTypeBox.setValue("postgresql");
+        dbSslMode.getItems().addAll("prefer", "require", "disable");
+        dbSslMode.setValue("prefer");
+        dbPort.setText("5432");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(10);
+        int r = 0;
+        grid.add(new Label("Database Type"), 0, r);
+        grid.add(dbTypeBox, 1, r++);
+        grid.add(new Label("Host"), 0, r);
+        grid.add(dbHost, 1, r++);
+        grid.add(new Label("Port"), 0, r);
+        grid.add(dbPort, 1, r++);
+        grid.add(new Label("Database Name"), 0, r);
+        grid.add(dbName, 1, r++);
+        grid.add(new Label("Username"), 0, r);
+        grid.add(dbUser, 1, r++);
+        grid.add(new Label("Password"), 0, r);
+        grid.add(dbPassword, 1, r++);
+        grid.add(new Label("SSL Mode"), 0, r);
+        grid.add(dbSslMode, 1, r++);
+
+        dbHost.setPrefWidth(300);
+        dbName.setPrefWidth(300);
+        dbUser.setPrefWidth(300);
+
+        Button testBtn = new Button("Test Connection");
+        testBtn.getStyleClass().add("secondary-button");
+        testBtn.setOnAction(e -> testDbConnection());
+
+        Button saveDbBtn = new Button("Save & Connect");
+        saveDbBtn.getStyleClass().add("primary-button");
+        saveDbBtn.setOnAction(e -> saveDbConfig());
+
+        Button disconnectBtn = new Button("Disconnect");
+        disconnectBtn.getStyleClass().add("danger-button");
+        disconnectBtn.setOnAction(e -> {
+            DatasourceManager.getInstance().disconnectRemote();
+            dbStatusLabel.setText("Disconnected");
+            dbStatusLabel.setStyle("-fx-text-fill: #b00020;");
+        });
+
+        dbStatusLabel.getStyleClass().add("muted");
+        HBox statusBar = new HBox(10, testBtn, saveDbBtn, disconnectBtn, dbStatusLabel);
+        statusBar.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(dbStatusLabel, Priority.ALWAYS);
+
+        VBox card = new VBox(10, dbHeading, dbSub, grid, statusBar);
+        card.getStyleClass().add("card");
+        return card;
+    }
+
+    private void testDbConnection() {
+        DatasourceManager.DbConfig config = readDbConfigFromForm();
+        boolean ok = DatasourceManager.getInstance().connectRemote(config);
+        if (ok) {
+            dbStatusLabel.setText("Connection successful!");
+            dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
+        } else {
+            dbStatusLabel.setText("Connection failed. Check settings and try again.");
+            dbStatusLabel.setStyle("-fx-text-fill: #b00020;");
+        }
+    }
+
+    private void saveDbConfig() {
+        DatasourceManager.DbConfig config = readDbConfigFromForm();
+        boolean ok = DatasourceManager.getInstance().connectRemote(config);
+        if (ok) {
+            Database.getInstance().saveDbConfig(config);
+            dbStatusLabel.setText("Saved and connected successfully!");
+            dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
+        } else {
+            Database.getInstance().saveDbConfig(config);
+            dbStatusLabel.setText("Saved but connection failed. Will retry on startup.");
+            dbStatusLabel.setStyle("-fx-text-fill: #e65100;");
+        }
+        PersistenceService.getInstance().saveAll();
+    }
+
+    private DatasourceManager.DbConfig readDbConfigFromForm() {
+        DatasourceManager.DbConfig config = new DatasourceManager.DbConfig();
+        config.setDbType(dbTypeBox.getValue());
+        config.setHost(dbHost.getText().trim());
+        try {
+            config.setPort(Integer.parseInt(dbPort.getText().trim()));
+        } catch (NumberFormatException e) {
+            config.setPort(5432);
+        }
+        config.setDatabaseName(dbName.getText().trim());
+        config.setUsername(dbUser.getText().trim());
+        config.setPassword(dbPassword.getText().trim());
+        config.setSslMode(dbSslMode.getValue());
+        config.setActive(true);
+        return config;
+    }
+
+    private void loadDbConfig() {
+        DatasourceManager.DbConfig config = Database.getInstance().loadDbConfig();
+        if (config != null) {
+            dbTypeBox.setValue(config.getDbType());
+            dbHost.setText(config.getHost());
+            dbPort.setText(String.valueOf(config.getPort()));
+            dbName.setText(config.getDatabaseName());
+            dbUser.setText(config.getUsername());
+            dbPassword.setText(config.getPassword());
+            dbSslMode.setValue(config.getSslMode() != null ? config.getSslMode() : "prefer");
+            if (config.isActive() && DatasourceManager.getInstance().isOnline()) {
+                dbStatusLabel.setText("Connected");
+                dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
+            }
+        }
     }
 
     private void load() {
@@ -200,6 +333,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         refreshImagePreview(signaturePath, signaturePreview, receiptMockSignature, signatureWarning, "signature");
         refreshReceiptBrandingMockup();
         loadMigrationHistory();
+        loadDbConfig();
     }
 
     private void setupMigrationTable() {

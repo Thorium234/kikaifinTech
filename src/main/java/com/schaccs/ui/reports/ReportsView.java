@@ -3,7 +3,10 @@ package com.schaccs.ui.reports;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.report.AgeingBucket;
+import com.schaccs.model.report.BalanceSheetRow;
+import com.schaccs.model.report.CashbookRow;
 import com.schaccs.model.report.CollectionSummary;
+import com.schaccs.model.report.IncomeExpenditureRow;
 import com.schaccs.model.report.TrialBalanceRow;
 import com.schaccs.model.report.VoteheadSummary;
 import com.schaccs.model.student.Student;
@@ -59,11 +62,16 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private final TableView<CollectionSummary> dailyTable = new TableView<>();
     private final TableView<VoteheadSummary> voteheadTable = new TableView<>();
     private final TableView<TrialBalanceRow> trialTable = new TableView<>();
+    private final TableView<CashbookRow> cashbookTable = new TableView<>();
+    private final TableView<IncomeExpenditureRow> ieTable = new TableView<>();
+    private final TableView<BalanceSheetRow> balanceSheetTable = new TableView<>();
     private final TableView<Receipt> reprintTable = new TableView<>();
     private final TextArea statementArea = new TextArea();
     private final TextArea reprintPreview = new TextArea();
     private final ComboBox<Student> studentBox = new ComboBox<>();
     private final DatePicker dailyDate = new DatePicker(LocalDate.now());
+    private final DatePicker cashbookFrom = new DatePicker(LocalDate.now().withDayOfMonth(1));
+    private final DatePicker cashbookTo = new DatePicker(LocalDate.now());
     private final ComboBox<AcademicTerm> termBox = new ComboBox<>();
     private final Label reportsModeBadge = new Label();
 
@@ -87,7 +95,10 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
                 tab("Student Statement", buildStatement()),
                 tab("Receipt Reprint", buildReprint()),
                 tab("Ageing", buildAgeing()),
-                tab("Trial Balance", buildTrial())
+                tab("Trial Balance", buildTrial()),
+                tab("Cashbook", buildCashbook()),
+                tab("Income & Expenditure", buildIncomeExpenditure()),
+                tab("Balance Sheet", buildBalanceSheet())
         );
         VBox.setVgrow(tabs, Priority.ALWAYS);
 
@@ -395,6 +406,180 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         box.setPadding(new Insets(10));
         VBox.setVgrow(trialTable, Priority.ALWAYS);
         return box;
+    }
+
+    private VBox buildCashbook() {
+        TableColumn<CashbookRow, String> dateCol = new TableColumn<>("Date");
+        dateCol.setCellValueFactory(c -> new SimpleStringProperty(DateUtil.format(c.getValue().getDate())));
+        TableColumn<CashbookRow, String> refCol = new TableColumn<>("Reference");
+        refCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getReference()));
+        TableColumn<CashbookRow, String> descCol = new TableColumn<>("Description");
+        descCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getDescription()));
+        TableColumn<CashbookRow, String> recCol = new TableColumn<>("Receipts");
+        recCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getReceipts())));
+        TableColumn<CashbookRow, String> payCol = new TableColumn<>("Payments");
+        payCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getPayments())));
+        TableColumn<CashbookRow, String> balCol = new TableColumn<>("Balance");
+        balCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
+        cashbookTable.getColumns().addAll(dateCol, refCol, descCol, recCol, payCol, balCol);
+        cashbookTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Button load = new Button("Load");
+        load.getStyleClass().add("primary-button");
+        load.setOnAction(e -> cashbookTable.getItems().setAll(
+                reportService.cashbook(cashbookFrom.getValue(), cashbookTo.getValue())));
+        Button export = new Button("Export");
+        export.getStyleClass().add("secondary-button");
+        export.setOnAction(e -> exportCashbook());
+        Button pdf = new Button("PDF");
+        pdf.getStyleClass().add("secondary-button");
+        pdf.setOnAction(e -> exportCashbookPdf());
+        HBox bar = new HBox(10, new Label("From:"), cashbookFrom, new Label("To:"), cashbookTo, load, export, pdf);
+        VBox box = new VBox(10, reportSectionTitle("Cashbook", "View all receipts and payments with running balance for a date range."), bar, cashbookTable);
+        box.getStyleClass().add("reports-section-card");
+        box.setPadding(new Insets(10));
+        VBox.setVgrow(cashbookTable, Priority.ALWAYS);
+        return box;
+    }
+
+    private VBox buildIncomeExpenditure() {
+        TableColumn<IncomeExpenditureRow, String> catCol = new TableColumn<>("Category");
+        catCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCategory()));
+        TableColumn<IncomeExpenditureRow, String> itemCol = new TableColumn<>("Item");
+        itemCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getItem()));
+        TableColumn<IncomeExpenditureRow, String> amtCol = new TableColumn<>("Amount");
+        amtCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
+        ieTable.getColumns().addAll(catCol, itemCol, amtCol);
+        ieTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Button refresh = new Button("Refresh");
+        refresh.getStyleClass().add("secondary-button");
+        refresh.setOnAction(e -> ieTable.getItems().setAll(reportService.incomeExpenditure()));
+        Button export = new Button("Export");
+        export.getStyleClass().add("secondary-button");
+        export.setOnAction(e -> exportIncomeExpenditure());
+        Button pdf = new Button("PDF");
+        pdf.getStyleClass().add("secondary-button");
+        pdf.setOnAction(e -> exportIncomeExpenditurePdf());
+        VBox box = new VBox(10, reportSectionTitle("Income & Expenditure", "Summarise income collected and expenditure by category."), new HBox(10, refresh, export, pdf), ieTable);
+        box.getStyleClass().add("reports-section-card");
+        box.setPadding(new Insets(10));
+        VBox.setVgrow(ieTable, Priority.ALWAYS);
+        return box;
+    }
+
+    private VBox buildBalanceSheet() {
+        TableColumn<BalanceSheetRow, String> secCol = new TableColumn<>("Section");
+        secCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getSection()));
+        TableColumn<BalanceSheetRow, String> itemCol = new TableColumn<>("Item");
+        itemCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getItem()));
+        TableColumn<BalanceSheetRow, String> amtCol = new TableColumn<>("Amount");
+        amtCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
+        balanceSheetTable.getColumns().addAll(secCol, itemCol, amtCol);
+        balanceSheetTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Button refresh = new Button("Refresh");
+        refresh.getStyleClass().add("secondary-button");
+        refresh.setOnAction(e -> balanceSheetTable.getItems().setAll(reportService.balanceSheet()));
+        Button export = new Button("Export");
+        export.getStyleClass().add("secondary-button");
+        export.setOnAction(e -> exportBalanceSheet());
+        Button pdf = new Button("PDF");
+        pdf.getStyleClass().add("secondary-button");
+        pdf.setOnAction(e -> exportBalanceSheetPdf());
+        VBox box = new VBox(10, reportSectionTitle("Balance Sheet", "View assets, fund balances, and accumulated surplus/deficit."), new HBox(10, refresh, export, pdf), balanceSheetTable);
+        box.getStyleClass().add("reports-section-card");
+        box.setPadding(new Insets(10));
+        VBox.setVgrow(balanceSheetTable, Priority.ALWAYS);
+        return box;
+    }
+
+    private void exportCashbook() {
+        File file = chooseSaveFile("Export Cashbook", "cashbook.csv");
+        if (file == null) return;
+        try {
+            List<String> headers = List.of("Date", "Reference", "Description", "Receipts", "Payments", "Balance");
+            List<List<String>> rows = cashbookTable.getItems().stream().map(r -> List.of(
+                    DateUtil.format(r.getDate()), r.getReference(), r.getDescription(),
+                    CurrencyUtil.formatPlain(r.getReceipts()), CurrencyUtil.formatPlain(r.getPayments()),
+                    CurrencyUtil.formatPlain(r.getBalance()))).toList();
+            exportService.export(file.toPath(), "Cashbook", headers, rows);
+            AlertUtil.info("Export complete", "Cashbook exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+    private void exportIncomeExpenditure() {
+        File file = chooseSaveFile("Export Income & Expenditure", "income-expenditure.csv");
+        if (file == null) return;
+        try {
+            List<String> headers = List.of("Category", "Item", "Amount");
+            List<List<String>> rows = ieTable.getItems().stream().map(r -> List.of(
+                    r.getCategory(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+            exportService.export(file.toPath(), "Income & Expenditure", headers, rows);
+            AlertUtil.info("Export complete", "Income & Expenditure exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+    private void exportBalanceSheet() {
+        File file = chooseSaveFile("Export Balance Sheet", "balance-sheet.csv");
+        if (file == null) return;
+        try {
+            List<String> headers = List.of("Section", "Item", "Amount");
+            List<List<String>> rows = balanceSheetTable.getItems().stream().map(r -> List.of(
+                    r.getSection(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+            exportService.export(file.toPath(), "Balance Sheet", headers, rows);
+            AlertUtil.info("Export complete", "Balance sheet exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+    private void exportCashbookPdf() {
+        File file = choosePdfFile("Export Cashbook PDF", "cashbook.pdf");
+        if (file == null) return;
+        try {
+            List<String> headers = List.of("Date", "Reference", "Description", "Receipts", "Payments", "Balance");
+            List<List<String>> rows = cashbookTable.getItems().stream().map(r -> List.of(
+                    DateUtil.format(r.getDate()), r.getReference(), r.getDescription(),
+                    CurrencyUtil.formatPlain(r.getReceipts()), CurrencyUtil.formatPlain(r.getPayments()),
+                    CurrencyUtil.formatPlain(r.getBalance()))).toList();
+            pdfExportService.exportTable(file.toPath(), "Cashbook", headers, rows);
+            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+    private void exportIncomeExpenditurePdf() {
+        File file = choosePdfFile("Export Income & Expenditure PDF", "income-expenditure.pdf");
+        if (file == null) return;
+        try {
+            List<String> headers = List.of("Category", "Item", "Amount");
+            List<List<String>> rows = ieTable.getItems().stream().map(r -> List.of(
+                    r.getCategory(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+            pdfExportService.exportTable(file.toPath(), "Income & Expenditure", headers, rows);
+            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+    private void exportBalanceSheetPdf() {
+        File file = choosePdfFile("Export Balance Sheet PDF", "balance-sheet.pdf");
+        if (file == null) return;
+        try {
+            List<String> headers = List.of("Section", "Item", "Amount");
+            List<List<String>> rows = balanceSheetTable.getItems().stream().map(r -> List.of(
+                    r.getSection(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+            pdfExportService.exportTable(file.toPath(), "Balance Sheet", headers, rows);
+            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
     }
 
     private void rolloverArrears() {

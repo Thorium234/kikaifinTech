@@ -19,6 +19,8 @@ public class Sidebar extends VBox {
     public static final String RECEIPTS = "Receipting";
     public static final String VOUCHERS = "Payment Vouchers";
     public static final String REPORTS = "Reports";
+    public static final String AUDIT_LOG = "Audit Log";
+    public static final String BANK_RECONCILIATION = "Bank Reconciliation";
     public static final String SETTINGS = "Settings";
 
     private final Map<String, Button> buttons = new LinkedHashMap<>();
@@ -42,6 +44,8 @@ public class Sidebar extends VBox {
         addNav(RECEIPTS, "Receipting");
         addNav(VOUCHERS, "Payment Vouchers");
         addNav(REPORTS, "Reports");
+        addNav(AUDIT_LOG, "Audit Log");
+        addNav(BANK_RECONCILIATION, "Bank Reconciliation");
         addNav(SETTINGS, "Settings");
 
         Region spacer = new Region();

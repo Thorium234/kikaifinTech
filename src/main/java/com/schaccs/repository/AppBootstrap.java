@@ -1,5 +1,6 @@
 package com.schaccs.repository;
 
+import com.schaccs.util.DisasterRecoveryEngine;
 import com.schaccs.util.MockData;
 
 /**
@@ -10,6 +11,8 @@ public final class AppBootstrap {
     private AppBootstrap() {
     }
 
+    private static DisasterRecoveryEngine disasterRecoveryEngine;
+
     public static void initialize() {
         Database.getInstance(); // ensure schema
         PersistenceService persistence = PersistenceService.getInstance();
@@ -19,9 +22,14 @@ public final class AppBootstrap {
             MockData.load();
             persistence.saveAll();
         }
+        disasterRecoveryEngine = new DisasterRecoveryEngine();
+        disasterRecoveryEngine.start();
     }
 
     public static void shutdown() {
+        if (disasterRecoveryEngine != null) {
+            disasterRecoveryEngine.onAppShutdown();
+        }
         try {
             PersistenceService.getInstance().saveAll();
         } catch (Exception ignored) {

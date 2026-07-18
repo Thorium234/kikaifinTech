@@ -1,0 +1,31 @@
+package com.schaccs.model.report;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+public class CashbookRow {
+
+    private final LocalDate date;
+    private final String reference;
+    private final String description;
+    private final BigDecimal receipts;
+    private final BigDecimal payments;
+    private final BigDecimal balance;
+
+    public CashbookRow(LocalDate date, String reference, String description,
+                       BigDecimal receipts, BigDecimal payments, BigDecimal balance) {
+        this.date = date;
+        this.reference = reference;
+        this.description = description;
+        this.receipts = receipts;
+        this.payments = payments;
+        this.balance = balance;
+    }
+
+    public LocalDate getDate() { return date; }
+    public String getReference() { return reference; }
+    public String getDescription() { return description; }
+    public BigDecimal getReceipts() { return receipts; }
+    public BigDecimal getPayments() { return payments; }
+    public BigDecimal getBalance() { return balance; }
+}
