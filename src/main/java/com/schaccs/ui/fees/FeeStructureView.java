@@ -216,7 +216,6 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
 
         itemTable.getColumns().addAll(term, code, name, amount);
         itemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        itemTable.setPrefHeight(400);
     }
 
     private void setupVoteheadTable() {

@@ -160,11 +160,6 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
         VBox card = new VBox(14, grid, buildReceiptBrandingMockup(), save);
         card.getStyleClass().add("card");
-        ScrollPane cardScroll = new ScrollPane(card);
-        cardScroll.setFitToWidth(true);
-        cardScroll.setFitToHeight(false);
-        cardScroll.setPannable(true);
-        cardScroll.getStyleClass().add("inline-scroll-pane");
 
         setupMigrationTable();
         Button refreshHistory = new Button("Refresh Migration History");
@@ -182,9 +177,16 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         VBox.setVgrow(migrationTable, Priority.ALWAYS);
 
         VBox dbCard = buildDatabaseConfigCard();
+
+        VBox allContent = new VBox(14, heading, card, historyCard, dbCard);
+        allContent.setPadding(new Insets(0, 0, 24, 0));
+        ScrollPane mainScroll = new ScrollPane(allContent);
+        mainScroll.setFitToWidth(true);
+        mainScroll.getStyleClass().add("inline-scroll-pane");
+        VBox.setVgrow(mainScroll, Priority.ALWAYS);
+
         setupLivePreviewListeners();
-        VBox.setVgrow(cardScroll, Priority.SOMETIMES);
-        getChildren().addAll(heading, cardScroll, historyCard, dbCard);
+        getChildren().add(mainScroll);
         load();
     }
 

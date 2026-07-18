@@ -73,7 +73,11 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
 
         VBox card = new VBox(10, heading, sub, bar, table);
         card.getStyleClass().add("card");
-        getChildren().add(card);
+        ScrollPane scroll = new ScrollPane(card);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("inline-scroll-pane");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        getChildren().add(scroll);
         refresh();
     }
 

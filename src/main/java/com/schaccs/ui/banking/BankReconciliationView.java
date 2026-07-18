@@ -14,7 +14,6 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -139,11 +138,7 @@ public class BankReconciliationView extends VBox implements MainLayout.Refreshab
         card.getStyleClass().add("card");
         VBox.setVgrow(itemsTable, Priority.ALWAYS);
         VBox.setVgrow(listTable, Priority.SOMETIMES);
-        ScrollPane scroll = new ScrollPane(card);
-        scroll.setFitToWidth(true);
-        scroll.getStyleClass().add("inline-scroll-pane");
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-        getChildren().add(scroll);
+        getChildren().add(card);
         refresh();
     }
 

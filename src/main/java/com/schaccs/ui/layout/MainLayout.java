@@ -53,13 +53,16 @@ public class MainLayout extends BorderPane {
 
     private Node wrapForResponsiveLayout(Node view) {
         if (view instanceof ScrollPane) {
-            return view;
+            VBox container = new VBox(view);
+            container.setFillWidth(true);
+            VBox.setVgrow(view, javafx.scene.layout.Priority.ALWAYS);
+            return container;
         }
         ScrollPane scrollPane = new ScrollPane(view);
         scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(false);
+        scrollPane.setFitToHeight(true);
         scrollPane.setPannable(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.getStyleClass().add("content-scroll");
         if (view instanceof Region region) {
