@@ -9,6 +9,7 @@ import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.export.SpreadsheetExportService;
 import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.service.student.StudentService;
+import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
@@ -114,12 +115,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     }
 
     private void buildFormTab() {
-        classBox.getItems().addAll(
-                "Form 1 A", "Form 1 B", "Form 1 C",
-                "Form 2 A", "Form 2 B", "Form 2 C",
-                "Form 3 A", "Form 3 B", "Form 3 C",
-                "Form 4 A", "Form 4 B", "Form 4 C"
-        );
+        populateClassBox();
         classBox.setPromptText("Select class/stream");
         genderBox.getItems().addAll("Male", "Female");
         genderBox.setValue("Male");
@@ -156,6 +152,28 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         card.setMaxWidth(500);
 
         formTab.setContent(card);
+    }
+
+    private void populateClassBox() {
+        classBox.getItems().clear();
+        SchoolCustomStore store = SchoolCustomStore.getInstance();
+        for (var fc : store.getFormClasses()) {
+            if (store.getStreams().isEmpty()) {
+                classBox.getItems().add(fc.getName());
+            } else {
+                for (var s : store.getStreams()) {
+                    classBox.getItems().add(fc.getName() + " " + s.getName());
+                }
+            }
+        }
+        if (classBox.getItems().isEmpty()) {
+            classBox.getItems().addAll(
+                    "Form 1 A", "Form 1 B", "Form 1 C",
+                    "Form 2 A", "Form 2 B", "Form 2 C",
+                    "Form 3 A", "Form 3 B", "Form 3 C",
+                    "Form 4 A", "Form 4 B", "Form 4 C"
+            );
+        }
     }
 
     private VBox labeled(String label, javafx.scene.Node field) {
@@ -411,6 +429,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
     @Override
     public void refresh() {
+        populateClassBox();
         table.refresh();
     }
 }
