@@ -80,8 +80,11 @@ public class FeeCalculationService {
     }
 
     public void chargeTermFees(Student student, AcademicTerm term) {
+        StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+        if (term == ledger.getCurrentTerm() && !ledger.getChargedByVotehead().isEmpty()) {
+            return;
+        }
         structureFor(student).ifPresent(structure -> {
-            StudentFeeLedger ledger = studentStore.getLedger(student.getId());
             for (FeeStructureItem item : structure.itemsForTerm(term)) {
                 ledger.charge(item.getVoteheadCode(), item.getAmount());
             }

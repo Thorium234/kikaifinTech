@@ -47,7 +47,7 @@ public final class CurrencyConfig {
         if (amount == null) {
             amount = zero();
         }
-        return "KSh " + String.format("%,.2f", amount);
+        return FORMATTER.format(amount);
     }
 
     public static String formatPlain(BigDecimal amount) {

@@ -219,7 +219,11 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     }
 
     private void loadMigrationHistory() {
-        migrationTable.getItems().setAll(Database.getInstance().migrationHistory());
+        try {
+            migrationTable.getItems().setAll(Database.getInstance().migrationHistory());
+        } catch (Exception e) {
+            migrationTable.getItems().clear();
+        }
     }
 
     private void configureWarning(Label label) {

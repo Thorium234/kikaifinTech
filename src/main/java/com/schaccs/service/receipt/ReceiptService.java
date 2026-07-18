@@ -207,42 +207,41 @@ public class ReceiptService {
             return Result.failure(List.of("Linked student not found; cannot reverse."));
         }
         try {
-            StudentFeeLedger ledger = studentStore.getLedger(student.getId());
-
-            String ref = "RCPT-RV-" + receipt.getReceiptNumber();
-            // Reverse each allocation line (credit income, debit bank)
-            for (ReceiptLine line : receipt.getLines()) {
-            if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
-                ledger.reduceAdvance(line.getAmount());
-                continue;
-            }
-            if ("ARREARS".equals(line.getVoteheadCode())) {
-                ledger.setArrears(ledger.getArrears().add(line.getAmount()));
-            } else {
-                ledger.reversePayment(line.getVoteheadCode(), line.getAmount());
-            }
-            AccountType accountType = feeStore.findVoteheadByCode(line.getVoteheadCode())
-                    .map(Votehead::getAccountType)
-                    .orElse(AccountType.SCHOOL_FUND);
-            accountingEngine.postFeeReceiptLine(
-                    ref,
-                    "Reversal of receipt " + receipt.getReceiptNumberDisplay()
-                            + " — " + line.getVoteheadName() + (reason != null ? " (" + reason + ")" : ""),
-                    accountType,
-                    line.getVoteheadCode(),
-                    line.getAmount().negate(),
-                    student.getId(),
-                    receipt.getId(),
-                    null,
-                    LocalDate.now());
-        }
-
+            PersistenceService.getInstance().transactional(conn -> {
+                StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+                String ref = "RCPT-RV-" + receipt.getReceiptNumber();
+                for (ReceiptLine line : receipt.getLines()) {
+                    if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
+                        ledger.reduceAdvance(line.getAmount());
+                        continue;
+                    }
+                    if ("ARREARS".equals(line.getVoteheadCode())) {
+                        ledger.setArrears(ledger.getArrears().add(line.getAmount()));
+                    } else {
+                        ledger.reversePayment(line.getVoteheadCode(), line.getAmount());
+                    }
+                    AccountType accountType = feeStore.findVoteheadByCode(line.getVoteheadCode())
+                            .map(Votehead::getAccountType)
+                            .orElse(AccountType.SCHOOL_FUND);
+                    accountingEngine.postFeeReceiptLine(
+                            ref,
+                            "Reversal of receipt " + receipt.getReceiptNumberDisplay()
+                                    + " — " + line.getVoteheadName() + (reason != null ? " (" + reason + ")" : ""),
+                            accountType,
+                            line.getVoteheadCode(),
+                            line.getAmount().negate(),
+                            student.getId(),
+                            receipt.getId(),
+                            null,
+                            LocalDate.now());
+                }
                 receipt.setReversed(true);
                 if (receipt.getNotes() == null || receipt.getNotes().isBlank()) {
                     receipt.setNotes("REVERSED" + (reason != null ? ": " + reason : ""));
                 } else {
                     receipt.setNotes(receipt.getNotes() + " | REVERSED" + (reason != null ? ": " + reason : ""));
                 }
+            });
             PersistenceService.getInstance().saveAll();
             return Result.success(receipt, List.of());
         } catch (Exception e) {

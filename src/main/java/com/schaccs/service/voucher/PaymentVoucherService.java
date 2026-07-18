@@ -106,9 +106,8 @@ public class PaymentVoucherService {
             return errors;
         }
 
-        try {
-            PaymentVoucher voucher = new PaymentVoucher();
-            voucher.setVoucherNumber(AppConfig.getInstance().getSchoolProfile().allocateVoucherNumber());
+        PaymentVoucher voucher = new PaymentVoucher();
+        voucher.setVoucherNumber(AppConfig.getInstance().getSchoolProfile().allocateVoucherNumber());
         voucher.setDate(date != null ? date : LocalDate.now());
         voucher.setCreditorId(commitment.getCreditorId());
         voucher.setCreditorName(commitment.getCreditorName());
@@ -126,29 +125,30 @@ public class PaymentVoucherService {
         voucher.setApprovedBy(AppConfig.getInstance().getCurrentUser());
         voucher.setNotes(notes);
 
-        // Expense: Debit votehead expense account, Credit Bank (School Fund)
-        JournalEntry journal = new JournalEntry();
-        journal.setDate(voucher.getDate());
-        journal.setReference("PV-" + voucher.getVoucherNumber());
-        journal.setNarration("Payment voucher " + voucher.getVoucherNumber() + " — "
-                + voucher.getCreditorName() + " / " + voucher.getVoteheadName());
-        journal.addLine(voucher.getAccountType(), voucher.getVoteheadCode(),
-                amount, CurrencyConfig.zero(),
-                "Expense — " + voucher.getVoteheadName());
-        journal.addLine(AccountType.SCHOOL_FUND, "CASH_BANK",
-                CurrencyConfig.zero(), amount,
-                "Bank payment — " + voucher.getCreditorName());
+        BigDecimal prevAmountPaid = commitment.getAmountPaid();
 
-        accountingEngine.postTransaction(journal, TransactionType.PAYMENT_VOUCHER,
-                null, null, voucher.getId());
-
-        // Voucher id is now stamped on the linked ledger transactions for audit tracing.
-
-            commitment.applyPayment(amount);
+        try {
+            PersistenceService.getInstance().transactional(conn -> {
+                JournalEntry journal = new JournalEntry();
+                journal.setDate(voucher.getDate());
+                journal.setReference("PV-" + voucher.getVoucherNumber());
+                journal.setNarration("Payment voucher " + voucher.getVoucherNumber() + " — "
+                        + voucher.getCreditorName() + " / " + voucher.getVoteheadName());
+                journal.addLine(voucher.getAccountType(), voucher.getVoteheadCode(),
+                        amount, CurrencyConfig.zero(),
+                        "Expense — " + voucher.getVoteheadName());
+                journal.addLine(AccountType.SCHOOL_FUND, "CASH_BANK",
+                        CurrencyConfig.zero(), amount,
+                        "Bank payment — " + voucher.getCreditorName());
+                accountingEngine.postTransaction(journal, TransactionType.PAYMENT_VOUCHER,
+                        null, null, voucher.getId());
+                commitment.applyPayment(amount);
+            });
             store.addVoucher(voucher);
             PersistenceService.getInstance().saveAll();
             return errors;
         } catch (Exception e) {
+            commitment.setAmountPaid(prevAmountPaid);
             errors.add("Failed to post payment voucher: " + e.getMessage());
             return errors;
         }

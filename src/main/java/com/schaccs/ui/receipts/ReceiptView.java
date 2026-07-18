@@ -242,19 +242,12 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         }
         StudentFeeLedger ledger = studentStore.getLedger(s.getId());
         studentSummary.setText(s.getAdmissionNumber() + " — " + s.getName() + " (" + s.getClassLabel() + ")");
-         balanceLabel.setText("Outstanding balance: " + CurrencyUtil.format(ledger.getBalance())
-                 + "  |  Charged: " + CurrencyUtil.format(ledger.getTotalCharged())
-                 + "  |  Paid: " + CurrencyUtil.format(ledger.getTotalPaid())
-                 + (ledger.getArrears().compareTo(BigDecimal.ZERO) > 0
-                 ? "  |  Arrears: " + CurrencyUtil.format(ledger.getArrears()) : ""));
-+        updateReceiptMode();
-         previewAllocation();
-         studentTable.refresh();
         balanceLabel.setText("Outstanding balance: " + CurrencyUtil.format(ledger.getBalance())
                 + "  |  Charged: " + CurrencyUtil.format(ledger.getTotalCharged())
                 + "  |  Paid: " + CurrencyUtil.format(ledger.getTotalPaid())
                 + (ledger.getArrears().compareTo(BigDecimal.ZERO) > 0
                 ? "  |  Arrears: " + CurrencyUtil.format(ledger.getArrears()) : ""));
+        updateReceiptMode();
         previewAllocation();
         studentTable.refresh();
     }

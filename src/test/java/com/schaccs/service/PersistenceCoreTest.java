@@ -21,7 +21,7 @@ class PersistenceCoreTest {
     }
 
     @Test
-    void migrationHistoryContainsAppliedMigrations() {
+    void migrationHistoryContainsAppliedMigrations() throws Exception {
         List<String[]> history = Database.getInstance().migrationHistory();
 
         assertFalse(history.isEmpty());

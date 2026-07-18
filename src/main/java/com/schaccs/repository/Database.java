@@ -138,9 +138,12 @@ public final class Database {
     }
 
     private void setSchemaVersion(Connection conn, int version) throws SQLException {
-        try (Statement st = conn.createStatement()) {
-            st.executeUpdate("INSERT INTO meta (key, value) VALUES ('schema_version', '" + version + "') "
-                    + "ON CONFLICT(key) DO UPDATE SET value = '" + version + "'");
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO meta (key, value) VALUES ('schema_version', ?) "
+                        + "ON CONFLICT(key) DO UPDATE SET value = ?")) {
+            ps.setString(1, String.valueOf(version));
+            ps.setString(2, String.valueOf(version));
+            ps.executeUpdate();
         }
     }
 
@@ -149,6 +152,16 @@ public final class Database {
                 "SELECT 1 FROM migration_history WHERE version = ? AND checksum = ? LIMIT 1")) {
             ps.setInt(1, version);
             ps.setString(2, checksum);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private boolean hasAnyMigrationHistory(Connection conn, int version) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM migration_history WHERE version = ? LIMIT 1")) {
+            ps.setInt(1, version);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
@@ -184,7 +197,7 @@ public final class Database {
                 if (!hasMigrationHistory(conn, migration.version(), migration.checksum())) {
                     recordMigrationHistory(conn, migration);
                 }
-            } else if (!hasMigrationHistory(conn, migration.version(), migration.checksum())) {
+            } else if (!hasAnyMigrationHistory(conn, migration.version())) {
                 recordMigrationHistory(conn, migration);
             }
         }
@@ -458,24 +471,20 @@ public final class Database {
         migrate(conn, schemaVersion(conn));
     }
 
-    public List<String[]> migrationHistory() {
+    public List<String[]> migrationHistory() throws SQLException {
         List<String[]> rows = new ArrayList<>();
-        try {
-            Connection conn = getConnection();
-            try (Statement st = conn.createStatement();
-                 ResultSet rs = st.executeQuery("SELECT version, migration_name, description, checksum, applied_at FROM migration_history ORDER BY version ASC, id ASC")) {
-                while (rs.next()) {
-                    rows.add(new String[]{
-                            String.valueOf(rs.getInt("version")),
-                            rs.getString("migration_name"),
-                            rs.getString("description"),
-                            rs.getString("checksum"),
-                            rs.getString("applied_at")
-                    });
-                }
+        Connection conn = getConnection();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT version, migration_name, description, checksum, applied_at FROM migration_history ORDER BY version ASC, id ASC")) {
+            while (rs.next()) {
+                rows.add(new String[]{
+                        String.valueOf(rs.getInt("version")),
+                        rs.getString("migration_name"),
+                        rs.getString("description"),
+                        rs.getString("checksum"),
+                        rs.getString("applied_at")
+                });
             }
-        } catch (SQLException e) {
-            rows.add(new String[]{"ERR", "migration_history", e.getMessage(), "", ""});
         }
         return rows;
     }
