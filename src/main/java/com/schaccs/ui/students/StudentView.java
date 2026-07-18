@@ -21,6 +21,8 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -28,7 +30,6 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
@@ -46,7 +47,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final TableView<Student> table = new TableView<>();
     private final FilteredList<Student> filtered;
     private final SearchBar searchBar = new SearchBar("Search by name, admission no, class…");
-    private final StackPane contentStack = new StackPane();
+    private final TabPane tabPane = new TabPane();
+    private final Tab listTab = new Tab("Students List");
+    private final Tab formTab = new Tab("Add Student");
 
     private final TextField admField = new TextField();
     private final TextField nameField = new TextField();
@@ -54,12 +57,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final ComboBox<String> genderBox = new ComboBox<>();
     private final ComboBox<BoardingStatus> boardingBox = new ComboBox<>();
     private final TextField phoneField = new TextField();
-
-    private final VBox listPanel = new VBox(10);
-    private final VBox formPanel = new VBox(10);
-    private final Label formTitle = new Label("Add Student");
-    private final Button toggleFormBtn = new Button("Add Student");
-    private final Button toggleListBtn = new Button("Back to List");
 
     private Student editing;
 
@@ -74,17 +71,16 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         Label heading = new Label("Student Registry");
         heading.getStyleClass().add("section-title");
 
-        buildListPanel();
-        buildFormPanel();
+        buildListTab();
+        buildFormTab();
+        tabPane.getTabs().addAll(listTab, formTab);
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
 
-        contentStack.getChildren().addAll(formPanel, listPanel);
-        VBox.setVgrow(contentStack, Priority.ALWAYS);
-
-        getChildren().addAll(heading, contentStack);
-        showList();
+        getChildren().addAll(heading, tabPane);
     }
 
-    private void buildListPanel() {
+    private void buildListTab() {
         Label badge = new Label("Student Registry");
         badge.getStyleClass().add("student-header-badge");
         Label sub = new Label("Browse, search, and select a student to edit. Import students from CSV/XLSX.");
@@ -100,10 +96,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         templateBtn.getStyleClass().add("secondary-button");
         templateBtn.setOnAction(e -> downloadTemplate());
 
-        toggleFormBtn.getStyleClass().add("primary-button");
-        toggleFormBtn.setOnAction(e -> { clearForm(); showForm(); });
+        Button addBtn = new Button("Add Student");
+        addBtn.getStyleClass().add("primary-button");
+        addBtn.setOnAction(e -> { clearForm(); switchToForm(); });
 
-        HBox toolbar = new HBox(10, searchBar, toggleFormBtn, importBtn, exportBtn, templateBtn);
+        HBox toolbar = new HBox(10, searchBar, addBtn, importBtn, exportBtn, templateBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
@@ -113,14 +110,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         card.getStyleClass().addAll("card", "student-table-card");
         VBox.setVgrow(table, Priority.ALWAYS);
 
-        listPanel.getChildren().add(card);
+        listTab.setContent(card);
     }
 
-    private void buildFormPanel() {
-        formTitle.getStyleClass().add("section-title");
-        toggleListBtn.getStyleClass().add("secondary-button");
-        toggleListBtn.setOnAction(e -> showList());
-
+    private void buildFormTab() {
         classBox.getItems().addAll(
                 "Form 1 A", "Form 1 B", "Form 1 C",
                 "Form 2 A", "Form 2 B", "Form 2 C",
@@ -141,11 +134,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         saveBtn.getStyleClass().add("success-button");
         saveBtn.setOnAction(e -> save());
 
-        Button cancelBtn = new Button("Cancel");
-        cancelBtn.getStyleClass().add("secondary-button");
-        cancelBtn.setOnAction(e -> showList());
+        Button clearBtn = new Button("Clear");
+        clearBtn.getStyleClass().add("secondary-button");
+        clearBtn.setOnAction(e -> clearForm());
 
-        HBox actions = new HBox(10, saveBtn, cancelBtn, toggleListBtn);
+        HBox actions = new HBox(10, saveBtn, clearBtn);
         actions.setAlignment(Pos.CENTER_LEFT);
 
         VBox fields = new VBox(12,
@@ -158,11 +151,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         );
         fields.setPadding(new Insets(10, 0, 0, 0));
 
-        VBox card = new VBox(14, formTitle, toggleListBtn, fields, actions);
+        VBox card = new VBox(14, fields, actions);
         card.getStyleClass().add("card");
         card.setMaxWidth(500);
 
-        formPanel.getChildren().add(card);
+        formTab.setContent(card);
     }
 
     private VBox labeled(String label, javafx.scene.Node field) {
@@ -236,7 +229,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         table.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> {
             if (s != null) {
                 loadForm(s);
-                showForm();
+                switchToForm();
             }
         });
     }
@@ -250,8 +243,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         boardingBox.setValue(BoardingStatus.BOARDING);
         phoneField.clear();
         admField.setDisable(false);
-        formTitle.setText("Add Student");
-        toggleListBtn.setText("Back to List");
+        formTab.setText("Add Student");
     }
 
     private void loadForm(Student s) {
@@ -263,8 +255,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         genderBox.setValue(s.getGender() != null ? s.getGender() : "Male");
         boardingBox.setValue(s.getBoardingStatus() != null ? s.getBoardingStatus() : BoardingStatus.BOARDING);
         phoneField.setText(s.getPhone());
-        formTitle.setText("Edit Student");
-        toggleListBtn.setText("Back to List");
+        formTab.setText("Edit Student");
     }
 
     private void save() {
@@ -312,7 +303,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             AlertUtil.info("Saved", "Student details updated.");
         }
         table.refresh();
-        showList();
+        clearForm();
+        switchToList();
     }
 
     private void exportStudents() {
@@ -405,14 +397,12 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         return msg.toString().trim();
     }
 
-    private void showList() {
-        clearForm();
-        table.getSelectionModel().clearSelection();
-        listPanel.toFront();
+    private void switchToList() {
+        tabPane.getSelectionModel().select(listTab);
     }
 
-    private void showForm() {
-        formPanel.toFront();
+    private void switchToForm() {
+        tabPane.getSelectionModel().select(formTab);
     }
 
     private String safe(String value) {
