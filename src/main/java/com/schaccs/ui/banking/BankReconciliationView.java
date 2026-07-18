@@ -64,7 +64,6 @@ public class BankReconciliationView extends VBox implements MainLayout.Refreshab
         statusCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getStatus()));
         listTable.getColumns().addAll(dateCol, bookCol, stmtCol, diffCol, statusCol);
         listTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        listTable.setPrefHeight(200);
 
         TableColumn<BankReconciliation.ReconciliationItem, String> itType = new TableColumn<>("Type");
         itType.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getType()));
@@ -138,8 +137,12 @@ public class BankReconciliationView extends VBox implements MainLayout.Refreshab
                 form,
                 notesArea);
         card.getStyleClass().add("card");
+        VBox.setVgrow(itemsTable, Priority.ALWAYS);
+        VBox.setVgrow(listTable, Priority.SOMETIMES);
         ScrollPane scroll = new ScrollPane(card);
         scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("inline-scroll-pane");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
         getChildren().add(scroll);
         refresh();
     }

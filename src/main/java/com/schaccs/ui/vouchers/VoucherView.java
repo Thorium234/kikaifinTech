@@ -1033,4 +1033,10 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         invoiceTable.refresh();
         imprestTable.refresh();
     }
+
+    private VBox voucherFieldBlock(String label, TextField field, String hint) {
+        VBox box = new VBox(4, new Label(label), field, new Label(hint));
+        box.getStyleClass().add("voucher-field-block");
+        return box;
+    }
 }

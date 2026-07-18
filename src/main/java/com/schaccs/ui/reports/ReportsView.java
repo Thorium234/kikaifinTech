@@ -675,8 +675,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
             return;
         }
         try {
-            pdfExportService.exportTable(file.toPath(), "Official Receipt", List.of("Field", "Value"), receiptRows(r));
-            AlertUtil.info("Export complete", "Receipt exported to:\n" + file.getAbsolutePath());
+            pdfExportService.exportReceipt(file.toPath(), r);
+            AlertUtil.info("Export complete", "Receipt PDF exported to:\n" + file.getAbsolutePath());
         } catch (IOException e) {
             AlertUtil.error("Export failed", e.getMessage());
         }
@@ -961,67 +961,6 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
             )).toList();
             pdfExportService.exportTable(file.toPath(), "Ledger Transactions", headers, rows);
             AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
-    }
-
-    private List<List<String>> receiptRows(Receipt r) {
-        List<List<String>> rows = new java.util.ArrayList<>();
-        rows.add(List.of("Receipt Number", r.getReceiptNumberDisplay()));
-        rows.add(List.of("Date", DateUtil.format(r.getDate())));
-        rows.add(List.of("Student", safe(r.getStudentName())));
-        rows.add(List.of("Admission Number", safe(r.getAdmissionNumber())));
-        rows.add(List.of("Class", safe(r.getClassLabel())));
-        rows.add(List.of("Amount", CurrencyUtil.formatPlain(r.getAmount())));
-        rows.add(List.of("Payment Mode", r.getPaymentMode() != null ? r.getPaymentMode().getDisplayName() : ""));
-        rows.add(List.of("Reference", safe(r.getBankReference())));
-        rows.add(List.of("Received By", safe(r.getReceivedBy())));
-        rows.add(List.of("Status", r.isReversed() ? "REVERSED" : "POSTED"));
-        r.getLines().forEach(line -> rows.add(List.of("Line - " + safe(line.getVoteheadName()), CurrencyUtil.formatPlain(line.getAmount()))));
-        return rows;
-    }
-
-    private void exportReportPack() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Full Report Pack");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
-        chooser.setInitialFileName("report-pack.xlsx");
-        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
-        if (file == null) {
-            return;
-        }
-        try {
-            reportPackExportService.exportFullReportPack(file.toPath(), dailyDate.getValue());
-            AlertUtil.info("Export complete", "Report pack exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
-    }
-
-    private void exportLedgerTransactions() {
-        File file = chooseSaveFile("Export Ledger Transactions", "ledger-transactions.csv");
-        if (file == null) {
-            return;
-        }
-        try {
-            List<String> headers = List.of("Date", "Type", "Account", "Votehead Code", "Reference", "Description", "Debit", "Credit", "Student ID", "Receipt ID", "Voucher ID", "Created By");
-            List<List<String>> rows = accountingService.transactions().stream().map(t -> List.of(
-                    DateUtil.format(t.getDate()),
-                    t.getType() != null ? t.getType().name() : "",
-                    t.getAccountType() != null ? t.getAccountType().getDisplayName() : "",
-                    safe(t.getVoteheadCode()),
-                    safe(t.getReference()),
-                    safe(t.getDescription()),
-                    CurrencyUtil.formatPlain(t.getDebit()),
-                    CurrencyUtil.formatPlain(t.getCredit()),
-                    safe(t.getStudentId()),
-                    safe(t.getReceiptId()),
-                    safe(t.getVoucherId()),
-                    safe(t.getCreatedBy())
-            )).toList();
-            exportService.export(file.toPath(), "Ledger Transactions", headers, rows);
-            AlertUtil.info("Export complete", "Ledger transactions exported to:\n" + file.getAbsolutePath());
         } catch (IOException e) {
             AlertUtil.error("Export failed", e.getMessage());
         }
