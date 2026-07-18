@@ -12,7 +12,6 @@ import javafx.geometry.Insets;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.control.Button;
 
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
@@ -67,13 +66,9 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final Label stampWarning = new Label();
     private final Label signatureWarning = new Label();
     private final TableView<String[]> migrationTable = new TableView<>();
-    private final ComboBox<String> dbTypeBox = new ComboBox<>();
-    private final TextField dbHost = new TextField();
-    private final TextField dbPort = new TextField();
-    private final TextField dbName = new TextField();
+    private final TextField jdbcUrl = new TextField();
     private final TextField dbUser = new TextField();
     private final TextField dbPassword = new TextField();
-    private final ComboBox<String> dbSslMode = new ComboBox<>();
     private final Label dbStatusLabel = new Label("Not connected");
 
     public SettingsView() {
@@ -179,9 +174,10 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         VBox dbCard = buildDatabaseConfigCard();
 
         VBox allContent = new VBox(14, heading, card, historyCard, dbCard);
-        allContent.setPadding(new Insets(0, 0, 24, 0));
+        allContent.setPadding(new Insets(0, 0, 60, 0));
         ScrollPane mainScroll = new ScrollPane(allContent);
         mainScroll.setFitToWidth(true);
+        mainScroll.setFitToHeight(false);
         mainScroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(mainScroll, Priority.ALWAYS);
 
@@ -193,36 +189,25 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private VBox buildDatabaseConfigCard() {
         Label dbHeading = new Label("Multi-Database Configuration");
         dbHeading.getStyleClass().add("section-title");
-        Label dbSub = new Label("Configure a remote PostgreSQL, MySQL, or MariaDB database for optional centralised storage.");
+        Label dbSub = new Label("Paste your remote database JDBC URL for PostgreSQL, MySQL, or MariaDB centralised storage.");
         dbSub.getStyleClass().add("muted");
 
-        dbTypeBox.getItems().addAll("postgresql", "mysql", "mariadb");
-        dbTypeBox.setValue("postgresql");
-        dbSslMode.getItems().addAll("prefer", "require", "disable");
-        dbSslMode.setValue("prefer");
-        dbPort.setText("5432");
+        jdbcUrl.setPromptText("jdbc:postgresql://host:5432/database?sslmode=require");
+        dbUser.setPromptText("username");
+        dbPassword.setPromptText("password");
 
         GridPane grid = new GridPane();
         grid.setHgap(12);
         grid.setVgap(10);
         int r = 0;
-        grid.add(new Label("Database Type"), 0, r);
-        grid.add(dbTypeBox, 1, r++);
-        grid.add(new Label("Host"), 0, r);
-        grid.add(dbHost, 1, r++);
-        grid.add(new Label("Port"), 0, r);
-        grid.add(dbPort, 1, r++);
-        grid.add(new Label("Database Name"), 0, r);
-        grid.add(dbName, 1, r++);
+        grid.add(new Label("JDBC URL"), 0, r);
+        grid.add(jdbcUrl, 1, r++);
         grid.add(new Label("Username"), 0, r);
         grid.add(dbUser, 1, r++);
         grid.add(new Label("Password"), 0, r);
         grid.add(dbPassword, 1, r++);
-        grid.add(new Label("SSL Mode"), 0, r);
-        grid.add(dbSslMode, 1, r++);
 
-        dbHost.setPrefWidth(300);
-        dbName.setPrefWidth(300);
+        jdbcUrl.setPrefWidth(500);
         dbUser.setPrefWidth(300);
 
         Button testBtn = new Button("Test Connection");
@@ -280,36 +265,102 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
     private DatasourceManager.DbConfig readDbConfigFromForm() {
         DatasourceManager.DbConfig config = new DatasourceManager.DbConfig();
-        config.setDbType(dbTypeBox.getValue());
-        config.setHost(dbHost.getText().trim());
-        try {
-            config.setPort(Integer.parseInt(dbPort.getText().trim()));
-        } catch (NumberFormatException e) {
-            config.setPort(5432);
-        }
-        config.setDatabaseName(dbName.getText().trim());
+        String url = jdbcUrl.getText().trim();
+        config.setJdbcUrl(url);
+        parseJdbcUrl(url, config);
         config.setUsername(dbUser.getText().trim());
         config.setPassword(dbPassword.getText().trim());
-        config.setSslMode(dbSslMode.getValue());
         config.setActive(true);
         return config;
+    }
+
+    private void parseJdbcUrl(String url, DatasourceManager.DbConfig config) {
+        if (url == null || url.isBlank()) return;
+        String lower = url.toLowerCase();
+        if (lower.startsWith("jdbc:postgresql://")) {
+            config.setDbType("postgresql");
+        } else if (lower.startsWith("jdbc:mysql://")) {
+            config.setDbType("mysql");
+        } else if (lower.startsWith("jdbc:mariadb://")) {
+            config.setDbType("mariadb");
+        } else {
+            config.setDbType("postgresql");
+            return;
+        }
+        String withoutPrefix = url.substring(url.indexOf("://") + 3);
+        int paramIdx = withoutPrefix.indexOf('?');
+        String hostPortDb = paramIdx >= 0 ? withoutPrefix.substring(0, paramIdx) : withoutPrefix;
+        String params = paramIdx >= 0 ? withoutPrefix.substring(paramIdx + 1) : "";
+
+        int slashIdx = hostPortDb.indexOf('/');
+        String hostPort = slashIdx >= 0 ? hostPortDb.substring(0, slashIdx) : hostPortDb;
+        String database = slashIdx >= 0 ? hostPortDb.substring(slashIdx + 1) : "";
+        config.setDatabaseName(database);
+
+        int colonIdx = hostPort.indexOf(':');
+        if (colonIdx >= 0) {
+            config.setHost(hostPort.substring(0, colonIdx));
+            try { config.setPort(Integer.parseInt(hostPort.substring(colonIdx + 1))); }
+            catch (NumberFormatException e) { setDefaultPort(config); }
+        } else {
+            config.setHost(hostPort);
+            setDefaultPort(config);
+        }
+
+        if (!params.isBlank()) {
+            String ssl = extractParam(params, "ssl");
+            if (ssl == null) ssl = extractParam(params, "sslmode");
+            if (ssl == null) ssl = extractParam(params, "useSSL");
+            config.setSslMode(ssl != null ? ssl : "prefer");
+            if (config.getUsername() == null || config.getUsername().isBlank()) {
+                String u = extractParam(params, "user");
+                if (u != null) config.setUsername(u);
+            }
+            if (config.getPassword() == null || config.getPassword().isBlank()) {
+                String p = extractParam(params, "password");
+                if (p != null) config.setPassword(p);
+            }
+        }
+    }
+
+    private void setDefaultPort(DatasourceManager.DbConfig config) {
+        String t = config.getDbType();
+        if ("mysql".equals(t)) config.setPort(3306);
+        else if ("mariadb".equals(t)) config.setPort(3306);
+        else config.setPort(5432);
+    }
+
+    private String extractParam(String query, String key) {
+        for (String pair : query.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && pair.substring(0, eq).equalsIgnoreCase(key)) {
+                return pair.substring(eq + 1);
+            }
+        }
+        return null;
     }
 
     private void loadDbConfig() {
         DatasourceManager.DbConfig config = Database.getInstance().loadDbConfig();
         if (config != null) {
-            dbTypeBox.setValue(config.getDbType());
-            dbHost.setText(config.getHost());
-            dbPort.setText(String.valueOf(config.getPort()));
-            dbName.setText(config.getDatabaseName());
+            jdbcUrl.setText(config.getJdbcUrl() != null ? config.getJdbcUrl() : buildJdbcUrl(config));
             dbUser.setText(config.getUsername());
             dbPassword.setText(config.getPassword());
-            dbSslMode.setValue(config.getSslMode() != null ? config.getSslMode() : "prefer");
             if (config.isActive() && DatasourceManager.getInstance().isOnline()) {
                 dbStatusLabel.setText("Connected");
                 dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
             }
         }
+    }
+
+    private String buildJdbcUrl(DatasourceManager.DbConfig config) {
+        if (config.getDbType() == null || config.getHost() == null) return "";
+        return switch (config.getDbType().toLowerCase()) {
+            case "postgresql" -> "jdbc:postgresql://" + config.getHost() + ":" + config.getPort() + "/" + (config.getDatabaseName() != null ? config.getDatabaseName() : "");
+            case "mysql" -> "jdbc:mysql://" + config.getHost() + ":" + config.getPort() + "/" + (config.getDatabaseName() != null ? config.getDatabaseName() : "");
+            case "mariadb" -> "jdbc:mariadb://" + config.getHost() + ":" + config.getPort() + "/" + (config.getDatabaseName() != null ? config.getDatabaseName() : "");
+            default -> "";
+        };
     }
 
     private void load() {

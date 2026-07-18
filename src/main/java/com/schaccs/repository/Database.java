@@ -502,8 +502,8 @@ public final class Database {
 
     public void saveDbConfig(com.schaccs.config.db.DatasourceManager.DbConfig config) {
         try (PreparedStatement ps = getConnection().prepareStatement(
-                "INSERT OR REPLACE INTO db_config (id, db_type, host, port, database_name, username, password, ssl_mode, active) "
-                        + "VALUES (1,?,?,?,?,?,?,?,?)")) {
+                "INSERT OR REPLACE INTO db_config (id, db_type, host, port, database_name, username, password, ssl_mode, active, jdbc_url) "
+                        + "VALUES (1,?,?,?,?,?,?,?,?,?)")) {
             ps.setString(1, config.getDbType());
             ps.setString(2, config.getHost());
             ps.setInt(3, config.getPort());
@@ -512,6 +512,7 @@ public final class Database {
             ps.setString(6, config.getPassword());
             ps.setString(7, config.getSslMode());
             ps.setInt(8, config.isActive() ? 1 : 0);
+            ps.setString(9, config.getJdbcUrl());
             ps.executeUpdate();
         } catch (SQLException ignored) {
         }
@@ -519,9 +520,10 @@ public final class Database {
 
     public com.schaccs.config.db.DatasourceManager.DbConfig loadDbConfig() {
         try (Statement st = getConnection().createStatement();
-             ResultSet rs = st.executeQuery("SELECT db_type, host, port, database_name, username, password, ssl_mode, active FROM db_config LIMIT 1")) {
+             ResultSet rs = st.executeQuery("SELECT db_type, host, port, database_name, username, password, ssl_mode, active, jdbc_url FROM db_config LIMIT 1")) {
             if (rs.next()) {
                 var config = new com.schaccs.config.db.DatasourceManager.DbConfig();
+                config.setJdbcUrl(rs.getString("jdbc_url"));
                 config.setDbType(rs.getString("db_type"));
                 config.setHost(rs.getString("host"));
                 config.setPort(rs.getInt("port"));

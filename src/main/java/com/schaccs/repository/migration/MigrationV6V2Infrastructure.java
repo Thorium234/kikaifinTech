@@ -65,9 +65,16 @@ public class MigrationV6V2Infrastructure implements SchemaMigration {
                     username TEXT,
                     password TEXT,
                     ssl_mode TEXT,
-                    active INTEGER
+                    active INTEGER,
+                    jdbc_url TEXT
                 )
             """);
+            // add jdbc_url column if missing (for databases created before this column was added)
+            try {
+                st.execute("ALTER TABLE db_config ADD COLUMN jdbc_url TEXT");
+            } catch (Exception ignored) {
+                // column already exists
+            }
             st.execute("""
                 CREATE TABLE IF NOT EXISTS sync_queue (
                     id TEXT PRIMARY KEY,

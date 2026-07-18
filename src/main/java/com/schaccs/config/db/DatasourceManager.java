@@ -99,6 +99,9 @@ public final class DatasourceManager {
     }
 
     private String buildJdbcUrl(DbConfig config) {
+        if (config.getJdbcUrl() != null && !config.getJdbcUrl().isBlank()) {
+            return config.getJdbcUrl();
+        }
         String type = config.getDbType().toLowerCase();
         return switch (type) {
             case "postgresql" ->
@@ -115,6 +118,7 @@ public final class DatasourceManager {
     }
 
     public static final class DbConfig {
+        private String jdbcUrl;
         private String dbType;
         private String host;
         private int port;
@@ -124,6 +128,8 @@ public final class DatasourceManager {
         private String sslMode;
         private boolean active;
 
+        public String getJdbcUrl() { return jdbcUrl; }
+        public void setJdbcUrl(String jdbcUrl) { this.jdbcUrl = jdbcUrl; }
         public String getDbType() { return dbType; }
         public void setDbType(String dbType) { this.dbType = dbType; }
         public String getHost() { return host; }
