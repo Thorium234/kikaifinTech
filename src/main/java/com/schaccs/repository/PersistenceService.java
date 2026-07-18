@@ -31,6 +31,7 @@ import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.store.AuditStore;
 import com.schaccs.store.BankReconciliationStore;
+import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.VoucherStore;
 
 import java.math.BigDecimal;
@@ -91,6 +92,7 @@ public final class PersistenceService {
             saveImprests(conn);
             saveAuditLog(conn);
             saveBankReconciliation(conn);
+            saveSchoolCustom(conn);
         });
     }
 
@@ -104,6 +106,7 @@ public final class PersistenceService {
             VoucherStore.getInstance().clear();
             AuditStore.getInstance().clear();
             BankReconciliationStore.getInstance().clear();
+            SchoolCustomStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
             loadFeeStructures(conn);
@@ -118,6 +121,7 @@ public final class PersistenceService {
             loadImprests(conn);
             loadAuditLog(conn);
             loadBankReconciliation(conn);
+            loadSchoolCustom(conn);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load data: " + e.getMessage(), e);
         }
@@ -161,6 +165,8 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM audit_log");
             st.executeUpdate("DELETE FROM bank_reconciliation_items");
             st.executeUpdate("DELETE FROM bank_reconciliation");
+            st.executeUpdate("DELETE FROM school_form_classes");
+            st.executeUpdate("DELETE FROM school_streams");
         }
     }
 
@@ -1128,6 +1134,48 @@ public final class PersistenceService {
                     item.setCleared(rs.getInt("cleared") == 1);
                     rec.addItem(item);
                 }
+            }
+        }
+    }
+
+    private void saveSchoolCustom(Connection conn) throws SQLException {
+        SchoolCustomStore store = SchoolCustomStore.getInstance();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO school_form_classes (id, name) VALUES (?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET name=excluded.name")) {
+            for (var fc : store.getFormClasses()) {
+                ps.setString(1, fc.getId());
+                ps.setString(2, fc.getName());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO school_streams (id, name) VALUES (?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET name=excluded.name")) {
+            for (var s : store.getStreams()) {
+                ps.setString(1, s.getId());
+                ps.setString(2, s.getName());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadSchoolCustom(Connection conn) throws SQLException {
+        SchoolCustomStore store = SchoolCustomStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM school_form_classes ORDER BY name")) {
+            while (rs.next()) {
+                store.addFormClass(com.schaccs.model.school.SchoolFormClass.withId(
+                        rs.getString("id"), rs.getString("name")));
+            }
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM school_streams ORDER BY name")) {
+            while (rs.next()) {
+                store.addStream(com.schaccs.model.school.SchoolStream.withId(
+                        rs.getString("id"), rs.getString("name")));
             }
         }
     }

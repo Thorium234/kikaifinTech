@@ -292,9 +292,13 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
         amountField.clear();
         refField.clear();
-        paymentHint.setText("Receipt posted successfully. You may print or export the preview.");
+        paymentHint.setText("Receipt posted successfully.");
         selectStudent(selected);
         studentTable.refresh();
+
+        PrintUtil.printText("Official Fee Receipt — " + receipt.getReceiptNumberDisplay(),
+                ReceiptPrinter.format(receipt),
+                getScene() != null ? getScene().getWindow() : null);
     }
 
     private void exportReceiptPdf() {

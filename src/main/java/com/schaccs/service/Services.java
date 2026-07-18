@@ -8,6 +8,7 @@ import com.schaccs.service.finance.AccountingService;
 import com.schaccs.service.finance.BankReconciliationService;
 import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.service.report.ReportService;
+import com.schaccs.service.school.SchoolCustomService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.service.voucher.PaymentVoucherService;
 
@@ -31,6 +32,7 @@ public final class Services {
     private final PaymentVoucherService paymentVoucherService = new PaymentVoucherService();
     private final AuditService auditService = new AuditService();
     private final BankReconciliationService bankReconciliationService = new BankReconciliationService();
+    private final SchoolCustomService schoolCustomService = new SchoolCustomService();
 
     private Services() {
     }
@@ -77,5 +79,9 @@ public final class Services {
 
     public BankReconciliationService bankReconciliation() {
         return bankReconciliationService;
+    }
+
+    public SchoolCustomService schoolCustom() {
+        return schoolCustomService;
     }
 }

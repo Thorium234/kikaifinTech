@@ -21,6 +21,7 @@ public class Sidebar extends VBox {
     public static final String REPORTS = "Reports";
     public static final String AUDIT_LOG = "Audit Log";
     public static final String BANK_RECONCILIATION = "Bank Reconciliation";
+    public static final String SCHOOL_CUSTOM = "School Custom";
     public static final String SETTINGS = "Settings";
 
     private final Map<String, Button> buttons = new LinkedHashMap<>();
@@ -46,6 +47,7 @@ public class Sidebar extends VBox {
         addNav(REPORTS, "Reports");
         addNav(AUDIT_LOG, "Audit Log");
         addNav(BANK_RECONCILIATION, "Bank Reconciliation");
+        addNav(SCHOOL_CUSTOM, "School Custom");
         addNav(SETTINGS, "Settings");
 
         Region spacer = new Region();

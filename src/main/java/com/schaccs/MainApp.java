@@ -10,6 +10,7 @@ import com.schaccs.ui.audit.AuditLogView;
 import com.schaccs.ui.banking.BankReconciliationView;
 import com.schaccs.ui.receipts.ReceiptView;
 import com.schaccs.ui.reports.ReportsView;
+import com.schaccs.ui.school.SchoolCustomView;
 import com.schaccs.ui.settings.SettingsView;
 import com.schaccs.ui.students.StudentView;
 import com.schaccs.ui.vouchers.VoucherView;
@@ -34,6 +35,7 @@ public class MainApp extends Application {
         layout.register(Sidebar.REPORTS, Sidebar.REPORTS, ReportsView::new);
         layout.register(Sidebar.AUDIT_LOG, Sidebar.AUDIT_LOG, AuditLogView::new);
         layout.register(Sidebar.BANK_RECONCILIATION, Sidebar.BANK_RECONCILIATION, BankReconciliationView::new);
+        layout.register(Sidebar.SCHOOL_CUSTOM, Sidebar.SCHOOL_CUSTOM, SchoolCustomView::new);
         layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
 
         layout.show(Sidebar.DASHBOARD);

@@ -187,7 +187,8 @@ public final class Database {
                 new MigrationV3SchoolLogoPath(),
                 new MigrationV4ReceiptStampSignaturePaths(),
                 new MigrationV5StudentAvatarAndGuardianFields(),
-                new com.schaccs.repository.migration.MigrationV6V2Infrastructure()
+                new com.schaccs.repository.migration.MigrationV6V2Infrastructure(),
+                new com.schaccs.repository.migration.MigrationV7SchoolCustomTables()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
