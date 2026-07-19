@@ -6,6 +6,7 @@ import com.schaccs.repository.migration.MigrationV3SchoolLogoPath;
 import com.schaccs.repository.migration.MigrationV4ReceiptStampSignaturePaths;
 import com.schaccs.repository.migration.MigrationV5StudentAvatarAndGuardianFields;
 import com.schaccs.repository.migration.SchemaMigration;
+import com.schaccs.util.CredentialCrypto;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -188,7 +189,8 @@ public final class Database {
                 new MigrationV4ReceiptStampSignaturePaths(),
                 new MigrationV5StudentAvatarAndGuardianFields(),
                 new com.schaccs.repository.migration.MigrationV6V2Infrastructure(),
-                new com.schaccs.repository.migration.MigrationV7SchoolCustomTables()
+                new com.schaccs.repository.migration.MigrationV7SchoolCustomTables(),
+                new com.schaccs.repository.migration.MigrationV8SyncInfrastructure()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -510,7 +512,7 @@ public final class Database {
             ps.setInt(3, config.getPort());
             ps.setString(4, config.getDatabaseName());
             ps.setString(5, config.getUsername());
-            ps.setString(6, config.getPassword());
+            ps.setString(6, CredentialCrypto.encrypt(config.getPassword()));
             ps.setString(7, config.getSslMode());
             ps.setInt(8, config.isActive() ? 1 : 0);
             ps.setString(9, config.getJdbcUrl());
@@ -530,7 +532,7 @@ public final class Database {
                 config.setPort(rs.getInt("port"));
                 config.setDatabaseName(rs.getString("database_name"));
                 config.setUsername(rs.getString("username"));
-                config.setPassword(rs.getString("password"));
+                config.setPassword(CredentialCrypto.decrypt(rs.getString("password")));
                 config.setSslMode(rs.getString("ssl_mode"));
                 config.setActive(rs.getInt("active") == 1);
                 return config;

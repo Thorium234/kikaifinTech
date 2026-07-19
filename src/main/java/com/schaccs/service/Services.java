@@ -10,6 +10,8 @@ import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.service.report.ReportService;
 import com.schaccs.service.school.SchoolCustomService;
 import com.schaccs.service.student.StudentService;
+import com.schaccs.service.sync.SyncEngine;
+import com.schaccs.service.sync.SyncReportService;
 import com.schaccs.service.voucher.PaymentVoucherService;
 
 /**
@@ -33,6 +35,8 @@ public final class Services {
     private final AuditService auditService = new AuditService();
     private final BankReconciliationService bankReconciliationService = new BankReconciliationService();
     private final SchoolCustomService schoolCustomService = new SchoolCustomService();
+    private final SyncEngine syncEngine = SyncEngine.getInstance();
+    private final SyncReportService syncReportService = SyncReportService.getInstance();
 
     private Services() {
     }
@@ -83,5 +87,13 @@ public final class Services {
 
     public SchoolCustomService schoolCustom() {
         return schoolCustomService;
+    }
+
+    public SyncEngine sync() {
+        return syncEngine;
+    }
+
+    public SyncReportService syncReport() {
+        return syncReportService;
     }
 }
