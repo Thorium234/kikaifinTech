@@ -32,11 +32,16 @@ public class SyncEngine {
     private volatile boolean running = false;
     private volatile long lastHeartbeat = 0;
     private String dbType = "postgresql";
-
-    private final AuditService audit;
+    private AuditService audit;
 
     private SyncEngine() {
-        this.audit = com.schaccs.service.Services.getInstance().audit();
+    }
+
+    private AuditService audit() {
+        if (audit == null) {
+            audit = com.schaccs.service.Services.getInstance().audit();
+        }
+        return audit;
     }
 
     public static SyncEngine getInstance() {
@@ -473,7 +478,7 @@ public class SyncEngine {
     }
 
     private void logSyncSummary(SyncSummary summary) {
-        audit.log("SYNC", "System", null,
+        audit().log("SYNC", "System", null,
                 "Sync completed: " + summary.synced + " synced, "
                         + summary.failed + " failed, "
                         + summary.skipped + " skipped in "
