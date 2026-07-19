@@ -23,6 +23,8 @@ public class MigrationV8SyncInfrastructure implements SchemaMigration {
                     "transactions", "ledger_entries", "creditors", "commitments",
                     "payment_vouchers", "lpos", "invoices", "imprests",
                     "school_form_classes", "school_streams"};
+            String[] childTables = {"fee_structure_items", "receipt_lines",
+                    "student_ledger_lines", "bank_reconciliation_items"};
 
             for (String table : tables) {
                 try {
@@ -31,6 +33,12 @@ public class MigrationV8SyncInfrastructure implements SchemaMigration {
                 }
                 try {
                     st.execute("ALTER TABLE " + table + " ADD COLUMN updated_at TEXT");
+                } catch (Exception ignored) {
+                }
+            }
+            for (String table : childTables) {
+                try {
+                    st.execute("ALTER TABLE " + table + " ADD COLUMN synced_at TEXT");
                 } catch (Exception ignored) {
                 }
             }

@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,10 +25,13 @@ public class SyncEngine {
 
     private static final long HEARTBEAT_INTERVAL_MS = 30_000;
     private static final int MAX_RETRIES = 5;
-    private static final long BASE_DELAY_MS = 10_000;
+    private static final long BASE_DELAY_MS = 2_000;
+    private static final int PAGE_SIZE = 500;
+    private static final int BATCH_SIZE = 50;
 
     private volatile boolean running = false;
     private volatile long lastHeartbeat = 0;
+    private String dbType = "postgresql";
 
     private final AuditService audit;
 
@@ -44,11 +48,9 @@ public class SyncEngine {
             "school_form_classes",
             "school_streams",
             "fee_structures",
-            "fee_structure_items",
             "students",
             "student_ledgers",
             "receipts",
-            "receipt_lines",
             "transactions",
             "ledger_entries",
             "creditors",
@@ -59,14 +61,22 @@ public class SyncEngine {
             "imprests",
             "school_settings",
             "audit_log",
-            "bank_reconciliation",
-            "bank_reconciliation_items"
+            "bank_reconciliation"
+    );
+
+    private static final List<String> CHILD_TABLES = List.of(
+            "fee_structure_items", "receipt_lines", "student_ledger_lines", "bank_reconciliation_items"
     );
 
     private static final List<String> COMPOSITE_PK_TABLES = List.of("student_ledger_lines");
-    private static final List<String> TABLES_WITHOUT_SYNCED_AT = List.of(
-            "fee_structure_items", "receipt_lines", "student_ledger_lines", "bank_reconciliation_items"
-    );
+
+    private static final Map<String, String> CHILD_PARENT_FK = new HashMap<>();
+    static {
+        CHILD_PARENT_FK.put("fee_structure_items", "fee_structures");
+        CHILD_PARENT_FK.put("receipt_lines", "receipts");
+        CHILD_PARENT_FK.put("student_ledger_lines", "students");
+        CHILD_PARENT_FK.put("bank_reconciliation_items", "bank_reconciliation");
+    }
 
     public SyncResult validateConnectivity() {
         try {
@@ -89,9 +99,11 @@ public class SyncEngine {
 
     public SyncResult validateRemoteSchema() {
         List<String> missing = new ArrayList<>();
+        List<String> allTables = new ArrayList<>(SYNC_TABLES_ORDERED);
+        allTables.addAll(CHILD_TABLES);
         try (Connection remote = DatasourceManager.getInstance().getRemoteConnection()) {
             DatabaseMetaData meta = remote.getMetaData();
-            for (String table : SYNC_TABLES_ORDERED) {
+            for (String table : allTables) {
                 try (ResultSet rs = meta.getTables(null, null, table, null)) {
                     if (!rs.next()) {
                         missing.add(table);
@@ -104,7 +116,7 @@ public class SyncEngine {
         if (!missing.isEmpty()) {
             return SyncResult.failure("Missing remote tables: " + String.join(", ", missing));
         }
-        return SyncResult.success("Remote schema validated (" + SYNC_TABLES_ORDERED.size() + " tables present)");
+        return SyncResult.success("Remote schema validated (" + allTables.size() + " tables present)");
     }
 
     public SyncResult validateSchemaVersion() {
@@ -131,8 +143,6 @@ public class SyncEngine {
         return SyncResult.success("Schema version matches (v" + localVersion + ")");
     }
 
-    private String dbType = "postgresql";
-
     private String getDbType() {
         try {
             DatasourceManager.DbConfig cfg = Database.getInstance().loadDbConfig();
@@ -153,10 +163,14 @@ public class SyncEngine {
         getDbType();
         running = true;
         long startedAt = System.currentTimeMillis();
-        try {
+        try (Connection remote = DatasourceManager.getInstance().getRemoteConnection()) {
             for (String table : SYNC_TABLES_ORDERED) {
                 if (!running) break;
-                syncTable(table, summary);
+                syncTable(table, remote, summary);
+            }
+            for (String table : CHILD_TABLES) {
+                if (!running) break;
+                syncChildTable(table, remote, summary);
             }
             summary.durationMs = System.currentTimeMillis() - startedAt;
             summary.completed = true;
@@ -170,87 +184,221 @@ public class SyncEngine {
         return summary;
     }
 
-    private void syncTable(String table, SyncSummary summary) {
-        boolean hasSyncedAt = !TABLES_WITHOUT_SYNCED_AT.contains(table);
-        boolean isCompositePk = COMPOSITE_PK_TABLES.contains(table);
-
-        List<Map<String, Object>> unsyncedRows = new ArrayList<>();
+    private void syncTable(String table, Connection remote, SyncSummary summary) {
         List<String> columnNames = new ArrayList<>();
-        String idColumn = isCompositePk ? null : "id";
-
-        String selectSql = hasSyncedAt
-                ? "SELECT * FROM " + table + " WHERE synced_at IS NULL"
-                : "SELECT * FROM " + table;
+        String upsertSql;
+        int offset = 0;
 
         try (Connection local = Database.getInstance().getConnection();
              Statement st = local.createStatement();
-             ResultSet rs = st.executeQuery(selectSql)) {
-
+             ResultSet rs = st.executeQuery("SELECT * FROM " + table + " LIMIT 1")) {
             ResultSetMetaData meta = rs.getMetaData();
             int colCount = meta.getColumnCount();
             for (int i = 1; i <= colCount; i++) {
                 columnNames.add(meta.getColumnName(i));
             }
-
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (int i = 1; i <= colCount; i++) {
-                    row.put(meta.getColumnName(i), rs.getObject(i));
-                }
-                unsyncedRows.add(row);
-            }
         } catch (SQLException e) {
-            logSyncError(table, null, "READ_ERROR", e.getMessage());
+            logSyncError(table, null, "SCHEMA_READ_ERROR", e.getMessage());
             summary.skipped++;
             return;
         }
 
-        if (unsyncedRows.isEmpty()) return;
+        boolean isCompositePk = COMPOSITE_PK_TABLES.contains(table);
+        upsertSql = buildUpsertSql(table, columnNames, isCompositePk);
 
+        while (running) {
+            List<Map<String, Object>> page = readPage(table, columnNames, offset, PAGE_SIZE);
+            if (page.isEmpty()) break;
+            offset += page.size();
+
+            processBatch(table, page, columnNames, upsertSql, remote, summary);
+        }
+    }
+
+    private void syncChildTable(String table, Connection remote, SyncSummary summary) {
+        String parentTable = CHILD_PARENT_FK.get(table);
+        if (parentTable == null) return;
+
+        List<String> columnNames = new ArrayList<>();
+        try (Connection local = Database.getInstance().getConnection();
+             Statement st = local.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM " + table + " LIMIT 1")) {
+            ResultSetMetaData meta = rs.getMetaData();
+            int colCount = meta.getColumnCount();
+            for (int i = 1; i <= colCount; i++) {
+                columnNames.add(meta.getColumnName(i));
+            }
+        } catch (SQLException e) {
+            logSyncError(table, null, "SCHEMA_READ_ERROR", e.getMessage());
+            summary.skipped++;
+            return;
+        }
+
+        boolean isCompositePk = COMPOSITE_PK_TABLES.contains(table);
         String upsertSql = buildUpsertSql(table, columnNames, isCompositePk);
 
-        for (Map<String, Object> row : unsyncedRows) {
-            String entityId = idColumn != null ? String.valueOf(row.get(idColumn)) : row.toString();
-            long rowStarted = System.currentTimeMillis();
+        int offset = 0;
+        while (running) {
+            List<Map<String, Object>> page = readChildPage(table, parentTable, columnNames, offset, PAGE_SIZE);
+            if (page.isEmpty()) break;
+            offset += page.size();
+            processBatch(table, page, columnNames, upsertSql, remote, summary);
+        }
+    }
+
+    private List<Map<String, Object>> readPage(String table, List<String> columns, int offset, int limit) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        String sql = "SELECT * FROM " + table + " WHERE synced_at IS NULL ORDER BY id LIMIT " + limit + " OFFSET " + offset;
+        try (Connection local = Database.getInstance().getConnection();
+             Statement st = local.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (String col : columns) {
+                    row.put(col, rs.getObject(col));
+                }
+                rows.add(row);
+            }
+        } catch (SQLException e) {
+            logSyncError(table, null, "READ_ERROR", e.getMessage());
+        }
+        return rows;
+    }
+
+    private List<Map<String, Object>> readChildPage(String table, String parentTable, List<String> columns, int offset, int limit) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        String sql = "SELECT c.* FROM " + table + " c "
+                + "INNER JOIN " + parentTable + " p ON p.id = "
+                + (table.equals("student_ledger_lines") ? "c.student_id" : "c." + parentTable.substring(0, parentTable.length() - 1) + "_id")
+                + " WHERE p.synced_at IS NOT NULL "
+                + "ORDER BY c.rowid LIMIT " + limit + " OFFSET " + offset;
+        try (Connection local = Database.getInstance().getConnection();
+             Statement st = local.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (String col : columns) {
+                    row.put(col, rs.getObject(col));
+                }
+                rows.add(row);
+            }
+        } catch (SQLException e) {
+            logSyncError(table, null, "READ_ERROR", e.getMessage());
+        }
+        return rows;
+    }
+
+    private void processBatch(String table, List<Map<String, Object>> rows, List<String> columns,
+                              String upsertSql, Connection remote, SyncSummary summary) {
+        if (rows.isEmpty()) return;
+
+        boolean isCompositePk = COMPOSITE_PK_TABLES.contains(table);
+        String idColumn = isCompositePk ? null : "id";
+
+        for (int i = 0; i < rows.size(); i += BATCH_SIZE) {
+            if (!running) return;
+            int end = Math.min(i + BATCH_SIZE, rows.size());
+            List<Map<String, Object>> batch = rows.subList(i, end);
+
             try {
                 Database.getInstance().inTransaction(localConn -> {
-                    try (Connection remote = DatasourceManager.getInstance().getRemoteConnection();
-                         PreparedStatement ps = remote.prepareStatement(upsertSql)) {
-
-                        for (int i = 0; i < columnNames.size(); i++) {
-                            ps.setObject(i + 1, row.get(columnNames.get(i)));
+                    try (PreparedStatement ps = remote.prepareStatement(upsertSql)) {
+                        for (Map<String, Object> row : batch) {
+                            for (int j = 0; j < columns.size(); j++) {
+                                ps.setObject(j + 1, row.get(columns.get(j)));
+                            }
+                            ps.addBatch();
                         }
-                        ps.executeUpdate();
+                        ps.executeBatch();
                     }
 
-                    if (hasSyncedAt && idColumn != null) {
+                    if (!isCompositePk) {
                         try (PreparedStatement update = localConn.prepareStatement(
                                 "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE id = ?")) {
                             String now = LocalDateTime.now().toString();
-                            update.setString(1, now);
-                            update.setString(2, now);
-                            update.setString(3, entityId);
-                            update.executeUpdate();
+                            for (Map<String, Object> row : batch) {
+                                update.setString(1, now);
+                                update.setString(2, now);
+                                update.setString(3, String.valueOf(row.get(idColumn)));
+                                update.addBatch();
+                            }
+                            update.executeBatch();
                         }
                     }
                 });
 
-                summary.synced++;
-                logSyncEvent(table, entityId, "SYNCED", null, System.currentTimeMillis() - rowStarted);
+                for (Map<String, Object> row : batch) {
+                    String eid = idColumn != null ? String.valueOf(row.get(idColumn)) : row.toString();
+                    summary.synced++;
+                    logSyncEvent(table, eid, "SYNCED", null, 0);
+                }
             } catch (Exception e) {
                 if (isConnectivityError(e)) {
                     summary.error = "Connection lost during sync";
                     running = false;
                     return;
                 }
+                retryBatchRowByRow(table, batch, columns, upsertSql, remote, summary, 1);
+            }
+        }
+    }
+
+    private void retryBatchRowByRow(String table, List<Map<String, Object>> batch, List<String> columns,
+                                    String upsertSql, Connection remote, SyncSummary summary, int attempt) {
+        if (attempt > MAX_RETRIES) {
+            for (Map<String, Object> row : batch) {
                 summary.failed++;
-                logSyncEvent(table, entityId, "FAILED", e.getMessage(), System.currentTimeMillis() - rowStarted);
+                logSyncEvent(table, String.valueOf(row.get("id")), "FAILED",
+                        "Exceeded max retries (" + MAX_RETRIES + ")", 0);
+            }
+            return;
+        }
+
+        long delay = BASE_DELAY_MS * (1L << (attempt - 1));
+        try {
+            Thread.sleep(Math.min(delay, 60_000));
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+
+        for (Map<String, Object> row : batch) {
+            if (!running) return;
+            String entityId = String.valueOf(row.get("id"));
+            try {
+                Database.getInstance().inTransaction(localConn -> {
+                    try (PreparedStatement ps = remote.prepareStatement(upsertSql)) {
+                        for (int j = 0; j < columns.size(); j++) {
+                            ps.setObject(j + 1, row.get(columns.get(j)));
+                        }
+                        ps.executeUpdate();
+                    }
+                    try (PreparedStatement update = localConn.prepareStatement(
+                            "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE id = ?")) {
+                        String now = LocalDateTime.now().toString();
+                        update.setString(1, now);
+                        update.setString(2, now);
+                        update.setString(3, entityId);
+                        update.executeUpdate();
+                    }
+                });
+                summary.synced++;
+                logSyncEvent(table, entityId, "SYNCED", null, 0);
+            } catch (Exception e) {
+                if (isConnectivityError(e)) {
+                    summary.error = "Connection lost during retry";
+                    running = false;
+                    return;
+                }
+                logSyncEvent(table, entityId, "RETRY_" + attempt, e.getMessage(), 0);
+                retryBatchRowByRow(table, List.of(row), columns, upsertSql, remote, summary, attempt + 1);
             }
         }
     }
 
     private String buildUpsertSql(String table, List<String> columns, boolean isCompositePk) {
         String conflictTarget = isCompositePk ? "(student_id, votehead_code, kind)" : "(id)";
+        String type = dbType;
         StringBuilder sql = new StringBuilder("INSERT INTO ");
         sql.append(table).append(" (");
         for (int i = 0; i < columns.size(); i++) {
@@ -264,13 +412,11 @@ public class SyncEngine {
         }
         sql.append(") ");
 
-        String type = getDbType();
         if ("mysql".equals(type) || "mariadb".equals(type)) {
             sql.append("ON DUPLICATE KEY UPDATE ");
             boolean first = true;
             for (String col : columns) {
                 if (first) { first = false; continue; }
-                if (!first) sql.append(", ");
                 sql.append(col).append(" = VALUES(").append(col).append(")");
             }
         } else {
@@ -278,7 +424,6 @@ public class SyncEngine {
             boolean first = true;
             for (String col : columns) {
                 if (first) { first = false; continue; }
-                if (!first) sql.append(", ");
                 sql.append(col).append(" = EXCLUDED.").append(col);
             }
         }

@@ -100,19 +100,25 @@ public final class DatasourceManager {
 
     private String buildJdbcUrl(DbConfig config) {
         if (config.getJdbcUrl() != null && !config.getJdbcUrl().isBlank()) {
-            return config.getJdbcUrl();
+            String url = config.getJdbcUrl();
+            if (!url.contains("sslmode=require") && !url.contains("useSSL=true") && !url.contains("requireSSL=true")) {
+                java.util.logging.Logger.getLogger(getClass().getName())
+                        .warning("Remote JDBC URL does not enforce SSL — connection may be insecure");
+            }
+            return url;
         }
+        boolean sslRequired = config.getSslMode() != null && config.getSslMode().equalsIgnoreCase("require");
         String type = config.getDbType().toLowerCase();
         return switch (type) {
             case "postgresql" ->
-                    "jdbc:postgresql://" + config.getHost() + ":" + config.getPort() + "/" + config.getDatabaseName();
+                    "jdbc:postgresql://" + config.getHost() + ":" + config.getPort() + "/" + config.getDatabaseName()
+                            + "?sslmode=require";
             case "mysql" ->
                     "jdbc:mysql://" + config.getHost() + ":" + config.getPort() + "/" + config.getDatabaseName()
-                            + "?useSSL=" + (config.getSslMode() != null && config.getSslMode().equalsIgnoreCase("require"))
-                            + "&serverTimezone=UTC";
+                            + "?useSSL=true&requireSSL=true&serverTimezone=UTC";
             case "mariadb" ->
                     "jdbc:mariadb://" + config.getHost() + ":" + config.getPort() + "/" + config.getDatabaseName()
-                            + "?useSSL=" + (config.getSslMode() != null && config.getSslMode().equalsIgnoreCase("require"));
+                            + "?useSSL=true&requireSSL=true";
             default -> throw new IllegalArgumentException("Unsupported database type: " + type);
         };
     }

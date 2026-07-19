@@ -55,6 +55,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final TextField admField = new TextField();
     private final TextField nameField = new TextField();
     private final ComboBox<String> classBox = new ComboBox<>();
+    private final ComboBox<String> streamBox = new ComboBox<>();
     private final ComboBox<String> genderBox = new ComboBox<>();
     private final ComboBox<BoardingStatus> boardingBox = new ComboBox<>();
     private final TextField phoneField = new TextField();
@@ -115,8 +116,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     }
 
     private void buildFormTab() {
-        populateClassBox();
-        classBox.setPromptText("Select class/stream");
+        populateDropdowns();
+        classBox.setPromptText("Select class");
+        streamBox.setPromptText("Select stream (optional)");
         genderBox.getItems().addAll("Male", "Female");
         genderBox.setValue("Male");
         boardingBox.getItems().addAll(BoardingStatus.values());
@@ -140,7 +142,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         VBox fields = new VBox(12,
                 labeled("Admission No", admField),
                 labeled("Full Name", nameField),
-                labeled("Class / Stream", classBox),
+                labeled("Class", classBox),
+                labeled("Stream", streamBox),
                 labeled("Gender", genderBox),
                 labeled("Boarding Status", boardingBox),
                 labeled("Phone", phoneField)
@@ -154,25 +157,21 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         formTab.setContent(card);
     }
 
-    private void populateClassBox() {
-        classBox.getItems().clear();
+    private void populateDropdowns() {
         SchoolCustomStore store = SchoolCustomStore.getInstance();
-        for (var fc : store.getFormClasses()) {
-            if (store.getStreams().isEmpty()) {
-                classBox.getItems().add(fc.getName());
-            } else {
-                for (var s : store.getStreams()) {
-                    classBox.getItems().add(fc.getName() + " " + s.getName());
-                }
-            }
+
+        classBox.getItems().clear();
+        if (!store.getFormClasses().isEmpty()) {
+            store.getFormClasses().forEach(fc -> classBox.getItems().add(fc.getName()));
+        } else {
+            classBox.getItems().addAll("Form 1", "Form 2", "Form 3", "Form 4");
         }
-        if (classBox.getItems().isEmpty()) {
-            classBox.getItems().addAll(
-                    "Form 1 A", "Form 1 B", "Form 1 C",
-                    "Form 2 A", "Form 2 B", "Form 2 C",
-                    "Form 3 A", "Form 3 B", "Form 3 C",
-                    "Form 4 A", "Form 4 B", "Form 4 C"
-            );
+
+        streamBox.getItems().clear();
+        if (!store.getStreams().isEmpty()) {
+            store.getStreams().forEach(s -> streamBox.getItems().add(s.getName()));
+        } else {
+            streamBox.getItems().addAll("A", "B", "C");
         }
     }
 
@@ -257,6 +256,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         admField.clear();
         nameField.clear();
         classBox.setValue(null);
+        streamBox.setValue(null);
         genderBox.setValue("Male");
         boardingBox.setValue(BoardingStatus.BOARDING);
         phoneField.clear();
@@ -269,7 +269,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         admField.setText(s.getAdmissionNumber());
         admField.setDisable(true);
         nameField.setText(s.getName());
-        classBox.setValue(s.getClassLabel());
+        classBox.setValue(s.getFormClass());
+        streamBox.setValue(s.getStream());
         genderBox.setValue(s.getGender() != null ? s.getGender() : "Male");
         boardingBox.setValue(s.getBoardingStatus() != null ? s.getBoardingStatus() : BoardingStatus.BOARDING);
         phoneField.setText(s.getPhone());
@@ -279,18 +280,16 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private void save() {
         String adm = admField.getText().trim();
         String name = nameField.getText().trim();
-        String cls = classBox.getValue();
+        String formClass = classBox.getValue();
+        String stream = streamBox.getValue();
         String gender = genderBox.getValue();
         BoardingStatus boarding = boardingBox.getValue();
         String phone = phoneField.getText().trim();
 
-        if (adm.isEmpty() || name.isEmpty() || cls == null || gender == null || boarding == null) {
+        if (adm.isEmpty() || name.isEmpty() || formClass == null || gender == null || boarding == null) {
             AlertUtil.warn("Missing fields", "Admission number, name, class, gender, and boarding status are required.");
             return;
         }
-
-        String formClass = cls.contains(" ") ? cls.substring(0, cls.lastIndexOf(' ')) : cls;
-        String stream = cls.contains(" ") ? cls.substring(cls.lastIndexOf(' ') + 1) : "";
 
         if (editing == null) {
             Student s = new Student(adm, name, formClass, stream, boarding, phone);
@@ -335,10 +334,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         try {
-            List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Boarding Status", "Phone", "Status");
+            List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Stream", "Boarding Status", "Phone", "Status");
             List<List<String>> rows = studentService.getAll().stream().map(s -> List.of(
                     safe(s.getAdmissionNumber()), safe(s.getName()), safe(s.getGender()),
-                    s.getClassLabel(),
+                    safe(s.getFormClass()), safe(s.getStream()),
                     s.getBoardingStatus() != null ? s.getBoardingStatus().getDisplayName() : "",
                     safe(s.getPhone()),
                     s.getStatus() != null ? s.getStatus().getDisplayName() : "")).toList();
@@ -429,7 +428,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
     @Override
     public void refresh() {
-        populateClassBox();
+        populateDropdowns();
         table.refresh();
     }
 }
