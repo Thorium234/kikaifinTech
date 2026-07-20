@@ -14,10 +14,16 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 
+import com.schaccs.model.report.IncomeExpenditureRow;
+import com.schaccs.model.report.TrialBalanceRow;
+import com.schaccs.model.student.StudentBalance;
+import com.schaccs.util.CurrencyUtil;
+
 import java.awt.Color;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 public class PdfExportService {
@@ -338,5 +344,57 @@ public class PdfExportService {
                 .replace('\t', ' ')
                 .replace('\r', ' ')
                 .replace('\n', ' ');
+    }
+
+    public void exportDefaultersPdf(Path path, List<StudentBalance> defaulters) throws IOException {
+        List<String> headers = List.of("#", "Admission", "Student Name", "Class", "Charged", "Paid", "Arrears", "Balance");
+        List<List<String>> rows = new ArrayList<>();
+        for (int i = 0; i < defaulters.size(); i++) {
+            StudentBalance b = defaulters.get(i);
+            rows.add(List.of(
+                    String.valueOf(i + 1),
+                    safe(b.getAdmissionNumber()),
+                    safe(b.getStudentName()),
+                    safe(b.getClassLabel()),
+                    CurrencyUtil.formatPlain(b.getTotalCharged()),
+                    CurrencyUtil.formatPlain(b.getTotalPaid()),
+                    CurrencyUtil.formatPlain(b.getArrears()),
+                    CurrencyUtil.formatPlain(b.getBalance())
+            ));
+        }
+        exportTable(path, "Defaulters / Arrears Report", headers, rows);
+    }
+
+    public void exportTrialBalancePdf(Path path, List<TrialBalanceRow> rows) throws IOException {
+        List<String> headers = List.of("Account", "Debit (KSh)", "Credit (KSh)");
+        List<List<String>> data = new ArrayList<>();
+        java.math.BigDecimal totalDebit = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalCredit = java.math.BigDecimal.ZERO;
+        for (TrialBalanceRow row : rows) {
+            data.add(List.of(row.getAccountName(), CurrencyUtil.formatPlain(row.getDebit()), CurrencyUtil.formatPlain(row.getCredit())));
+            totalDebit = totalDebit.add(row.getDebit());
+            totalCredit = totalCredit.add(row.getCredit());
+        }
+        data.add(List.of("TOTAL", CurrencyUtil.formatPlain(totalDebit), CurrencyUtil.formatPlain(totalCredit)));
+        exportTable(path, "Trial Balance", headers, data);
+    }
+
+    public void exportIncomeExpenditurePdf(Path path, List<IncomeExpenditureRow> rows) throws IOException {
+        List<String> headers = List.of("Category", "Item", "Amount (KSh)");
+        List<List<String>> data = new ArrayList<>();
+        java.math.BigDecimal totalIncome = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalExpense = java.math.BigDecimal.ZERO;
+        for (IncomeExpenditureRow row : rows) {
+            data.add(List.of(row.getCategory(), row.getItem(), CurrencyUtil.formatPlain(row.getAmount())));
+            if ("Income".equals(row.getCategory())) {
+                totalIncome = totalIncome.add(row.getAmount());
+            } else {
+                totalExpense = totalExpense.add(row.getAmount());
+            }
+        }
+        data.add(List.of("", "TOTAL INCOME", CurrencyUtil.formatPlain(totalIncome)));
+        data.add(List.of("", "TOTAL EXPENDITURE", CurrencyUtil.formatPlain(totalExpense)));
+        data.add(List.of("", "NET SURPLUS / (DEFICIT)", CurrencyUtil.formatPlain(totalIncome.subtract(totalExpense))));
+        exportTable(path, "Income & Expenditure Statement", headers, data);
     }
 }

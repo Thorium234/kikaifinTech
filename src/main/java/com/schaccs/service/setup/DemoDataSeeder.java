@@ -1,0 +1,376 @@
+package com.schaccs.service.setup;
+
+import com.schaccs.accounting.AccountingEngine;
+import com.schaccs.config.AppConfig;
+import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.AcademicTerm;
+import com.schaccs.enums.AccountType;
+import com.schaccs.enums.BoardingStatus;
+import com.schaccs.enums.PaymentMode;
+import com.schaccs.model.fee.FeeStructure;
+import com.schaccs.model.fee.FeeStructureItem;
+import com.schaccs.model.finance.Votehead;
+import com.schaccs.model.receipt.Receipt;
+import com.schaccs.model.receipt.ReceiptLine;
+import com.schaccs.model.school.SchoolFormClass;
+import com.schaccs.model.school.SchoolStream;
+import com.schaccs.model.student.Student;
+import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.repository.PersistenceService;
+import com.schaccs.service.fee.FeeCalculationService;
+import com.schaccs.store.AuditStore;
+import com.schaccs.store.BankReconciliationStore;
+import com.schaccs.store.FeeStructureStore;
+import com.schaccs.store.LedgerStore;
+import com.schaccs.store.ReceiptStore;
+import com.schaccs.store.SchoolCustomStore;
+import com.schaccs.store.StudentStore;
+import com.schaccs.store.VoucherStore;
+import com.schaccs.util.NumberGenerator;
+
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+public final class DemoDataSeeder {
+
+    private static final Random RANDOM = new Random(42);
+
+    private DemoDataSeeder() {}
+
+    public static void seed() {
+        PersistenceService psvc = PersistenceService.getInstance();
+        StudentStore studentStore = StudentStore.getInstance();
+        FeeStructureStore feeStore = FeeStructureStore.getInstance();
+        ReceiptStore receiptStore = ReceiptStore.getInstance();
+        LedgerStore ledgerStore = LedgerStore.getInstance();
+        VoucherStore voucherStore = VoucherStore.getInstance();
+        AuditStore auditStore = AuditStore.getInstance();
+        BankReconciliationStore bankRecStore = BankReconciliationStore.getInstance();
+        SchoolCustomStore schoolCustomStore = SchoolCustomStore.getInstance();
+        FeeCalculationService feeCalc = new FeeCalculationService(feeStore, studentStore);
+        AccountingEngine accounting = new AccountingEngine();
+
+        String originalUser = AppConfig.getInstance().getCurrentUser();
+        AppConfig.getInstance().setCurrentUser("Demo Seeder");
+
+        try {
+            // 1. Clear all in-memory stores
+            studentStore.clear();
+            feeStore.clear();
+            receiptStore.clear();
+            ledgerStore.clear();
+            voucherStore.clear();
+            auditStore.clear();
+            bankRecStore.clear();
+            schoolCustomStore.clear();
+
+            // 2. Clear all dynamic DB tables
+            psvc.transactional(conn -> {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM receipt_lines");
+                    st.execute("DELETE FROM receipts");
+                    st.execute("DELETE FROM student_ledger_lines");
+                    st.execute("DELETE FROM student_ledgers");
+                    st.execute("DELETE FROM students");
+                    st.execute("DELETE FROM fee_structure_items");
+                    st.execute("DELETE FROM fee_structures");
+                    st.execute("DELETE FROM voteheads");
+                    st.execute("DELETE FROM transactions");
+                    st.execute("DELETE FROM ledger_entries");
+                    st.execute("DELETE FROM payment_vouchers");
+                    st.execute("DELETE FROM commitments");
+                    st.execute("DELETE FROM creditors");
+                    st.execute("DELETE FROM lpos");
+                    st.execute("DELETE FROM invoices");
+                    st.execute("DELETE FROM imprests");
+                    st.execute("DELETE FROM audit_log");
+                    st.execute("DELETE FROM bank_reconciliation_items");
+                    st.execute("DELETE FROM bank_reconciliation");
+                    st.execute("DELETE FROM school_form_classes");
+                    st.execute("DELETE FROM school_streams");
+                }
+            });
+
+            // 3. Create voteheads
+            List<Votehead> voteheads = createVoteheads();
+            for (Votehead v : voteheads) feeStore.addVotehead(v);
+
+            // 4. Create fee structures
+            int year = AppConfig.getInstance().getAcademicYear();
+            FeeStructure boardingStructure = createBoardingFeeStructure(year, feeStore);
+            FeeStructure dayStructure = createDayFeeStructure(year, feeStore);
+            feeStore.addStructure(boardingStructure);
+            feeStore.addStructure(dayStructure);
+
+            // 5. Create form classes and streams
+            schoolCustomStore.addFormClass(new SchoolFormClass("Form 1"));
+            schoolCustomStore.addFormClass(new SchoolFormClass("Form 2"));
+            schoolCustomStore.addFormClass(new SchoolFormClass("Form 3"));
+            schoolCustomStore.addFormClass(new SchoolFormClass("Form 4"));
+            schoolCustomStore.addStream(new SchoolStream("A"));
+
+            // 6. Create students
+            List<Student> students = createStudents();
+            for (Student s : students) studentStore.add(s);
+
+            // 7. Charge fees, set arrears, create receipts
+            List<String[]> studentPlan = buildStudentPaymentPlan();
+
+            for (int i = 0; i < students.size(); i++) {
+                Student s = students.get(i);
+                String[] plan = studentPlan.get(i);
+                boolean hasArrears = "YES".equals(plan[0]);
+                double payRatioT1 = Double.parseDouble(plan[1]);
+                double payRatioT2 = Double.parseDouble(plan[2]);
+                double payRatioT3 = Double.parseDouble(plan[3]);
+
+                StudentFeeLedger ledger = studentStore.getLedger(s.getId());
+
+                // Charge full annual fee
+                feeCalc.chargeAnnualFees(s);
+
+                // Set arrears for some students
+                if (hasArrears) {
+                    ledger.setArrears(CurrencyConfig.money("18500.00"));
+                }
+
+                // Create Term 1 receipt
+                createReceipt(s, ledger, payRatioT1, AcademicTerm.TERM_1, accounting, receiptStore);
+
+                // Create Term 2 receipt
+                createReceipt(s, ledger, payRatioT2, AcademicTerm.TERM_2, accounting, receiptStore);
+
+                // Create Term 3 receipt
+                createReceipt(s, ledger, payRatioT3, AcademicTerm.TERM_3, accounting, receiptStore);
+            }
+
+            // 8. Save everything
+            psvc.saveAll();
+
+        } finally {
+            AppConfig.getInstance().setCurrentUser(originalUser);
+        }
+    }
+
+    private static List<Votehead> createVoteheads() {
+        return List.of(
+                new Votehead("TUIT", "Tuition", AccountType.SCHOOL_FUND, 1),
+                new Votehead("BORD", "Boarding", AccountType.SCHOOL_FUND, 2),
+                new Votehead("ACTIV", "Activities", AccountType.SCHOOL_FUND, 3),
+                new Votehead("COMP", "Computer", AccountType.SCHOOL_FUND, 4),
+                new Votehead("DEV", "Development", AccountType.FSE_OPERATIONS, 5),
+                new Votehead("MED", "Medical", AccountType.SCHOOL_FUND, 6),
+                new Votehead("TRANSP", "Transport", AccountType.SCHOOL_FUND, 7)
+        );
+    }
+
+    private static FeeStructure createBoardingFeeStructure(int year, FeeStructureStore feeStore) {
+        FeeStructure fs = new FeeStructure(year, "ALL", BoardingStatus.BOARDING, "Boarding Fee Structure " + year);
+
+        for (AcademicTerm term : AcademicTerm.values()) {
+            fs.addItem(new FeeStructureItem("TUIT", "Tuition", term, BoardingStatus.BOARDING, CurrencyConfig.money("8000.00")));
+            fs.addItem(new FeeStructureItem("BORD", "Boarding", term, BoardingStatus.BOARDING, CurrencyConfig.money("12000.00")));
+            fs.addItem(new FeeStructureItem("ACTIV", "Activities", term, BoardingStatus.BOARDING, CurrencyConfig.money("2000.00")));
+            fs.addItem(new FeeStructureItem("COMP", "Computer", term, BoardingStatus.BOARDING, CurrencyConfig.money("1500.00")));
+            fs.addItem(new FeeStructureItem("DEV", "Development", term, BoardingStatus.BOARDING, CurrencyConfig.money("3000.00")));
+            fs.addItem(new FeeStructureItem("MED", "Medical", term, BoardingStatus.BOARDING, CurrencyConfig.money("1000.00")));
+            fs.addItem(new FeeStructureItem("TRANSP", "Transport", term, BoardingStatus.BOARDING, CurrencyConfig.money("1500.00")));
+        }
+        return fs;
+    }
+
+    private static FeeStructure createDayFeeStructure(int year, FeeStructureStore feeStore) {
+        FeeStructure fs = new FeeStructure(year, "ALL", BoardingStatus.DAY, "Day Fee Structure " + year);
+
+        for (AcademicTerm term : AcademicTerm.values()) {
+            fs.addItem(new FeeStructureItem("TUIT", "Tuition", term, BoardingStatus.DAY, CurrencyConfig.money("8000.00")));
+            fs.addItem(new FeeStructureItem("ACTIV", "Activities", term, BoardingStatus.DAY, CurrencyConfig.money("2000.00")));
+            fs.addItem(new FeeStructureItem("COMP", "Computer", term, BoardingStatus.DAY, CurrencyConfig.money("1500.00")));
+            fs.addItem(new FeeStructureItem("DEV", "Development", term, BoardingStatus.DAY, CurrencyConfig.money("3000.00")));
+            fs.addItem(new FeeStructureItem("MED", "Medical", term, BoardingStatus.DAY, CurrencyConfig.money("500.00")));
+        }
+        return fs;
+    }
+
+    private static List<Student> createStudents() {
+        List<Student> students = new ArrayList<>();
+
+        // {admission, name, gender, formClass, stream, boardingStatus, phone}
+        String[][] data = {
+                {"2025/001", "Otieno Okoth",   "M", "Form 1", "A", "BOARDING", "0721-100-001"},
+                {"2025/002", "Wanjiku Njoroge","F", "Form 1", "A", "DAY",      "0721-100-002"},
+                {"2025/003", "Kimutai Kiprop", "M", "Form 1", "A", "BOARDING", "0721-100-003"},
+                {"2025/004", "Akinyi Omondi",  "F", "Form 1", "A", "DAY",      "0721-100-004"},
+                {"2025/005", "Muthoni Kariuki","F", "Form 1", "A", "BOARDING", "0721-100-005"},
+                {"2025/006", "Kamau Wachira",  "M", "Form 1", "A", "BOARDING", "0721-100-006"},
+
+                {"2024/001", "Kipchumba Rotich","M", "Form 2", "A", "BOARDING", "0722-200-001"},
+                {"2024/002", "Chebet Kiplagat","F", "Form 2", "A", "DAY",      "0722-200-002"},
+                {"2024/003", "Mutua Mwende",   "M", "Form 2", "A", "BOARDING", "0722-200-003"},
+                {"2024/004", "Nyambura Wainaina","F","Form 2", "A", "DAY",      "0722-200-004"},
+                {"2024/005", "Ochieng Onyango","M", "Form 2", "A", "BOARDING", "0722-200-005"},
+                {"2024/006", "Jepkosgei Biwott","F", "Form 2", "A", "BOARDING", "0722-200-006"},
+
+                {"2023/001", "Njenga Mbugua",  "M", "Form 3", "A", "BOARDING", "0723-300-001"},
+                {"2023/002", "Achieng Otieno", "F", "Form 3", "A", "DAY",      "0723-300-002"},
+                {"2023/003", "Kipkorir Langat","M", "Form 3", "A", "BOARDING", "0723-300-003"},
+                {"2023/004", "Wambui Gichuru", "F", "Form 3", "A", "DAY",      "0723-300-004"},
+                {"2023/005", "Wafula Simiyu",  "M", "Form 3", "A", "BOARDING", "0723-300-005"},
+                {"2023/006", "Chepkoech Rono", "F", "Form 3", "A", "BOARDING", "0723-300-006"},
+
+                {"2022/001", "Barasa Wekesa",  "M", "Form 4", "A", "BOARDING", "0724-400-001"},
+                {"2022/002", "Moraa Nyang'au", "F", "Form 4", "A", "DAY",      "0724-400-002"},
+                {"2022/003", "Kiprono Sawe",   "M", "Form 4", "A", "BOARDING", "0724-400-003"},
+                {"2022/004", "Njoki Thiong'o", "F", "Form 4", "A", "DAY",      "0724-400-004"},
+                {"2022/005", "Mwendwa Kilonzo","M", "Form 4", "A", "BOARDING", "0724-400-005"},
+                {"2022/006", "Jerotich Mutai", "F", "Form 4", "A", "BOARDING", "0724-400-006"},
+        };
+
+        // indices: 0=adm, 1=name, 2=gender, 3=formClass, 4=stream, 5=boardingStatus, 6=phone
+        for (String[] row : data) {
+            Student s = new Student(
+                    row[0],                    // admissionNumber
+                    row[1],                    // name
+                    row[3],                    // formClass
+                    row[4],                    // stream
+                    BoardingStatus.valueOf(row[5]), // boardingStatus
+                    row[6]                     // phone
+            );
+            s.setGender(row[2]);
+            s.setAcademicYear(AppConfig.getInstance().getAcademicYear());
+            students.add(s);
+        }
+
+        return students;
+    }
+
+    private static List<String[]> buildStudentPaymentPlan() {
+        List<String[]> plans = new ArrayList<>();
+        // Form 1: 6 students
+        plans.add(new String[]{"NO",  "1.0", "1.0", "1.0"});   // fully paid
+        plans.add(new String[]{"NO",  "1.0", "1.0", "0.85"});  // near-full
+        plans.add(new String[]{"YES", "0.70", "0.60", "0.20"}); // arrears + underpaid
+        plans.add(new String[]{"YES", "0.80", "0.50", "0.15"}); // arrears + underpaid
+        plans.add(new String[]{"NO",  "1.0", "0.90", "0.75"});  // small shortfall
+        plans.add(new String[]{"YES", "0.65", "0.40", "0.10"}); // heavy arrears
+        // Form 2: 6 students
+        plans.add(new String[]{"NO",  "1.0", "1.0", "1.0"});
+        plans.add(new String[]{"NO",  "1.0", "1.0", "0.80"});
+        plans.add(new String[]{"YES", "0.75", "0.55", "0.25"});
+        plans.add(new String[]{"YES", "0.85", "0.60", "0.20"});
+        plans.add(new String[]{"NO",  "1.0", "0.95", "0.70"});
+        plans.add(new String[]{"YES", "0.60", "0.35", "0.10"});
+        // Form 3: 6 students
+        plans.add(new String[]{"NO",  "1.0", "1.0", "1.0"});
+        plans.add(new String[]{"NO",  "1.0", "1.0", "0.75"});
+        plans.add(new String[]{"YES", "0.70", "0.50", "0.20"});
+        plans.add(new String[]{"YES", "0.80", "0.55", "0.15"});
+        plans.add(new String[]{"NO",  "1.0", "0.85", "0.65"});
+        plans.add(new String[]{"YES", "0.55", "0.30", "0.10"});
+        // Form 4: 6 students
+        plans.add(new String[]{"NO",  "1.0", "1.0", "1.0"});
+        plans.add(new String[]{"NO",  "1.0", "1.0", "0.85"});
+        plans.add(new String[]{"YES", "0.75", "0.50", "0.20"});
+        plans.add(new String[]{"YES", "0.80", "0.45", "0.15"});
+        plans.add(new String[]{"NO",  "1.0", "0.90", "0.70"});
+        plans.add(new String[]{"YES", "0.65", "0.40", "0.10"});
+
+        return plans;
+    }
+
+    private static void createReceipt(Student student, StudentFeeLedger ledger,
+                                       double payRatio, AcademicTerm term,
+                                       AccountingEngine accounting,
+                                       ReceiptStore receiptStore) {
+        BigDecimal chargedForTerm = ledger.getTotalCharged().multiply(CurrencyConfig.money("0.33333"));
+        BigDecimal payAmount = CurrencyConfig.money(chargedForTerm.multiply(CurrencyConfig.money(String.valueOf(payRatio))));
+        if (payAmount.compareTo(BigDecimal.ZERO) <= 0) return;
+
+        PaymentMode mode = pickPaymentMode();
+        String ref = mode == PaymentMode.CASH ? null : "TXN-" + term.getNumber() + "-" + student.getAdmissionNumber().replace("/", "");
+
+        LocalDate date = termDate(term);
+
+        Receipt receipt = new Receipt();
+        receipt.setReceiptNumber(NumberGenerator.nextReceiptNumber());
+        receipt.setDate(date);
+        receipt.setStudentId(student.getId());
+        receipt.setAdmissionNumber(student.getAdmissionNumber());
+        receipt.setStudentName(student.getName());
+        receipt.setClassLabel(student.getClassLabel());
+        receipt.setAmount(payAmount);
+        receipt.setPaymentMode(mode);
+        receipt.setBankReference(ref);
+        receipt.setReceivedBy("Demo Seeder");
+        receipt.setNotes("Demo " + term.getDisplayName() + " payment");
+
+        String reportRef = "RCPT-" + receipt.getReceiptNumber();
+        BigDecimal totalAllocated = CurrencyConfig.zero();
+
+        java.util.Map<String, BigDecimal> outstanding = ledger.getOutstandingByVotehead();
+        List<String> orderedCodes = new ArrayList<>(outstanding.keySet());
+        orderedCodes.sort(java.util.Comparator.comparingInt(code ->
+                FeeStructureStore.getInstance().findVoteheadByCode(code)
+                        .map(Votehead::getPriority).orElse(999)));
+
+        BigDecimal remaining = payAmount;
+
+        // Pay arrears first
+        if (ledger.getArrears().compareTo(BigDecimal.ZERO) > 0 && remaining.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal arrearsTake = ledger.getArrears().min(remaining);
+            remaining = remaining.subtract(arrearsTake);
+            ledger.setArrears(ledger.getArrears().subtract(arrearsTake));
+        }
+
+        // Pay voteheads in priority order
+        for (String code : orderedCodes) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
+            BigDecimal due = outstanding.get(code);
+            if (due == null || due.compareTo(BigDecimal.ZERO) <= 0) continue;
+            BigDecimal take = due.min(remaining);
+            String vhName = FeeStructureStore.getInstance().voteheadName(code);
+            ReceiptLine line = new ReceiptLine(code, vhName, take);
+            receipt.addLine(line);
+            ledger.pay(code, take);
+            totalAllocated = totalAllocated.add(take);
+            remaining = remaining.subtract(take);
+
+            Votehead vh = FeeStructureStore.getInstance().findVoteheadByCode(code).orElse(null);
+            AccountType acct = vh != null ? vh.getAccountType() : AccountType.SCHOOL_FUND;
+            accounting.postFeeReceiptLine(reportRef,
+                    "Fee receipt " + receipt.getReceiptNumber() + " — " + vhName
+                            + " (" + student.getAdmissionNumber() + ")",
+                    acct, code, take, student.getId(), receipt.getId(), null, date);
+        }
+
+        // Excess as advance (no accounting posting for advance/prepayment)
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            ReceiptLine line = new ReceiptLine("ADVANCE", "Advance / Credit", remaining);
+            receipt.addLine(line);
+            ledger.addAdvance(remaining);
+            totalAllocated = totalAllocated.add(remaining);
+        }
+
+        if (totalAllocated.compareTo(BigDecimal.ZERO) > 0) {
+            receiptStore.add(receipt);
+        }
+    }
+
+    private static PaymentMode pickPaymentMode() {
+        PaymentMode[] modes = {PaymentMode.BANK_SLIP, PaymentMode.MPESA, PaymentMode.CHEQUE, PaymentMode.CASH};
+        return modes[RANDOM.nextInt(modes.length)];
+    }
+
+    private static LocalDate termDate(AcademicTerm term) {
+        return switch (term) {
+            case TERM_1 -> LocalDate.of(2026, 1, 15);
+            case TERM_2 -> LocalDate.of(2026, 5, 10);
+            case TERM_3 -> LocalDate.of(2026, 9, 1);
+        };
+    }
+}

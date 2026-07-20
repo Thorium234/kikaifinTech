@@ -6,13 +6,19 @@ import com.schaccs.config.SchoolProfile;
 import com.schaccs.config.db.DatasourceManager;
 import com.schaccs.repository.Database;
 import com.schaccs.repository.PersistenceService;
+import com.schaccs.service.setup.DemoDataSeeder;
+import com.schaccs.service.setup.SystemResetService;
+import com.schaccs.store.StudentStore;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.control.Button;
-
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -21,6 +27,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -34,6 +41,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class SettingsView extends VBox implements MainLayout.Refreshable {
 
@@ -172,8 +180,10 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         VBox.setVgrow(migrationTable, Priority.ALWAYS);
 
         VBox dbCard = buildDatabaseConfigCard();
+        VBox demoCard = buildDemoDataCard();
+        VBox purgeCard = buildSystemPurgeCard();
 
-        VBox allContent = new VBox(14, heading, card, historyCard, dbCard);
+        VBox allContent = new VBox(14, heading, card, historyCard, dbCard, demoCard, purgeCard);
         allContent.setPadding(new Insets(0, 0, 60, 0));
         ScrollPane mainScroll = new ScrollPane(allContent);
         mainScroll.setFitToWidth(true);
@@ -548,6 +558,126 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         field.clear();
         preview.setImage(null);
         mockPreview.setImage(null);
+    }
+
+    private VBox buildDemoDataCard() {
+        Label heading = new Label("Demo Data Seeding");
+        heading.getStyleClass().add("section-title");
+        Label sub = new Label("Seed a realistic 2-year dataset with 24 students, fee structures, payments, and deliberate arrears in Term 3 for testing.");
+        sub.setWrapText(true);
+        sub.getStyleClass().add("muted");
+
+        Button seedBtn = new Button("Seed Demo Environment");
+        seedBtn.getStyleClass().add("primary-button");
+        Label statusLabel = new Label("");
+        statusLabel.getStyleClass().add("muted");
+
+        seedBtn.setOnAction(e -> {
+            if (!AlertUtil.confirm("Seed Demo Environment",
+                    "This will DELETE all existing data and create a fresh demo dataset.\n\n"
+                            + "Current data will be permanently lost. Continue?")) {
+                return;
+            }
+            seedBtn.setDisable(true);
+            statusLabel.setText("Seeding in progress...");
+            statusLabel.setStyle("-fx-text-fill: #e65100;");
+            CompletableFuture.runAsync(() -> {
+                try {
+                    DemoDataSeeder.seed();
+                    Platform.runLater(() -> {
+                        seedBtn.setDisable(false);
+                        statusLabel.setText("Demo data seeded successfully! " + StudentStore.getInstance().getStudents().size()
+                                + " students loaded with fee structures and payment records.");
+                        statusLabel.setStyle("-fx-text-fill: #1a472a;");
+                        load();
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> {
+                        seedBtn.setDisable(false);
+                        statusLabel.setText("Seeding failed: " + ex.getMessage());
+                        statusLabel.setStyle("-fx-text-fill: #b00020;");
+                        AlertUtil.error("Seeding Failed", ex.getMessage());
+                    });
+                }
+            });
+        });
+
+        VBox card = new VBox(10, heading, sub, seedBtn, statusLabel);
+        card.getStyleClass().add("card");
+        return card;
+    }
+
+    private VBox buildSystemPurgeCard() {
+        Label heading = new Label("System Purge & Reset");
+        heading.getStyleClass().add("section-title");
+        Label sub = new Label("Completely wipe all dynamic data (students, fees, receipts, ledgers, vouchers, audit logs) and VACUUM the database. School settings, migration history, and DB config are preserved.");
+        sub.setWrapText(true);
+        sub.getStyleClass().add("muted");
+
+        Button purgeBtn = new Button("Purge & Reset System");
+        purgeBtn.getStyleClass().add("danger-button");
+        Label statusLabel = new Label("");
+        statusLabel.getStyleClass().add("muted");
+
+        purgeBtn.setOnAction(e -> {
+            if (!confirmPurge()) {
+                return;
+            }
+            purgeBtn.setDisable(true);
+            statusLabel.setText("Purging in progress...");
+            statusLabel.setStyle("-fx-text-fill: #e65100;");
+            CompletableFuture.runAsync(() -> {
+                try {
+                    SystemResetService.reset();
+                    Platform.runLater(() -> {
+                        purgeBtn.setDisable(false);
+                        statusLabel.setText("System reset complete. All dynamic data cleared.");
+                        statusLabel.setStyle("-fx-text-fill: #1a472a;");
+                        load();
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> {
+                        purgeBtn.setDisable(false);
+                        statusLabel.setText("Reset failed: " + ex.getMessage());
+                        statusLabel.setStyle("-fx-text-fill: #b00020;");
+                        AlertUtil.error("Reset Failed", ex.getMessage());
+                    });
+                }
+            });
+        });
+
+        VBox card = new VBox(10, heading, sub, purgeBtn, statusLabel);
+        card.getStyleClass().add("card");
+        return card;
+    }
+
+    private boolean confirmPurge() {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Confirm System Purge");
+        dialog.setHeaderText("Type DELETE and click Confirm to purge all system data.\n"
+                + "School settings will be preserved, but ALL other data will be lost.");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL);
+
+        ButtonType confirmBtnType = new ButtonType("Confirm Purge");
+        dialog.getDialogPane().getButtonTypes().add(confirmBtnType);
+
+        PasswordField input = new PasswordField();
+        input.setPromptText("Type DELETE here");
+        dialog.getDialogPane().setContent(new VBox(8, new Label("Type DELETE to confirm:"), input));
+
+        Node confirmBtn = dialog.getDialogPane().lookupButton(confirmBtnType);
+        confirmBtn.setDisable(true);
+        input.textProperty().addListener((obs, old, value) ->
+                confirmBtn.setDisable(!"DELETE".equals(value.trim())));
+
+        dialog.setResultConverter(btn -> {
+            if (btn == confirmBtnType) {
+                return input.getText();
+            }
+            return null;
+        });
+
+        return "DELETE".equals(dialog.showAndWait().orElse(null));
     }
 
     private void exportMigrationHistoryPdf() {
