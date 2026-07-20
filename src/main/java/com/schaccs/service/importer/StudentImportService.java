@@ -188,8 +188,14 @@ public class StudentImportService {
         }
         if (commit && imported > 0) {
             for (Student student : stagedStudents) {
-                studentStore.add(student);
-                feeCalculationService.chargeAnnualFees(student);
+                try {
+                    studentStore.add(student);
+                    feeCalculationService.chargeAnnualFees(student);
+                } catch (IllegalArgumentException e) {
+                    warnings.add("Skipped " + student.getAdmissionNumber() + ": " + e.getMessage());
+                    imported--;
+                    skipped++;
+                }
             }
             PersistenceService.getInstance().saveAll();
         }

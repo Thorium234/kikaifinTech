@@ -38,19 +38,22 @@ public class StudentService {
     public List<String> addStudent(Student student) {
         List<String> errors = validator.validate(student, true);
         if (errors.isEmpty()) {
-            store.add(student);
-            PersistenceService.getInstance().saveAll();
+            try {
+                store.add(student);
+                PersistenceService.getInstance().saveAll();
+            } catch (IllegalArgumentException e) {
+                errors.add(e.getMessage());
+            }
         }
         return errors;
     }
 
     public List<String> updateStudent(Student student) {
         List<String> errors = validator.validate(student, false);
-        // ensure unique admission if changed
         if (errors.isEmpty()) {
             store.findByAdmissionNumber(student.getAdmissionNumber()).ifPresent(other -> {
                 if (!other.getId().equals(student.getId())) {
-                    errors.add("Admission number already used by another student.");
+                    errors.add("Admission number already used by another student: " + student.getAdmissionNumber());
                 }
             });
         }

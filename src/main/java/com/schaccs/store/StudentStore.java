@@ -28,6 +28,13 @@ public final class StudentStore {
     }
 
     public void add(Student student) {
+        if (student.getAdmissionNumber() != null && !student.getAdmissionNumber().isBlank()) {
+            findByAdmissionNumber(student.getAdmissionNumber()).ifPresent(existing -> {
+                if (!existing.getId().equals(student.getId())) {
+                    throw new IllegalArgumentException("Admission number already exists: " + student.getAdmissionNumber());
+                }
+            });
+        }
         students.add(student);
         ledgers.putIfAbsent(student.getId(), new StudentFeeLedger(student.getId()));
     }
