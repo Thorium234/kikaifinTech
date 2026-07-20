@@ -9,6 +9,8 @@ import com.schaccs.model.report.CollectionSummary;
 import com.schaccs.model.report.IncomeExpenditureRow;
 import com.schaccs.model.report.TrialBalanceRow;
 import com.schaccs.model.report.VoteheadSummary;
+import com.schaccs.model.school.SchoolFormClass;
+import com.schaccs.model.school.SchoolStream;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentBalance;
 import com.schaccs.service.Services;
@@ -19,6 +21,7 @@ import com.schaccs.service.finance.AccountingService;
 import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.service.report.ReportService;
 import com.schaccs.store.ReceiptStore;
+import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
@@ -26,6 +29,7 @@ import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
 import com.schaccs.util.PrintUtil;
 import com.schaccs.util.ReceiptPrinter;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -39,6 +43,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -48,6 +53,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class ReportsView extends VBox implements MainLayout.Refreshable {
 
@@ -69,6 +75,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private final TextArea statementArea = new TextArea();
     private final TextArea reprintPreview = new TextArea();
     private final ComboBox<Student> studentBox = new ComboBox<>();
+    private final ComboBox<SchoolFormClass> formBox = new ComboBox<>();
+    private final ComboBox<SchoolStream> streamBox = new ComboBox<>();
+    private final TextField admField = new TextField();
     private final DatePicker dailyDate = new DatePicker(LocalDate.now());
     private final DatePicker cashbookFrom = new DatePicker(LocalDate.now().withDayOfMonth(1));
     private final DatePicker cashbookTo = new DatePicker(LocalDate.now());
@@ -250,13 +259,43 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     }
 
     private VBox buildStatement() {
-        studentBox.setItems(StudentStore.getInstance().getStudents());
+        formBox.setItems(SchoolCustomStore.getInstance().getFormClasses());
+        formBox.setPromptText("All Forms");
+        formBox.setPrefWidth(130);
+        streamBox.setItems(SchoolCustomStore.getInstance().getStreams());
+        streamBox.setPromptText("All Streams");
+        streamBox.setPrefWidth(130);
+        admField.setPromptText("Admission No");
+        admField.setPrefWidth(150);
         studentBox.setPrefWidth(320);
+        studentBox.setPromptText("Select student...");
+        Button searchBtn = new Button("Search");
+        searchBtn.getStyleClass().add("primary-button");
+        searchBtn.setOnAction(e -> {
+            SchoolFormClass fc = formBox.getValue();
+            SchoolStream st = streamBox.getValue();
+            String adm = admField.getText().trim();
+            List<Student> all = StudentStore.getInstance().getStudents();
+            List<Student> filtered = all.stream().filter(s -> {
+                if (fc != null && !fc.getName().equalsIgnoreCase(s.getFormClass())) return false;
+                if (st != null && !st.getName().equalsIgnoreCase(s.getStream())) return false;
+                if (!adm.isEmpty() && !s.getAdmissionNumber().toLowerCase().contains(adm.toLowerCase())) return false;
+                return true;
+            }).toList();
+            studentBox.getItems().setAll(filtered);
+            if (filtered.size() == 1) {
+                studentBox.setValue(filtered.get(0));
+            } else if (filtered.isEmpty()) {
+                AlertUtil.info("No results", "No students match the selected filters.");
+            }
+        });
+
         Button load = new Button("Generate Statement");
         load.getStyleClass().add("primary-button");
         load.setOnAction(e -> {
             Student s = studentBox.getValue();
             if (s == null) {
+                AlertUtil.warn("Select student", "Search and select a student first.");
                 return;
             }
             StudentBalance bal = reportService.studentStatement(s);
@@ -275,7 +314,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
                         r.getReceiptNumberDisplay(),
                         DateUtil.format(r.getDate()),
                         CurrencyUtil.format(r.getAmount()),
-                        r.getPaymentMode().getDisplayName()));
+                        r.getPaymentMode() != null ? r.getPaymentMode().getDisplayName() : ""));
             }
             statementArea.setText(sb.toString());
         });
@@ -290,8 +329,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF Statement");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportStatementPdf());
-        HBox bar = new HBox(10, new Label("Student:"), studentBox, load, print, export, pdf);
-        VBox box = new VBox(10, reportSectionTitle("Student Statement", "Generate a formal per-student statement and export or print it."), bar, statementArea);
+        HBox filterBar = new HBox(8, new Label("Form:"), formBox, new Label("Stream:"), streamBox, new Label("Adm:"), admField, searchBtn);
+        HBox actionBar = new HBox(10, new Label("Student:"), studentBox, load, print, export, pdf);
+        VBox box = new VBox(10, reportSectionTitle("Student Statement", "Filter by Form, Stream, and Admission Number, then search. Select a student and generate a statement."), filterBar, actionBar, statementArea);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(statementArea, Priority.ALWAYS);
@@ -541,45 +581,54 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private void exportCashbookPdf() {
         File file = choosePdfFile("Export Cashbook PDF", "cashbook.pdf");
         if (file == null) return;
-        try {
-            List<String> headers = List.of("Date", "Reference", "Description", "Receipts", "Payments", "Balance");
-            List<List<String>> rows = cashbookTable.getItems().stream().map(r -> List.of(
-                    DateUtil.format(r.getDate()), r.getReference(), r.getDescription(),
-                    CurrencyUtil.formatPlain(r.getReceipts()), CurrencyUtil.formatPlain(r.getPayments()),
-                    CurrencyUtil.formatPlain(r.getBalance()))).toList();
-            pdfExportService.exportTable(file.toPath(), "Cashbook", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        File finalFile = file;
+        List<String> headers = List.of("Date", "Reference", "Description", "Receipts", "Payments", "Balance");
+        List<List<String>> rows = cashbookTable.getItems().stream().map(r -> List.of(
+                DateUtil.format(r.getDate()), r.getReference(), r.getDescription(),
+                CurrencyUtil.formatPlain(r.getReceipts()), CurrencyUtil.formatPlain(r.getPayments()),
+                CurrencyUtil.formatPlain(r.getBalance()))).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Cashbook", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportIncomeExpenditurePdf() {
         File file = choosePdfFile("Export Income & Expenditure PDF", "income-expenditure.pdf");
         if (file == null) return;
-        try {
-            List<String> headers = List.of("Category", "Item", "Amount");
-            List<List<String>> rows = ieTable.getItems().stream().map(r -> List.of(
-                    r.getCategory(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
-            pdfExportService.exportTable(file.toPath(), "Income & Expenditure", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        File finalFile = file;
+        List<String> headers = List.of("Category", "Item", "Amount");
+        List<List<String>> rows = ieTable.getItems().stream().map(r -> List.of(
+                r.getCategory(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Income & Expenditure", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportBalanceSheetPdf() {
         File file = choosePdfFile("Export Balance Sheet PDF", "balance-sheet.pdf");
         if (file == null) return;
-        try {
-            List<String> headers = List.of("Section", "Item", "Amount");
-            List<List<String>> rows = balanceSheetTable.getItems().stream().map(r -> List.of(
-                    r.getSection(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
-            pdfExportService.exportTable(file.toPath(), "Balance Sheet", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        File finalFile = file;
+        List<String> headers = List.of("Section", "Item", "Amount");
+        List<List<String>> rows = balanceSheetTable.getItems().stream().map(r -> List.of(
+                r.getSection(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Balance Sheet", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void rolloverArrears() {
@@ -674,12 +723,16 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
-        try {
-            pdfExportService.exportReceipt(file.toPath(), r);
-            AlertUtil.info("Export complete", "Receipt PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        File finalFile = file;
+        Receipt receipt = r;
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportReceipt(finalFile.toPath(), receipt);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "Receipt PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportSelectedReceipt() {
@@ -809,63 +862,68 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
-        try {
-            List<String> headers = List.of("Admission Number", "Name", "Class", "Charged", "Paid", "Arrears", "Balance");
-            List<List<String>> rows = balances.stream().map(b -> List.of(
-                    b.getAdmissionNumber(),
-                    b.getStudentName(),
-                    b.getClassLabel(),
-                    CurrencyUtil.formatPlain(b.getTotalCharged()),
-                    CurrencyUtil.formatPlain(b.getTotalPaid()),
-                    CurrencyUtil.formatPlain(b.getArrears()),
-                    CurrencyUtil.formatPlain(b.getBalance())
-            )).toList();
-            pdfExportService.exportTable(file.toPath(), title, headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        File finalFile = file;
+        List<String> headers = List.of("Admission Number", "Name", "Class", "Charged", "Paid", "Arrears", "Balance");
+        List<List<String>> rows = balances.stream().map(b -> List.of(
+                b.getAdmissionNumber(),
+                b.getStudentName(),
+                b.getClassLabel(),
+                CurrencyUtil.formatPlain(b.getTotalCharged()),
+                CurrencyUtil.formatPlain(b.getTotalPaid()),
+                CurrencyUtil.formatPlain(b.getArrears()),
+                CurrencyUtil.formatPlain(b.getBalance())
+        )).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), title, headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportDailyCollectionPdf() {
         File file = choosePdfFile("Export Daily Collection PDF", "daily-collection.pdf");
-        if (file == null) {
-            return;
-        }
-        try {
-            List<String> headers = List.of("Date", "Payment Mode", "Receipts", "Total Amount");
-            List<List<String>> rows = dailyTable.getItems().stream().map(d -> List.of(
-                    DateUtil.format(d.getDate()),
-                    d.getPaymentMode().getDisplayName(),
-                    String.valueOf(d.getReceiptCount()),
-                    CurrencyUtil.formatPlain(d.getTotalAmount())
-            )).toList();
-            pdfExportService.exportTable(file.toPath(), "Daily Collection", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        if (file == null) return;
+        File finalFile = file;
+        List<String> headers = List.of("Date", "Payment Mode", "Receipts", "Total Amount");
+        List<List<String>> rows = dailyTable.getItems().stream().map(d -> List.of(
+                DateUtil.format(d.getDate()),
+                d.getPaymentMode().getDisplayName(),
+                String.valueOf(d.getReceiptCount()),
+                CurrencyUtil.formatPlain(d.getTotalAmount())
+        )).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Daily Collection", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportVoteheadSummaryPdf() {
         File file = choosePdfFile("Export Votehead Summary PDF", "votehead-summary.pdf");
-        if (file == null) {
-            return;
-        }
-        try {
-            List<String> headers = List.of("Code", "Vote Head", "Charged", "Collected", "Outstanding");
-            List<List<String>> rows = voteheadTable.getItems().stream().map(v -> List.of(
-                    v.getVoteheadCode(),
-                    v.getVoteheadName(),
-                    CurrencyUtil.formatPlain(v.getCharged()),
-                    CurrencyUtil.formatPlain(v.getCollected()),
-                    CurrencyUtil.formatPlain(v.getOutstanding())
-            )).toList();
-            pdfExportService.exportTable(file.toPath(), "Votehead Summary", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        if (file == null) return;
+        File finalFile = file;
+        List<String> headers = List.of("Code", "Vote Head", "Charged", "Collected", "Outstanding");
+        List<List<String>> rows = voteheadTable.getItems().stream().map(v -> List.of(
+                v.getVoteheadCode(),
+                v.getVoteheadName(),
+                CurrencyUtil.formatPlain(v.getCharged()),
+                CurrencyUtil.formatPlain(v.getCollected()),
+                CurrencyUtil.formatPlain(v.getOutstanding())
+        )).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Votehead Summary", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportStatementPdf() {
@@ -879,91 +937,98 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
-        try {
-            StudentBalance bal = reportService.studentStatement(s);
-            List<List<String>> rows = new java.util.ArrayList<>();
-            rows.add(List.of("Student", s.getName()));
-            rows.add(List.of("Admission Number", s.getAdmissionNumber()));
-            rows.add(List.of("Class", s.getClassLabel()));
-            rows.add(List.of("Charged", CurrencyUtil.formatPlain(bal.getTotalCharged())));
-            rows.add(List.of("Paid", CurrencyUtil.formatPlain(bal.getTotalPaid())));
-            rows.add(List.of("Arrears", CurrencyUtil.formatPlain(bal.getArrears())));
-            rows.add(List.of("Balance", CurrencyUtil.formatPlain(bal.getBalance())));
-            for (Receipt r : reportService.studentReceipts(s)) {
-                rows.add(List.of("Receipt #" + r.getReceiptNumberDisplay(), DateUtil.format(r.getDate()) + " | "
-                        + CurrencyUtil.formatPlain(r.getAmount()) + " | " + r.getPaymentMode().getDisplayName()));
+        File finalFile = file;
+        Student student = s;
+        CompletableFuture.runAsync(() -> {
+            try {
+                StudentBalance bal = reportService.studentStatement(student);
+                List<List<String>> rows = new java.util.ArrayList<>();
+                rows.add(List.of("Student", student.getName()));
+                rows.add(List.of("Admission Number", student.getAdmissionNumber()));
+                rows.add(List.of("Class", student.getClassLabel()));
+                rows.add(List.of("Charged", CurrencyUtil.formatPlain(bal.getTotalCharged())));
+                rows.add(List.of("Paid", CurrencyUtil.formatPlain(bal.getTotalPaid())));
+                rows.add(List.of("Arrears", CurrencyUtil.formatPlain(bal.getArrears())));
+                rows.add(List.of("Balance", CurrencyUtil.formatPlain(bal.getBalance())));
+                for (Receipt r : reportService.studentReceipts(student)) {
+                    rows.add(List.of("Receipt #" + r.getReceiptNumberDisplay(), DateUtil.format(r.getDate()) + " | "
+                            + CurrencyUtil.formatPlain(r.getAmount()) + " | " + (r.getPaymentMode() != null ? r.getPaymentMode().getDisplayName() : "")));
+                }
+                pdfExportService.exportTable(finalFile.toPath(), "Student Statement", List.of("Field", "Value"), rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
             }
-            pdfExportService.exportTable(file.toPath(), "Student Statement", List.of("Field", "Value"), rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        });
     }
 
     private void exportTrialBalancePdf() {
         File file = choosePdfFile("Export Trial Balance PDF", "trial-balance.pdf");
-        if (file == null) {
-            return;
-        }
-        try {
-            List<String> headers = List.of("Account", "Debit", "Credit");
-            List<List<String>> rows = trialTable.getItems().stream().map(t -> List.of(
-                    t.getAccountName(),
-                    CurrencyUtil.formatPlain(t.getDebit()),
-                    CurrencyUtil.formatPlain(t.getCredit())
-            )).toList();
-            pdfExportService.exportTable(file.toPath(), "Trial Balance", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        if (file == null) return;
+        File finalFile = file;
+        List<String> headers = List.of("Account", "Debit", "Credit");
+        List<List<String>> rows = trialTable.getItems().stream().map(t -> List.of(
+                t.getAccountName(),
+                CurrencyUtil.formatPlain(t.getDebit()),
+                CurrencyUtil.formatPlain(t.getCredit())
+        )).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Trial Balance", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportAgeingPdf(TableView<AgeingBucket> table) {
         File file = choosePdfFile("Export Ageing PDF", "ageing.pdf");
-        if (file == null) {
-            return;
-        }
-        try {
-            List<String> headers = List.of("Ageing Bucket", "Outstanding", "Students");
-            List<List<String>> rows = table.getItems().stream().map(a -> List.of(
-                    a.getLabel(),
-                    CurrencyUtil.formatPlain(a.getAmount()),
-                    String.valueOf(a.getStudents())
-            )).toList();
-            pdfExportService.exportTable(file.toPath(), "Ageing", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        if (file == null) return;
+        File finalFile = file;
+        List<String> headers = List.of("Ageing Bucket", "Outstanding", "Students");
+        List<List<String>> rows = table.getItems().stream().map(a -> List.of(
+                a.getLabel(),
+                CurrencyUtil.formatPlain(a.getAmount()),
+                String.valueOf(a.getStudents())
+        )).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Ageing", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportLedgerTransactionsPdf() {
         File file = choosePdfFile("Export Ledger Transactions PDF", "ledger-transactions.pdf");
-        if (file == null) {
-            return;
-        }
-        try {
-            List<String> headers = List.of("Date", "Type", "Account", "Votehead Code", "Reference", "Description", "Debit", "Credit", "Student ID", "Receipt ID", "Voucher ID", "Created By");
-            List<List<String>> rows = accountingService.transactions().stream().map(t -> List.of(
-                    DateUtil.format(t.getDate()),
-                    t.getType() != null ? t.getType().name() : "",
-                    t.getAccountType() != null ? t.getAccountType().getDisplayName() : "",
-                    safe(t.getVoteheadCode()),
-                    safe(t.getReference()),
-                    safe(t.getDescription()),
-                    CurrencyUtil.formatPlain(t.getDebit()),
-                    CurrencyUtil.formatPlain(t.getCredit()),
-                    safe(t.getStudentId()),
-                    safe(t.getReceiptId()),
-                    safe(t.getVoucherId()),
-                    safe(t.getCreatedBy())
-            )).toList();
-            pdfExportService.exportTable(file.toPath(), "Ledger Transactions", headers, rows);
-            AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        if (file == null) return;
+        File finalFile = file;
+        List<String> headers = List.of("Date", "Type", "Account", "Votehead Code", "Reference", "Description", "Debit", "Credit", "Student ID", "Receipt ID", "Voucher ID", "Created By");
+        List<List<String>> rows = accountingService.transactions().stream().map(t -> List.of(
+                DateUtil.format(t.getDate()),
+                t.getType() != null ? t.getType().name() : "",
+                t.getAccountType() != null ? t.getAccountType().getDisplayName() : "",
+                safe(t.getVoteheadCode()),
+                safe(t.getReference()),
+                safe(t.getDescription()),
+                CurrencyUtil.formatPlain(t.getDebit()),
+                CurrencyUtil.formatPlain(t.getCredit()),
+                safe(t.getStudentId()),
+                safe(t.getReceiptId()),
+                safe(t.getVoucherId()),
+                safe(t.getCreatedBy())
+        )).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Ledger Transactions", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportReportPack() {
@@ -975,12 +1040,15 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
-        try {
-            reportPackExportService.exportFullReportPack(file.toPath(), dailyDate.getValue());
-            AlertUtil.info("Export complete", "Report pack exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
-        }
+        File finalFile = file;
+        CompletableFuture.runAsync(() -> {
+            try {
+                reportPackExportService.exportFullReportPack(finalFile.toPath(), dailyDate.getValue());
+                Platform.runLater(() -> AlertUtil.info("Export complete", "Report pack exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
     private void exportLedgerTransactions() {
@@ -1042,6 +1110,5 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         voteheadTable.getItems().setAll(reportService.voteheadSummaries());
         trialTable.getItems().setAll(reportService.trialBalance());
         reprintTable.setItems(ReceiptStore.getInstance().getReceipts());
-        studentBox.setItems(StudentStore.getInstance().getStudents());
     }
 }

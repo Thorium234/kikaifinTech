@@ -17,7 +17,8 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.schaccs.model.report.IncomeExpenditureRow;
 import com.schaccs.model.report.TrialBalanceRow;
 import com.schaccs.model.student.StudentBalance;
-import com.schaccs.util.CurrencyUtil;
+import com.schaccs.service.report.ReportService;
+import com.schaccs.store.StudentStore;
 
 import java.awt.Color;
 import java.io.IOException;
@@ -396,5 +397,139 @@ public class PdfExportService {
         data.add(List.of("", "TOTAL EXPENDITURE", CurrencyUtil.formatPlain(totalExpense)));
         data.add(List.of("", "NET SURPLUS / (DEFICIT)", CurrencyUtil.formatPlain(totalIncome.subtract(totalExpense))));
         exportTable(path, "Income & Expenditure Statement", headers, data);
+    }
+
+    public void exportFeeRemindersPdf(Path path, List<StudentBalance> defaulters, StudentStore studentStore, ReportService reportService) throws IOException {
+        try (PDDocument document = new PDDocument()) {
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
+
+            for (StudentBalance def : defaulters) {
+                PDPage page = new PDPage(PDRectangle.A4);
+                document.addPage(page);
+                float width = page.getMediaBox().getWidth() - (2 * MARGIN);
+
+                try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                    float y = page.getMediaBox().getHeight() - MARGIN;
+
+                    y = drawCentered(content, bold, safe(school.getSchoolName()), 14f, page.getMediaBox().getWidth() / 2, y, BRAND);
+                    y = drawCentered(content, regular, safe(school.getLocation()), 9f, page.getMediaBox().getWidth() / 2, y - 2, Color.DARK_GRAY);
+                    y -= 12f;
+                    content.setStrokingColor(BORDER);
+                    content.addRect(MARGIN, y - 2f, width, 2f);
+                    content.stroke();
+                    y -= 20f;
+
+                    String parentName = "";
+                    Student student = studentStore.findByAdmissionNumber(def.getAdmissionNumber()).orElse(null);
+                    if (student != null && student.getParentName() != null) {
+                        parentName = student.getParentName();
+                    }
+                    String salutation = parentName.isBlank() ? "Dear Parent/Guardian" : "Dear " + parentName;
+                    y = drawCentered(content, bold, "FEE REMINDER", 13f, page.getMediaBox().getWidth() / 2, y, Color.RED);
+                    y -= 20f;
+
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText(salutation + ",");
+                    content.endText();
+                    y -= 18f;
+
+                    String studentLine = "RE: Outstanding School Fees for " + safe(def.getStudentName()) + " (" + safe(def.getAdmissionNumber()) + ") - " + safe(def.getClassLabel());
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText(sanitize(studentLine));
+                    content.endText();
+                    y -= 22f;
+
+                    String body = "We kindly remind you that the following fee balance remains outstanding. "
+                            + "We request you to clear the balance at your earliest convenience to ensure uninterrupted learning for your child.";
+                    String[] words = body.split(" ");
+                    StringBuilder line = new StringBuilder();
+                    for (String word : words) {
+                        String test = line + " " + word;
+                        if (regular.getStringWidth(sanitize(test.trim())) / 1000 * 10f > width) {
+                            content.beginText();
+                            content.setFont(regular, 10f);
+                            content.newLineAtOffset(MARGIN, y);
+                            content.showText(sanitize(line.toString().trim()));
+                            content.endText();
+                            y -= 16f;
+                            line = new StringBuilder(word);
+                        } else {
+                            if (line.length() > 0) line.append(" ");
+                            line.append(word);
+                        }
+                    }
+                    if (line.length() > 0) {
+                        content.beginText();
+                        content.setFont(regular, 10f);
+                        content.newLineAtOffset(MARGIN, y);
+                        content.showText(sanitize(line.toString().trim()));
+                        content.endText();
+                        y -= 18f;
+                    }
+
+                    y -= 8f;
+                    float[] colWidths = new float[]{width * 0.5f, width * 0.25f, width * 0.25f};
+                    y = drawHeader(content, bold, List.of("Description", "Amount (KSh)", "Notes"), colWidths, y);
+                    y = drawRow(content, regular, List.of("Term Fee Charged", CurrencyUtil.formatPlain(def.getTotalCharged()), ""), colWidths, y);
+                    y = drawRow(content, regular, List.of("Amount Paid", CurrencyUtil.formatPlain(def.getTotalPaid()), ""), colWidths, y);
+                    y = drawRow(content, regular, List.of("Arrears B/F", CurrencyUtil.formatPlain(def.getArrears()), ""), colWidths, y);
+                    content.setNonStrokingColor(TOTAL_FILL);
+                    content.addRect(MARGIN + width * 0.5f, y - 18f, width * 0.5f, 18f);
+                    content.fill();
+                    y = drawRow(content, bold, List.of("BALANCE DUE", CurrencyUtil.formatPlain(def.getBalance()), "URGENT"), colWidths, y);
+
+                    y -= 20f;
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText("Payment can be made via:");
+                    content.endText();
+                    y -= 16f;
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText(sanitize("  - Bank: " + safe(school.getBankName()) + " | A/C: " + safe(school.getBankAccount())));
+                    content.endText();
+                    y -= 14f;
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText(sanitize("  - M-Pesa PayBill: " + safe(school.getPayBill()) + " | Account: " + safe(school.getPayBillAccount())));
+                    content.endText();
+                    y -= 24f;
+
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText("Thank you for your cooperation.");
+                    content.endText();
+                    y -= 16f;
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText("Yours faithfully,");
+                    content.endText();
+                    y -= 30f;
+                    content.beginText();
+                    content.setFont(bold, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText(sanitize(safe(school.getPrincipal())));
+                    content.endText();
+                    y -= 14f;
+                    content.beginText();
+                    content.setFont(regular, 10f);
+                    content.newLineAtOffset(MARGIN, y);
+                    content.showText("Principal, " + safe(school.getSchoolName()));
+                    content.endText();
+                }
+            }
+            document.save(path.toFile());
+        }
     }
 }
