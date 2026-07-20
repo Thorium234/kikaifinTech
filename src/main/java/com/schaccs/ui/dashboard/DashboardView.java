@@ -15,7 +15,7 @@ import com.schaccs.service.student.StudentService;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.DashboardCard;
-import AlertUtil;
+import com.schaccs.util.AlertUtil;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
 import com.schaccs.util.CurrencyUtil;

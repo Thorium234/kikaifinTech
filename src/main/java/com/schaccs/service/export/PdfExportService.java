@@ -4,6 +4,7 @@ import com.schaccs.config.AppConfig;
 import com.schaccs.config.SchoolProfile;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
+import com.schaccs.model.student.Student;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
 import org.apache.pdfbox.pdmodel.PDDocument;

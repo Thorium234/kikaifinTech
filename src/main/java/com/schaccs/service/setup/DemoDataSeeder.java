@@ -366,8 +366,10 @@ public final class DemoDataSeeder {
     }
 
     private static void createSampleVouchers(VoucherStore voucherStore, AccountingEngine accounting) {
-        Creditor cred1 = new Creditor("Demo Supplies Ltd", "0725-000-111", "Stationery supplier");
-        Creditor cred2 = new Creditor("EcoSan Services", "0725-000-222", "Sanitation contractor");
+        Creditor cred1 = new Creditor("Demo Supplies Ltd", "0725-000-111");
+        cred1.setDescription("Stationery supplier");
+        Creditor cred2 = new Creditor("EcoSan Services", "0725-000-222");
+        cred2.setDescription("Sanitation contractor");
         voucherStore.addCreditor(cred1);
         voucherStore.addCreditor(cred2);
 
