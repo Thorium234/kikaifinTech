@@ -23,6 +23,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -163,7 +164,13 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         card.getStyleClass().add("card");
         card.setMaxWidth(500);
 
-        formTab.setContent(card);
+        ScrollPane formScroll = new ScrollPane(card);
+        formScroll.setFitToWidth(true);
+        formScroll.setFitToHeight(true);
+        formScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        formScroll.getStyleClass().add("content-scroll");
+
+        formTab.setContent(formScroll);
     }
 
     private void populateDropdowns() {
