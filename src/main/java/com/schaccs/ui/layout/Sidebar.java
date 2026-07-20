@@ -22,6 +22,7 @@ public class Sidebar extends VBox {
     public static final String AUDIT_LOG = "Audit Log";
     public static final String BANK_RECONCILIATION = "Bank Reconciliation";
     public static final String SYNC = "Sync";
+    public static final String FEE_REMINDER = "Fee Reminder";
     public static final String SCHOOL_CUSTOM = "School Custom";
     public static final String SETTINGS = "Settings";
 
@@ -46,6 +47,7 @@ public class Sidebar extends VBox {
         addNav(RECEIPTS, "Receipting");
         addNav(VOUCHERS, "Payment Vouchers");
         addNav(REPORTS, "Reports");
+        addNav(FEE_REMINDER, "Fee Reminder");
         addNav(AUDIT_LOG, "Audit Log");
         addNav(BANK_RECONCILIATION, "Bank Reconciliation");
         addNav(SYNC, "Sync");

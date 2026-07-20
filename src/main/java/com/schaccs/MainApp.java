@@ -3,6 +3,7 @@ package com.schaccs;
 import com.schaccs.config.AppConfig;
 import com.schaccs.repository.AppBootstrap;
 import com.schaccs.ui.dashboard.DashboardView;
+import com.schaccs.ui.dashboard.FeeReminderView;
 import com.schaccs.ui.fees.FeeStructureView;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
@@ -34,6 +35,7 @@ public class MainApp extends Application {
         layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);
         layout.register(Sidebar.VOUCHERS, Sidebar.VOUCHERS, VoucherView::new);
         layout.register(Sidebar.REPORTS, Sidebar.REPORTS, ReportsView::new);
+        layout.register(Sidebar.FEE_REMINDER, Sidebar.FEE_REMINDER, FeeReminderView::new);
         layout.register(Sidebar.AUDIT_LOG, Sidebar.AUDIT_LOG, AuditLogView::new);
         layout.register(Sidebar.BANK_RECONCILIATION, Sidebar.BANK_RECONCILIATION, BankReconciliationView::new);
         layout.register(Sidebar.SYNC, Sidebar.SYNC, SyncStatusView::new);
