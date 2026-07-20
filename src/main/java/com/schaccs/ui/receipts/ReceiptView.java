@@ -16,6 +16,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.PrintUtil;
+import javafx.application.Platform;
 import com.schaccs.util.ReceiptPrinter;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
@@ -61,6 +63,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
     private final Label paymentHint = new Label();
 
     private Student selected;
+    private Receipt lastReceipt;
 
     public ReceiptView() {
         setSpacing(12);
@@ -276,6 +279,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         }
 
         Receipt receipt = result.getReceipt();
+        lastReceipt = receipt;
         allocationTable.getItems().setAll(result.getAllocations());
         previewArea.setText(ReceiptPrinter.format(receipt));
         AlertUtil.info("Payment received",
@@ -294,48 +298,47 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
     }
 
     private void exportReceiptPdf() {
-        String content = previewArea.getText();
-        if (content == null || content.isBlank()) {
-            AlertUtil.warn("No receipt", "Generate or select a receipt preview first.");
+        if (lastReceipt == null && (previewArea.getText() == null || previewArea.getText().isBlank())) {
+            AlertUtil.warn("No receipt", "Post a payment first, then export the PDF.");
             return;
         }
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Receipt PDF");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
-        chooser.setInitialFileName(selected != null ? "receipt-preview-" + selected.getAdmissionNumber() + ".pdf" : "receipt-preview.pdf");
-        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
-        if (file == null) {
-            return;
-        }
-        try {
-            String previewContent = previewArea.getText();
-            if (previewContent == null || previewContent.isBlank()) {
-                AlertUtil.warn("No receipt", "Generate or select a receipt preview first.");
-                return;
-            }
-            Receipt tempReceipt = new Receipt();
-            tempReceipt.setReceiptNumber(0);
-            tempReceipt.setDate(datePicker.getValue());
-            tempReceipt.setStudentId(selected != null ? selected.getId() : null);
-            tempReceipt.setAdmissionNumber(selected != null ? selected.getAdmissionNumber() : "");
-            tempReceipt.setStudentName(selected != null ? selected.getName() : "");
-            tempReceipt.setClassLabel(selected != null ? selected.getClassLabel() : "");
-            tempReceipt.setAmount(amountField.getAmount());
-            tempReceipt.setPaymentMode(modeBox.getValue());
-            tempReceipt.setBankReference(refField.getText());
-            tempReceipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
+        Receipt exportReceipt = lastReceipt;
+        if (exportReceipt == null) {
+            exportReceipt = new Receipt();
+            exportReceipt.setReceiptNumber(0);
+            exportReceipt.setDate(datePicker.getValue());
+            exportReceipt.setStudentId(selected != null ? selected.getId() : null);
+            exportReceipt.setAdmissionNumber(selected != null ? selected.getAdmissionNumber() : "");
+            exportReceipt.setStudentName(selected != null ? selected.getName() : "");
+            exportReceipt.setClassLabel(selected != null ? selected.getClassLabel() : "");
+            exportReceipt.setAmount(amountField.getAmount());
+            exportReceipt.setPaymentMode(modeBox.getValue());
+            exportReceipt.setBankReference(refField.getText());
+            exportReceipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
             allocationTable.getItems().forEach(a -> {
                 com.schaccs.model.receipt.ReceiptLine line = new com.schaccs.model.receipt.ReceiptLine();
                 line.setVoteheadCode(a.getVoteheadCode());
                 line.setVoteheadName(a.getVoteheadName());
                 line.setAmount(a.getAllocated());
-                tempReceipt.addLine(line);
+                exportReceipt.addLine(line);
             });
-            pdfExportService.exportReceipt(file.toPath(), tempReceipt);
-            AlertUtil.info("Export complete", "Receipt PDF exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
         }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export Receipt PDF");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
+        chooser.setInitialFileName(selected != null ? "receipt-" + selected.getAdmissionNumber() + ".pdf" : "receipt.pdf");
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) return;
+        File finalFile = file;
+        Receipt finalReceipt = exportReceipt;
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportReceipt(finalFile.toPath(), finalReceipt);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "Receipt PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
     }
 
 

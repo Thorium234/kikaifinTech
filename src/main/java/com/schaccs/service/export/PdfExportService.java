@@ -99,22 +99,16 @@ public class PdfExportService {
                 y = drawSchoolHeader(document, content, school, box, y);
                 y = drawReceiptBanner(content, box, y, "OFFICIAL FEE RECEIPT");
 
-                y -= 12f;
+                y -= 10f;
                 content.setStrokingColor(BORDER);
-                content.addRect(MARGIN, y - 54f, width, 54f);
+                content.addRect(MARGIN, y - 70f, width, 70f);
                 content.stroke();
-                drawLabelValue(content, bold, regular, "Receipt No", receipt.getReceiptNumberDisplay(), MARGIN + 8, y - 16);
-                drawLabelValue(content, bold, regular, "Date", DateUtil.format(receipt.getDate()), MARGIN + width / 2, y - 16);
-                drawLabelValue(content, bold, regular, "Student", safe(receipt.getStudentName()), MARGIN + 8, y - 32);
-                drawLabelValue(content, bold, regular, "Adm No", safe(receipt.getAdmissionNumber()), MARGIN + width / 2, y - 32);
-                drawLabelValue(content, bold, regular, "Class", safe(receipt.getClassLabel()), MARGIN + 8, y - 48);
-                drawLabelValue(content, bold, regular, "Mode", receipt.getPaymentMode() != null ? receipt.getPaymentMode().getDisplayName() : "", MARGIN + width / 2, y - 48);
-                y -= 72f;
-
-                if (receipt.getBankReference() != null && !receipt.getBankReference().isBlank()) {
-                    drawLabelValue(content, bold, regular, "Reference", receipt.getBankReference(), MARGIN, y);
-                    y -= 18f;
-                }
+                drawInfoRow(content, bold, regular, "Receipt No", receipt.getReceiptNumberDisplay(), "Date", DateUtil.format(receipt.getDate()), MARGIN + 8, y - 16, width);
+                String ts = receipt.getCreatedAt() != null ? DateUtil.format(receipt.getCreatedAt().toLocalDate()) + " " + receipt.getCreatedAt().toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")) : "";
+                drawInfoRow(content, bold, regular, "Timestamp", ts, "Mode", receipt.getPaymentMode() != null ? receipt.getPaymentMode().getDisplayName() : "", MARGIN + 8, y - 34, width);
+                drawInfoRow(content, bold, regular, "Student", safe(receipt.getStudentName()), "Adm No", safe(receipt.getAdmissionNumber()), MARGIN + 8, y - 52, width);
+                drawInfoRow(content, bold, regular, "Class", safe(receipt.getClassLabel()), "Ref", safe(receipt.getBankReference()), MARGIN + 8, y - 70, width);
+                y -= 86f;
 
                 float[] colWidths = new float[]{width * 0.68f, width * 0.32f};
                 y = drawHeader(content, bold, List.of("Vote Head", "Amount (KSh)"), colWidths, y);
@@ -122,26 +116,24 @@ public class PdfExportService {
                     y = drawRow(content, regular, List.of(safe(line.getVoteheadName()), CurrencyUtil.formatPlain(line.getAmount())), colWidths, y);
                 }
 
-                y -= 8f;
+                y -= 6f;
                 content.setNonStrokingColor(TOTAL_FILL);
-                content.addRect(MARGIN + width * 0.45f, y - 34f, width * 0.55f, 34f);
+                content.addRect(MARGIN, y - 34f, width, 34f);
                 content.fill();
                 content.setStrokingColor(BORDER);
-                content.addRect(MARGIN + width * 0.45f, y - 34f, width * 0.55f, 34f);
+                content.addRect(MARGIN, y - 34f, width, 34f);
                 content.stroke();
-                drawLabelValue(content, bold, regular, "TOTAL PAID", CurrencyUtil.formatPlain(receipt.getAmount()), MARGIN + width * 0.47f, y - 14);
-                drawLabelValue(content, bold, regular, "Status", receipt.isReversed() ? "REVERSED" : "POSTED", MARGIN + width * 0.47f, y - 28);
+                drawInfoRow(content, bold, regular, "TOTAL PAID", CurrencyUtil.formatPlain(receipt.getAmount()), "Status", receipt.isReversed() ? "REVERSED" : "POSTED", MARGIN + 8, y - 14, width);
+                drawInfoRow(content, bold, regular, "Amount in words", CurrencyUtil.toWords(receipt.getAmount()), "", "", MARGIN + 8, y - 30, width);
                 y -= 48f;
 
-                drawParagraph(content, bold, regular, "Amount in words", CurrencyUtil.toWords(receipt.getAmount()), y, width);
-                y -= 34f;
                 drawParagraph(content, bold, regular, "Received by", safe(receipt.getReceivedBy()), y, width);
-                y -= 30f;
+                y -= 24f;
                 y = drawApprovalImages(document, content, school, y, width);
                 drawParagraph(content, bold, regular, "Principal", safe(school.getPrincipal()), y, width);
-                y -= 30f;
+                y -= 24f;
                 drawParagraph(content, bold, regular, "Banking details", bankDetails(school), y, width);
-                y -= 42f;
+                y -= 36f;
                 drawParagraph(content, bold, regular, "Policy", safe(school.getCashPolicy()), y, width);
             }
             document.save(path.toFile());
@@ -255,8 +247,8 @@ public class PdfExportService {
         float x = (box.getWidth() - drawWidth) / 2f;
         float y = (box.getHeight() - drawHeight) / 2f;
         PDExtendedGraphicsState gs = new PDExtendedGraphicsState();
-        gs.setNonStrokingAlphaConstant(0.1f);
-        gs.setStrokingAlphaConstant(0.1f);
+        gs.setNonStrokingAlphaConstant(0.06f);
+        gs.setStrokingAlphaConstant(0.06f);
         content.setGraphicsStateParameters(gs);
         content.drawImage(image, x, y, drawWidth, drawHeight);
         gs.setNonStrokingAlphaConstant(1.0f);
@@ -321,6 +313,33 @@ public class PdfExportService {
         content.newLineAtOffset(x + 52, y);
         content.showText(sanitize(value));
         content.endText();
+    }
+
+    private void drawInfoRow(PDPageContentStream content, PDType1Font bold, PDType1Font regular,
+                             String label1, String value1, String label2, String value2, float x, float y, float totalWidth) throws IOException {
+        float midX = x + totalWidth / 2f;
+        content.beginText();
+        content.setFont(bold, BODY_SIZE);
+        content.newLineAtOffset(x, y);
+        content.showText(sanitize(label1 + ": "));
+        content.endText();
+        content.beginText();
+        content.setFont(regular, BODY_SIZE);
+        content.newLineAtOffset(x + 80, y);
+        content.showText(sanitize(value1));
+        content.endText();
+        if (label2 != null && !label2.isEmpty()) {
+            content.beginText();
+            content.setFont(bold, BODY_SIZE);
+            content.newLineAtOffset(midX, y);
+            content.showText(sanitize(label2 + ": "));
+            content.endText();
+            content.beginText();
+            content.setFont(regular, BODY_SIZE);
+            content.newLineAtOffset(midX + 50, y);
+            content.showText(sanitize(value2));
+            content.endText();
+        }
     }
 
     private void drawParagraph(PDPageContentStream content, PDType1Font bold, PDType1Font regular,
