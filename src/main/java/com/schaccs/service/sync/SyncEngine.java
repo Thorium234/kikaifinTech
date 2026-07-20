@@ -75,12 +75,31 @@ public class SyncEngine {
 
     private static final List<String> COMPOSITE_PK_TABLES = List.of("student_ledger_lines");
 
+    private static final Map<String, String> TABLE_PK = new HashMap<>();
+    static {
+        TABLE_PK.put("voteheads", "code");
+        TABLE_PK.put("student_ledgers", "student_id");
+    }
+
     private static final Map<String, String> CHILD_PARENT_FK = new HashMap<>();
+    private static final Map<String, String> CHILD_FK_COLUMN = new HashMap<>();
     static {
         CHILD_PARENT_FK.put("fee_structure_items", "fee_structures");
+        CHILD_FK_COLUMN.put("fee_structure_items", "structure_id");
         CHILD_PARENT_FK.put("receipt_lines", "receipts");
+        CHILD_FK_COLUMN.put("receipt_lines", "receipt_id");
         CHILD_PARENT_FK.put("student_ledger_lines", "students");
+        CHILD_FK_COLUMN.put("student_ledger_lines", "student_id");
         CHILD_PARENT_FK.put("bank_reconciliation_items", "bank_reconciliation");
+        CHILD_FK_COLUMN.put("bank_reconciliation_items", "reconciliation_id");
+    }
+
+    private static String pkColumn(String table) {
+        return TABLE_PK.getOrDefault(table, "id");
+    }
+
+    private static boolean hasIdColumn(String table) {
+        return !COMPOSITE_PK_TABLES.contains(table) && !TABLE_PK.containsKey(table);
     }
 
     public SyncResult validateConnectivity() {
@@ -253,7 +272,8 @@ public class SyncEngine {
 
     private List<Map<String, Object>> readPage(String table, List<String> columns, int offset, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        String sql = "SELECT * FROM " + table + " WHERE synced_at IS NULL ORDER BY id LIMIT " + limit + " OFFSET " + offset;
+        String orderCol = pkColumn(table);
+        String sql = "SELECT * FROM " + table + " WHERE synced_at IS NULL ORDER BY " + orderCol + " LIMIT " + limit + " OFFSET " + offset;
         try (Connection local = Database.getInstance().getConnection();
              Statement st = local.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
@@ -272,11 +292,13 @@ public class SyncEngine {
 
     private List<Map<String, Object>> readChildPage(String table, String parentTable, List<String> columns, int offset, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
+        String fkCol = CHILD_FK_COLUMN.get(table);
+        if (fkCol == null) return rows;
+        String parentPk = pkColumn(parentTable);
         String sql = "SELECT c.* FROM " + table + " c "
-                + "INNER JOIN " + parentTable + " p ON p.id = "
-                + (table.equals("student_ledger_lines") ? "c.student_id" : "c." + parentTable.substring(0, parentTable.length() - 1) + "_id")
+                + "INNER JOIN " + parentTable + " p ON p." + parentPk + " = c." + fkCol
                 + " WHERE p.synced_at IS NOT NULL "
-                + "ORDER BY c.rowid LIMIT " + limit + " OFFSET " + offset;
+                + "ORDER BY c." + fkCol + " LIMIT " + limit + " OFFSET " + offset;
         try (Connection local = Database.getInstance().getConnection();
              Statement st = local.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
@@ -298,7 +320,7 @@ public class SyncEngine {
         if (rows.isEmpty()) return;
 
         boolean isCompositePk = COMPOSITE_PK_TABLES.contains(table);
-        String idColumn = isCompositePk ? null : "id";
+        String pkCol = pkColumn(table);
 
         for (int i = 0; i < rows.size(); i += BATCH_SIZE) {
             if (!running) return;
@@ -319,12 +341,12 @@ public class SyncEngine {
 
                     if (!isCompositePk) {
                         try (PreparedStatement update = localConn.prepareStatement(
-                                "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE id = ?")) {
+                                "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE " + pkCol + " = ?")) {
                             String now = LocalDateTime.now().toString();
                             for (Map<String, Object> row : batch) {
                                 update.setString(1, now);
                                 update.setString(2, now);
-                                update.setString(3, String.valueOf(row.get(idColumn)));
+                                update.setString(3, String.valueOf(row.get(pkCol)));
                                 update.addBatch();
                             }
                             update.executeBatch();
@@ -333,7 +355,7 @@ public class SyncEngine {
                 });
 
                 for (Map<String, Object> row : batch) {
-                    String eid = idColumn != null ? String.valueOf(row.get(idColumn)) : row.toString();
+                    String eid = String.valueOf(row.get(pkCol));
                     summary.synced++;
                     logSyncEvent(table, eid, "SYNCED", null, 0);
                 }
@@ -350,10 +372,11 @@ public class SyncEngine {
 
     private void retryBatchRowByRow(String table, List<Map<String, Object>> batch, List<String> columns,
                                     String upsertSql, Connection remote, SyncSummary summary, int attempt) {
+        String pkCol = pkColumn(table);
         if (attempt > MAX_RETRIES) {
             for (Map<String, Object> row : batch) {
                 summary.failed++;
-                logSyncEvent(table, String.valueOf(row.get("id")), "FAILED",
+                logSyncEvent(table, String.valueOf(row.get(pkCol)), "FAILED",
                         "Exceeded max retries (" + MAX_RETRIES + ")", 0);
             }
             return;
@@ -369,7 +392,7 @@ public class SyncEngine {
 
         for (Map<String, Object> row : batch) {
             if (!running) return;
-            String entityId = String.valueOf(row.get("id"));
+            String entityId = String.valueOf(row.get(pkCol));
             try {
                 Database.getInstance().inTransaction(localConn -> {
                     try (PreparedStatement ps = remote.prepareStatement(upsertSql)) {
@@ -379,7 +402,7 @@ public class SyncEngine {
                         ps.executeUpdate();
                     }
                     try (PreparedStatement update = localConn.prepareStatement(
-                            "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE id = ?")) {
+                            "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE " + pkCol + " = ?")) {
                         String now = LocalDateTime.now().toString();
                         update.setString(1, now);
                         update.setString(2, now);
@@ -402,7 +425,7 @@ public class SyncEngine {
     }
 
     private String buildUpsertSql(String table, List<String> columns, boolean isCompositePk) {
-        String conflictTarget = isCompositePk ? "(student_id, votehead_code, kind)" : "(id)";
+        String conflictTarget = isCompositePk ? "(student_id, votehead_code, kind)" : "(" + pkColumn(table) + ")";
         String type = dbType;
         StringBuilder sql = new StringBuilder("INSERT INTO ");
         sql.append(table).append(" (");
