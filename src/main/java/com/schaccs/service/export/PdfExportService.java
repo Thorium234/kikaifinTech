@@ -105,6 +105,20 @@ public class PdfExportService {
                 y = drawReceiptBanner(content, box, y, "OFFICIAL FEE RECEIPT");
                 y -= 8f;
 
+                // ── Resolve student + ledger first (needed in metadata and breakdown) ──
+                Student student = null;
+                StudentFeeLedger ledger = null;
+                if (receipt.getStudentId() != null) {
+                    student = StudentStore.getInstance().findById(receipt.getStudentId()).orElse(null);
+                    if (student == null && receipt.getAdmissionNumber() != null) {
+                        student = StudentStore.getInstance().findByAdmissionNumber(receipt.getAdmissionNumber()).orElse(null);
+                    }
+                    if (student != null) {
+                        ledger = StudentStore.getInstance().getLedger(student.getId());
+                    }
+                }
+                String ref = safe(receipt.getBankReference());
+
                 // ── Receipt metadata box ──
                 float infoBoxH = 90f;
                 content.setStrokingColor(BORDER);
@@ -119,12 +133,8 @@ public class PdfExportService {
                         "Academic Year", String.valueOf(AppConfig.getInstance().getAcademicYear()), width, y - 34);
                 drawInfoRowY(content, bold, regular, "Student", safe(receipt.getStudentName()),
                         "Adm No", safe(receipt.getAdmissionNumber()), width, y - 52);
-                String guardianName = "";
-                String guardianPhone = "";
-                if (student != null) {
-                    guardianName = safe(student.getParentName());
-                    guardianPhone = safe(student.getGuardianPhone());
-                }
+                String guardianName = student != null ? safe(student.getParentName()) : "";
+                String guardianPhone = student != null ? safe(student.getGuardianPhone()) : "";
                 drawInfoRowY(content, bold, regular, "Guardian", guardianName,
                         "Guardian Phone", guardianPhone, width, y - 70);
                 drawInfoRowY(content, bold, regular, "Class", safe(receipt.getClassLabel()),
@@ -132,18 +142,6 @@ public class PdfExportService {
                 y -= infoBoxH + 12f;
 
                 // ── Compute dual-balance breakdown ──
-                Student student = null;
-                StudentFeeLedger ledger = null;
-                if (receipt.getStudentId() != null) {
-                    student = StudentStore.getInstance().findById(receipt.getStudentId()).orElse(null);
-                    if (student == null && receipt.getAdmissionNumber() != null) {
-                        student = StudentStore.getInstance().findByAdmissionNumber(receipt.getAdmissionNumber()).orElse(null);
-                    }
-                    if (student != null) {
-                        ledger = StudentStore.getInstance().getLedger(student.getId());
-                    }
-                }
-                String ref = safe(receipt.getBankReference());
 
                 // Arrears cleared in this receipt
                 BigDecimal arrearsCleared = ZERO;
