@@ -1,10 +1,21 @@
 package com.schaccs.service.export;
 
 import com.schaccs.config.AppConfig;
+import com.schaccs.config.CurrencyConfig;
 import com.schaccs.config.SchoolProfile;
+import com.schaccs.enums.AcademicTerm;
+import com.schaccs.enums.BoardingStatus;
+import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
+import com.schaccs.model.report.IncomeExpenditureRow;
+import com.schaccs.model.report.TrialBalanceRow;
 import com.schaccs.model.student.Student;
+import com.schaccs.model.student.StudentBalance;
+import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.service.report.ReportService;
+import com.schaccs.store.FeeStructureStore;
+import com.schaccs.store.StudentStore;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -13,19 +24,14 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
-import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
-
-import com.schaccs.model.report.IncomeExpenditureRow;
-import com.schaccs.model.report.TrialBalanceRow;
-import com.schaccs.model.student.StudentBalance;
-import com.schaccs.service.report.ReportService;
-import com.schaccs.store.StudentStore;
 
 import java.awt.Color;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +47,7 @@ public class PdfExportService {
     private static final Color BRAND_LIGHT = new Color(225, 239, 229);
     private static final Color TOTAL_FILL = new Color(247, 231, 206);
     private static final Color BORDER = new Color(130, 130, 130);
+    private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
     public void exportText(Path path, String title, List<String> lines) throws IOException {
         exportTable(path, title, List.of("Content"), lines.stream().map(line -> List.of(line)).toList());
@@ -57,8 +64,6 @@ public class PdfExportService {
             float usableWidth = box.getWidth() - (2 * MARGIN);
             float y = box.getHeight() - MARGIN;
 
-            SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
-            drawWatermark(document, content, school, box);
             y = drawTitle(content, bold, title, y);
             float[] colWidths = evenWidths(headers.size(), usableWidth);
             y = drawHeader(content, bold, headers, colWidths, y);
@@ -72,7 +77,6 @@ public class PdfExportService {
                     usableWidth = box.getWidth() - (2 * MARGIN);
                     colWidths = evenWidths(headers.size(), usableWidth);
                     y = box.getHeight() - MARGIN;
-                    drawWatermark(document, content, school, box);
                     y = drawTitle(content, bold, title, y);
                     y = drawHeader(content, bold, headers, colWidths, y);
                 }
@@ -95,49 +99,242 @@ public class PdfExportService {
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
                 SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
-                drawWatermark(document, content, school, box);
+
+                // ── School header ──
                 y = drawSchoolHeader(document, content, school, box, y);
                 y = drawReceiptBanner(content, box, y, "OFFICIAL FEE RECEIPT");
+                y -= 8f;
 
-                y -= 10f;
+                // ── Receipt metadata box ──
+                float infoBoxH = 90f;
                 content.setStrokingColor(BORDER);
-                content.addRect(MARGIN, y - 70f, width, 70f);
+                content.addRect(MARGIN, y - infoBoxH, width, infoBoxH);
                 content.stroke();
-                drawInfoRow(content, bold, regular, "Receipt No", receipt.getReceiptNumberDisplay(), "Date", DateUtil.format(receipt.getDate()), MARGIN + 8, y - 16, width);
-                String ts = receipt.getCreatedAt() != null ? DateUtil.format(receipt.getCreatedAt().toLocalDate()) + " " + receipt.getCreatedAt().toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")) : "";
-                drawInfoRow(content, bold, regular, "Timestamp", ts, "Mode", receipt.getPaymentMode() != null ? receipt.getPaymentMode().getDisplayName() : "", MARGIN + 8, y - 34, width);
-                drawInfoRow(content, bold, regular, "Student", safe(receipt.getStudentName()), "Adm No", safe(receipt.getAdmissionNumber()), MARGIN + 8, y - 52, width);
-                drawInfoRow(content, bold, regular, "Class", safe(receipt.getClassLabel()), "Ref", safe(receipt.getBankReference()), MARGIN + 8, y - 70, width);
-                y -= 86f;
+                String ts = receipt.getCreatedAt() != null
+                        ? receipt.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
+                        : "";
+                drawInfoRowY(content, bold, regular, "Receipt No", receipt.getReceiptNumberDisplay(),
+                        "Date", DateUtil.format(receipt.getDate()), width, y - 16);
+                drawInfoRowY(content, bold, regular, "Timestamp", ts,
+                        "Academic Year", String.valueOf(AppConfig.getInstance().getAcademicYear()), width, y - 34);
+                drawInfoRowY(content, bold, regular, "Student", safe(receipt.getStudentName()),
+                        "Adm No", safe(receipt.getAdmissionNumber()), width, y - 52);
+                String guardianName = "";
+                String guardianPhone = "";
+                if (student != null) {
+                    guardianName = safe(student.getParentName());
+                    guardianPhone = safe(student.getGuardianPhone());
+                }
+                drawInfoRowY(content, bold, regular, "Guardian", guardianName,
+                        "Guardian Phone", guardianPhone, width, y - 70);
+                drawInfoRowY(content, bold, regular, "Class", safe(receipt.getClassLabel()),
+                        "Mode", receipt.getPaymentMode() != null ? receipt.getPaymentMode().getDisplayName() : "", width, y - 88);
+                y -= infoBoxH + 12f;
 
-                float[] colWidths = new float[]{width * 0.68f, width * 0.32f};
-                y = drawHeader(content, bold, List.of("Vote Head", "Amount (KSh)"), colWidths, y);
-                for (ReceiptLine line : receipt.getLines()) {
-                    y = drawRow(content, regular, List.of(safe(line.getVoteheadName()), CurrencyUtil.formatPlain(line.getAmount())), colWidths, y);
+                // ── Compute dual-balance breakdown ──
+                Student student = null;
+                StudentFeeLedger ledger = null;
+                if (receipt.getStudentId() != null) {
+                    student = StudentStore.getInstance().findById(receipt.getStudentId()).orElse(null);
+                    if (student == null && receipt.getAdmissionNumber() != null) {
+                        student = StudentStore.getInstance().findByAdmissionNumber(receipt.getAdmissionNumber()).orElse(null);
+                    }
+                    if (student != null) {
+                        ledger = StudentStore.getInstance().getLedger(student.getId());
+                    }
+                }
+                String ref = safe(receipt.getBankReference());
+
+                // Arrears cleared in this receipt
+                BigDecimal arrearsCleared = ZERO;
+                for (ReceiptLine rl : receipt.getLines()) {
+                    if ("ARREARS".equals(rl.getVoteheadCode())) {
+                        arrearsCleared = arrearsCleared.add(rl.getAmount()).setScale(2, RoundingMode.HALF_UP);
+                    }
+                }
+                BigDecimal arrearsBf = ZERO;
+                BigDecimal remainingArrears = ZERO;
+                if (ledger != null) {
+                    remainingArrears = ledger.getArrears() != null
+                            ? ledger.getArrears().setScale(2, RoundingMode.HALF_UP) : ZERO;
+                    arrearsBf = remainingArrears.add(arrearsCleared).setScale(2, RoundingMode.HALF_UP);
                 }
 
+                // Current term fee
+                AcademicTerm currentTerm = ledger != null ? ledger.getCurrentTerm() : AcademicTerm.TERM_1;
+                BigDecimal expectedTermFee = ZERO;
+                if (student != null) {
+                    int year = student.getAcademicYear() != null ? student.getAcademicYear()
+                            : AppConfig.getInstance().getAcademicYear();
+                    BoardingStatus bs = student.getBoardingStatus();
+                    FeeStructure fs = FeeStructureStore.getInstance().findStructure(year, bs).orElse(null);
+                    if (fs != null) {
+                        expectedTermFee = fs.totalForTerm(currentTerm).setScale(2, RoundingMode.HALF_UP);
+                    }
+                }
+                // Current term paid = total paid - arrears cleared - advance
+                BigDecimal totalPmVh = ZERO;
+                BigDecimal advanceAllocated = ZERO;
+                for (ReceiptLine rl : receipt.getLines()) {
+                    if ("ARREARS".equals(rl.getVoteheadCode()) || "ADVANCE".equals(rl.getVoteheadCode())) {
+                        if ("ADVANCE".equals(rl.getVoteheadCode())) {
+                            advanceAllocated = advanceAllocated.add(rl.getAmount()).setScale(2, RoundingMode.HALF_UP);
+                        }
+                        continue;
+                    }
+                    totalPmVh = totalPmVh.add(rl.getAmount()).setScale(2, RoundingMode.HALF_UP);
+                }
+                BigDecimal termPaidTotal = totalPmVh;
+                if (ledger != null) {
+                    termPaidTotal = ZERO;
+                    for (String code : ledger.getPaidByVotehead().keySet()) {
+                        if ("ARREARS".equals(code) || "ADVANCE".equals(code)) continue;
+                        termPaidTotal = termPaidTotal.add(ledger.getPaid(code)).setScale(2, RoundingMode.HALF_UP);
+                    }
+                }
+                BigDecimal termOutstanding = expectedTermFee.subtract(termPaidTotal).max(ZERO).setScale(2, RoundingMode.HALF_UP);
+
+                // ── ARREARS section ──
+                float[] threeCol = new float[]{width * 0.45f, width * 0.27f, width * 0.28f};
+                y = drawSectionHeader(content, bold, "ARREARS CLEARANCE", threeCol, y);
+                y = drawRow3(content, regular, "Arrears Brought Forward", CurrencyUtil.formatPlain(arrearsBf), "", threeCol, y);
+                if (arrearsCleared.compareTo(ZERO) > 0) {
+                    y = drawRow3(content, regular, "Cleared in this Receipt", CurrencyUtil.formatPlain(arrearsCleared.negate()), "(" + CurrencyUtil.formatPlain(arrearsCleared) + ")", threeCol, y);
+                }
+                y = drawRow3(content, bold, "Remaining Arrears", CurrencyUtil.formatPlain(remainingArrears), "", threeCol, y);
                 y -= 6f;
+
+                // ── CURRENT TERM section ──
+                y = drawSectionHeader(content, bold, "CURRENT TERM — " + currentTerm.getDisplayName().toUpperCase(), threeCol, y);
+                y = drawRow3(content, regular, "Billed Fee for " + currentTerm.getDisplayName(), CurrencyUtil.formatPlain(expectedTermFee), "", threeCol, y);
+                y = drawRow3(content, regular, "Paid to Date (Current Term)", CurrencyUtil.formatPlain(termPaidTotal), "", threeCol, y);
+                y = drawRow3(content, bold, "Outstanding Balance (Term)", CurrencyUtil.formatPlain(termOutstanding), "", threeCol, y);
+                y -= 6f;
+
+                // ── VOTEHEAD breakdown ──
+                y = drawSectionHeader(content, bold, "VOTEHEAD ALLOCATION", threeCol, y);
+                for (ReceiptLine line : receipt.getLines()) {
+                    String label = safe(line.getVoteheadName());
+                    String amt = CurrencyUtil.formatPlain(line.getAmount());
+                    y = drawRow3(content, regular, label, amt, "", threeCol, y);
+                }
+                y -= 6f;
+
+                // ── SUMMARY box ──
+                BigDecimal netBalance = arrearsBf.add(expectedTermFee).subtract(receipt.getAmount()).subtract(termPaidTotal.subtract(totalPmVh)).max(ZERO).setScale(2, RoundingMode.HALF_UP);
+                if (remainingArrears.compareTo(ZERO) > 0) {
+                    netBalance = remainingArrears.add(termOutstanding).setScale(2, RoundingMode.HALF_UP);
+                } else {
+                    netBalance = termOutstanding.setScale(2, RoundingMode.HALF_UP);
+                }
+
                 content.setNonStrokingColor(TOTAL_FILL);
-                content.addRect(MARGIN, y - 34f, width, 34f);
+                content.addRect(MARGIN, y - 52f, width, 52f);
                 content.fill();
                 content.setStrokingColor(BORDER);
-                content.addRect(MARGIN, y - 34f, width, 34f);
+                content.addRect(MARGIN, y - 52f, width, 52f);
                 content.stroke();
-                drawInfoRow(content, bold, regular, "TOTAL PAID", CurrencyUtil.formatPlain(receipt.getAmount()), "Status", receipt.isReversed() ? "REVERSED" : "POSTED", MARGIN + 8, y - 14, width);
-                drawInfoRow(content, bold, regular, "Amount in words", CurrencyUtil.toWords(receipt.getAmount()), "", "", MARGIN + 8, y - 30, width);
-                y -= 48f;
+                float sumX = MARGIN + 8;
+                drawLabelLine(content, bold, regular, "Total Received", CurrencyUtil.formatPlain(receipt.getAmount()), sumX, y - 16);
+                drawLabelLine(content, bold, regular, "Cumulative Outstanding", CurrencyUtil.formatPlain(netBalance), sumX, y - 34);
+                drawLabelLine(content, bold, regular, "Status", receipt.isReversed() ? "REVERSED" : "POSTED", sumX, y - 52);
+                y -= 66f;
 
+                // ── Amount in words ──
+                drawParagraph(content, bold, regular, "Amount in words", CurrencyUtil.toWords(receipt.getAmount()), y, width);
+                y -= 26f;
+
+                // ── Reference ──
+                if (!ref.isEmpty()) {
+                    drawParagraph(content, bold, regular, "Reference", ref, y, width);
+                    y -= 26f;
+                }
+
+                // ── Received by ──
                 drawParagraph(content, bold, regular, "Received by", safe(receipt.getReceivedBy()), y, width);
-                y -= 24f;
-                y = drawApprovalImages(document, content, school, y, width);
+                y -= 26f;
+
+                // ── Principal ──
                 drawParagraph(content, bold, regular, "Principal", safe(school.getPrincipal()), y, width);
-                y -= 24f;
+                y -= 26f;
+
+                // ── Banking details ──
                 drawParagraph(content, bold, regular, "Banking details", bankDetails(school), y, width);
-                y -= 36f;
+                y -= 26f;
+
+                // ── Cash policy ──
                 drawParagraph(content, bold, regular, "Policy", safe(school.getCashPolicy()), y, width);
             }
             document.save(path.toFile());
         }
+    }
+
+    private float drawSchoolHeader(PDDocument document, PDPageContentStream content, SchoolProfile school, PDRectangle box, float y) throws IOException {
+        PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+        PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+        y = drawCentered(content, bold, safe(school.getMinistry()), 10f, box.getWidth() / 2, y, BRAND);
+        y = drawCentered(content, bold, safe(school.getSchoolName()), 16f, box.getWidth() / 2, y - 1, BRAND);
+        y = drawCentered(content, regular, safe(school.getLocation()), 9f, box.getWidth() / 2, y - 1, Color.DARK_GRAY);
+        y -= 10f;
+        content.setStrokingColor(BRAND);
+        float width = box.getWidth() - (2 * MARGIN);
+        content.setLineWidth(1.5f);
+        content.addRect(MARGIN, y - 2f, width, 2f);
+        content.stroke();
+        content.setLineWidth(1f);
+        return y - 22f;
+    }
+
+    private float drawReceiptBanner(PDPageContentStream content, PDRectangle box, float y, String text) throws IOException {
+        float bannerWidth = box.getWidth() - (2 * MARGIN);
+        content.setNonStrokingColor(BRAND);
+        content.addRect(MARGIN, y - 18f, bannerWidth, 20f);
+        content.fill();
+        content.beginText();
+        content.setNonStrokingColor(Color.WHITE);
+        content.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 12f);
+        float textWidth = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).getStringWidth(text) / 1000 * 12f;
+        content.newLineAtOffset((box.getWidth() - textWidth) / 2f, y - 13f);
+        content.showText(text);
+        content.endText();
+        content.setNonStrokingColor(Color.BLACK);
+        return y - 24f;
+    }
+
+    private float drawSectionHeader(PDPageContentStream content, PDType1Font font, String title, float[] colWidths, float y) throws IOException {
+        content.setNonStrokingColor(BRAND_LIGHT);
+        float x = MARGIN;
+        for (float w : colWidths) {
+            content.addRect(x, y - ROW_HEIGHT, w, ROW_HEIGHT);
+            x += w;
+        }
+        content.fill();
+        content.setStrokingColor(BORDER);
+        x = MARGIN;
+        for (float w : colWidths) {
+            content.addRect(x, y - ROW_HEIGHT, w, ROW_HEIGHT);
+            x += w;
+        }
+        content.stroke();
+        content.beginText();
+        content.setNonStrokingColor(BRAND);
+        content.setFont(font, BODY_SIZE);
+        content.newLineAtOffset(MARGIN + 4, y - 12);
+        content.showText(sanitize(title));
+        content.endText();
+        content.setNonStrokingColor(Color.BLACK);
+        return y - ROW_HEIGHT;
+    }
+
+    private float drawRow3(PDPageContentStream content, PDType1Font font, String label, String value, String extra, float[] colWidths, float y) throws IOException {
+        float x = MARGIN;
+        String[] parts = {label, value, extra};
+        for (int i = 0; i < colWidths.length; i++) {
+            String text = i < parts.length ? safe(parts[i]) : "";
+            drawCell(content, font, BODY_SIZE, text, x, y, colWidths[i], ROW_HEIGHT, false);
+            x += colWidths[i];
+        }
+        return y - ROW_HEIGHT;
     }
 
     private float drawTitle(PDPageContentStream content, PDType1Font font, String title, float y) throws IOException {
@@ -199,9 +396,7 @@ public class PdfExportService {
     }
 
     private String truncate(String text, float width, PDType1Font font, float fontSize) throws IOException {
-        if (text == null) {
-            return "";
-        }
+        if (text == null) return "";
         String clean = text;
         while (!clean.isEmpty() && font.getStringWidth(clean) / 1000 * fontSize > width - 8) {
             clean = clean.substring(0, clean.length() - 1);
@@ -210,81 +405,6 @@ public class PdfExportService {
             clean = clean.substring(0, clean.length() - 3) + "...";
         }
         return clean;
-    }
-
-    private float drawLogo(PDDocument document, PDPageContentStream content, SchoolProfile school, PDRectangle box, float y) throws IOException {
-        String logoPath = school.getLogoPath();
-        if (logoPath == null || logoPath.isBlank()) {
-            return y;
-        }
-        Path path = Path.of(logoPath);
-        if (!Files.exists(path)) {
-            return y;
-        }
-        PDImageXObject image = PDImageXObject.createFromFileByContent(path.toFile(), document);
-        float maxHeight = 52f;
-        float scale = Math.min(1f, maxHeight / image.getHeight());
-        float drawWidth = image.getWidth() * scale;
-        float drawHeight = image.getHeight() * scale;
-        float x = (box.getWidth() - drawWidth) / 2f;
-        content.drawImage(image, x, y - drawHeight, drawWidth, drawHeight);
-        return y - drawHeight - 8f;
-    }
-
-    private void drawWatermark(PDDocument document, PDPageContentStream content, SchoolProfile school, PDRectangle box) throws IOException {
-        String logoPath = school.getLogoPath();
-        if (logoPath == null || logoPath.isBlank()) {
-            return;
-        }
-        Path path = Path.of(logoPath);
-        if (!Files.exists(path)) {
-            return;
-        }
-        PDImageXObject image = PDImageXObject.createFromFileByContent(path.toFile(), document);
-        float scale = Math.min(1f, 180f / Math.max(image.getWidth(), image.getHeight()));
-        float drawWidth = image.getWidth() * scale;
-        float drawHeight = image.getHeight() * scale;
-        float x = (box.getWidth() - drawWidth) / 2f;
-        float y = (box.getHeight() - drawHeight) / 2f;
-        PDExtendedGraphicsState gs = new PDExtendedGraphicsState();
-        gs.setNonStrokingAlphaConstant(0.06f);
-        gs.setStrokingAlphaConstant(0.06f);
-        content.setGraphicsStateParameters(gs);
-        content.drawImage(image, x, y, drawWidth, drawHeight);
-        gs.setNonStrokingAlphaConstant(1.0f);
-        gs.setStrokingAlphaConstant(1.0f);
-        content.setGraphicsStateParameters(gs);
-    }
-
-    private float drawSchoolHeader(PDDocument document, PDPageContentStream content, SchoolProfile school, PDRectangle box, float y) throws IOException {
-        PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-        PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-        y = drawLogo(document, content, school, box, y);
-        y = drawCentered(content, bold, safe(school.getMinistry()), 11f, box.getWidth() / 2, y, BRAND);
-        y = drawCentered(content, bold, safe(school.getSchoolName()), 14f, box.getWidth() / 2, y - 2, BRAND);
-        y = drawCentered(content, regular, safe(school.getLocation()), 9f, box.getWidth() / 2, y - 2, Color.DARK_GRAY);
-        y -= 12f;
-        content.setStrokingColor(BORDER);
-        float width = box.getWidth() - (2 * MARGIN);
-        content.addRect(MARGIN, y - 2f, width, 2f);
-        content.stroke();
-        return y - 20f;
-    }
-
-    private float drawReceiptBanner(PDPageContentStream content, PDRectangle box, float y, String text) throws IOException {
-        float bannerWidth = box.getWidth() - (2 * MARGIN);
-        content.setNonStrokingColor(BRAND);
-        content.addRect(MARGIN, y - 18f, bannerWidth, 20f);
-        content.fill();
-        content.beginText();
-        content.setNonStrokingColor(Color.WHITE);
-        content.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 11f);
-        float textWidth = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD).getStringWidth(text) / 1000 * 11f;
-        content.newLineAtOffset((box.getWidth() - textWidth) / 2f, y - 13f);
-        content.showText(text);
-        content.endText();
-        content.setNonStrokingColor(Color.BLACK);
-        return y - 24f;
     }
 
     private float drawCentered(PDPageContentStream content, PDType1Font font, String text, float fontSize, float centerX, float y, Color color) throws IOException {
@@ -300,46 +420,43 @@ public class PdfExportService {
         return y - (fontSize + 4f);
     }
 
-    private void drawLabelValue(PDPageContentStream content, PDType1Font bold, PDType1Font regular,
-                                String label, String value, float x, float y) throws IOException {
+    private void drawInfoRowY(PDPageContentStream content, PDType1Font bold, PDType1Font regular,
+                              String label1, String value1, String label2, String value2, float totalWidth, float y) throws IOException {
+        float midX = MARGIN + totalWidth / 2f;
         content.beginText();
         content.setFont(bold, BODY_SIZE);
-        content.newLineAtOffset(x, y);
-        content.showText(sanitize(label + ": "));
-        content.endText();
-
-        content.beginText();
-        content.setFont(regular, BODY_SIZE);
-        content.newLineAtOffset(x + 52, y);
-        content.showText(sanitize(value));
-        content.endText();
-    }
-
-    private void drawInfoRow(PDPageContentStream content, PDType1Font bold, PDType1Font regular,
-                             String label1, String value1, String label2, String value2, float x, float y, float totalWidth) throws IOException {
-        float midX = x + totalWidth / 2f;
-        content.beginText();
-        content.setFont(bold, BODY_SIZE);
-        content.newLineAtOffset(x, y);
+        content.newLineAtOffset(MARGIN + 8, y);
         content.showText(sanitize(label1 + ": "));
         content.endText();
         content.beginText();
         content.setFont(regular, BODY_SIZE);
-        content.newLineAtOffset(x + 80, y);
+        content.newLineAtOffset(MARGIN + 100, y);
         content.showText(sanitize(value1));
         content.endText();
-        if (label2 != null && !label2.isEmpty()) {
-            content.beginText();
-            content.setFont(bold, BODY_SIZE);
-            content.newLineAtOffset(midX, y);
-            content.showText(sanitize(label2 + ": "));
-            content.endText();
-            content.beginText();
-            content.setFont(regular, BODY_SIZE);
-            content.newLineAtOffset(midX + 50, y);
-            content.showText(sanitize(value2));
-            content.endText();
-        }
+        content.beginText();
+        content.setFont(bold, BODY_SIZE);
+        content.newLineAtOffset(midX, y);
+        content.showText(sanitize(label2 + ": "));
+        content.endText();
+        content.beginText();
+        content.setFont(regular, BODY_SIZE);
+        content.newLineAtOffset(midX + 60, y);
+        content.showText(sanitize(value2));
+        content.endText();
+    }
+
+    private void drawLabelLine(PDPageContentStream content, PDType1Font bold, PDType1Font regular,
+                               String label, String value, float x, float y) throws IOException {
+        content.beginText();
+        content.setFont(bold, BODY_SIZE);
+        content.newLineAtOffset(x, y);
+        content.showText(sanitize(label + ":  "));
+        content.endText();
+        content.beginText();
+        content.setFont(regular, BODY_SIZE);
+        content.newLineAtOffset(x + 120, y);
+        content.showText(sanitize(value));
+        content.endText();
     }
 
     private void drawParagraph(PDPageContentStream content, PDType1Font bold, PDType1Font regular,
@@ -350,7 +467,6 @@ public class PdfExportService {
         content.newLineAtOffset(MARGIN, y);
         content.showText(sanitize(label));
         content.endText();
-
         content.setNonStrokingColor(BRAND_LIGHT);
         content.addRect(MARGIN, y - 20f, width, 18f);
         content.fill();
@@ -363,32 +479,6 @@ public class PdfExportService {
         content.newLineAtOffset(MARGIN + 4, y - 14f);
         content.showText(truncate(sanitize(value), width, regular, SMALL_SIZE));
         content.endText();
-    }
-
-    private float drawApprovalImages(PDDocument document, PDPageContentStream content, SchoolProfile school, float y, float width) throws IOException {
-        float leftX = MARGIN;
-        float rightX = MARGIN + width - 110f;
-        float imageY = y - 52f;
-        if (school.getStampPath() != null && !school.getStampPath().isBlank()) {
-            drawOptionalImage(document, content, school.getStampPath(), leftX, imageY, 90f, 45f);
-        }
-        if (school.getSignaturePath() != null && !school.getSignaturePath().isBlank()) {
-            drawOptionalImage(document, content, school.getSignaturePath(), rightX, imageY, 100f, 35f);
-        }
-        return y - 58f;
-    }
-
-    private void drawOptionalImage(PDDocument document, PDPageContentStream content, String pathValue,
-                                   float x, float y, float maxWidth, float maxHeight) throws IOException {
-        Path path = Path.of(pathValue);
-        if (!Files.exists(path)) {
-            return;
-        }
-        PDImageXObject image = PDImageXObject.createFromFileByContent(path.toFile(), document);
-        float scale = Math.min(maxWidth / image.getWidth(), maxHeight / image.getHeight());
-        float drawWidth = image.getWidth() * scale;
-        float drawHeight = image.getHeight() * scale;
-        content.drawImage(image, x, y, drawWidth, drawHeight);
     }
 
     private String bankDetails(SchoolProfile school) {
@@ -431,8 +521,8 @@ public class PdfExportService {
     public void exportTrialBalancePdf(Path path, List<TrialBalanceRow> rows) throws IOException {
         List<String> headers = List.of("Account", "Debit (KSh)", "Credit (KSh)");
         List<List<String>> data = new ArrayList<>();
-        java.math.BigDecimal totalDebit = java.math.BigDecimal.ZERO;
-        java.math.BigDecimal totalCredit = java.math.BigDecimal.ZERO;
+        BigDecimal totalDebit = ZERO;
+        BigDecimal totalCredit = ZERO;
         for (TrialBalanceRow row : rows) {
             data.add(List.of(row.getAccountName(), CurrencyUtil.formatPlain(row.getDebit()), CurrencyUtil.formatPlain(row.getCredit())));
             totalDebit = totalDebit.add(row.getDebit());
@@ -445,8 +535,8 @@ public class PdfExportService {
     public void exportIncomeExpenditurePdf(Path path, List<IncomeExpenditureRow> rows) throws IOException {
         List<String> headers = List.of("Category", "Item", "Amount (KSh)");
         List<List<String>> data = new ArrayList<>();
-        java.math.BigDecimal totalIncome = java.math.BigDecimal.ZERO;
-        java.math.BigDecimal totalExpense = java.math.BigDecimal.ZERO;
+        BigDecimal totalIncome = ZERO;
+        BigDecimal totalExpense = ZERO;
         for (IncomeExpenditureRow row : rows) {
             data.add(List.of(row.getCategory(), row.getItem(), CurrencyUtil.formatPlain(row.getAmount())));
             if ("Income".equals(row.getCategory())) {
@@ -476,13 +566,14 @@ public class PdfExportService {
                     PDRectangle box = page.getMediaBox();
                     float y = box.getHeight() - MARGIN;
 
-                    drawWatermark(document, content, school, box);
                     y = drawSchoolHeader(document, content, school, box, y);
 
                     String parentName = "";
+                    String guardianPhone = "";
                     Student student = studentStore.findByAdmissionNumber(def.getAdmissionNumber()).orElse(null);
-                    if (student != null && student.getParentName() != null) {
-                        parentName = student.getParentName();
+                    if (student != null) {
+                        if (student.getParentName() != null) parentName = student.getParentName();
+                        if (student.getGuardianPhone() != null) guardianPhone = student.getGuardianPhone();
                     }
                     String salutation = parentName.isBlank() ? "Dear Parent/Guardian" : "Dear " + parentName;
                     y = drawCentered(content, bold, "FEE REMINDER", 13f, page.getMediaBox().getWidth() / 2, y, Color.RED);
@@ -542,6 +633,14 @@ public class PdfExportService {
                     content.fill();
                     y = drawRow(content, bold, List.of("BALANCE DUE", CurrencyUtil.formatPlain(def.getBalance()), "URGENT"), colWidths, y);
 
+                    if (!guardianPhone.isBlank()) {
+                        content.beginText();
+                        content.setFont(regular, 10f);
+                        content.newLineAtOffset(MARGIN, y);
+                        content.showText("Guardian Phone: " + sanitize(guardianPhone));
+                        content.endText();
+                        y -= 16f;
+                    }
                     y -= 20f;
                     content.beginText();
                     content.setFont(regular, 10f);

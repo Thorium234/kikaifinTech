@@ -20,6 +20,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
+import com.schaccs.util.MailMergeEngine;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
@@ -203,15 +204,16 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         sb.append("FEE REMINDER BULK SMS\n");
         sb.append("=====================\n\n");
         for (StudentBalance b : defaulters) {
-            Student s = StudentStore.getInstance().findByAdmissionNumber(b.getAdmissionNumber()).orElse(null);
-            String phone = s != null && s.getPhone() != null ? s.getPhone() : "NO-PHONE";
-            String parent = s != null && s.getParentName() != null ? s.getParentName() : "Parent/Guardian";
+            var fields = MailMergeEngine.resolveFields(b);
+            String phone = fields.getOrDefault("Guardian_Phone", "");
+            if (phone.isBlank()) {
+                phone = fields.getOrDefault("Student_Phone", "NO-PHONE");
+            }
             sb.append("To: ").append(phone).append("\n");
-            sb.append("Dear ").append(parent).append(",\n");
-            sb.append("This is a reminder that KSh ").append(CurrencyUtil.formatPlain(b.getBalance()))
-                    .append(" in school fees for ").append(b.getStudentName())
-                    .append(" (").append(b.getAdmissionNumber()).append(" - ").append(b.getClassLabel())
-                    .append(") remains unpaid. Kindly clear the balance to avoid disruption. Thank you.");
+            String sms = MailMergeEngine.merge(
+                    "Dear {Guardian_Name}, this is a reminder that KSh {Total_Due} in school fees for {Student_Name} ({Adm_No} - {Class}) remains unpaid. Kindly clear the balance to avoid disruption. Thank you.",
+                    fields);
+            sb.append(sms);
             sb.append("\n\n");
         }
         ClipboardContent content = new ClipboardContent();
@@ -232,26 +234,25 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         sb.append("<h2>Fee Reminder - Bulk Email Template</h2>");
         sb.append("<hr>");
         for (StudentBalance b : defaulters) {
-            Student s = StudentStore.getInstance().findByAdmissionNumber(b.getAdmissionNumber()).orElse(null);
-            String parent = s != null && s.getParentName() != null ? s.getParentName() : "Parent/Guardian";
+            var fields = MailMergeEngine.resolveFields(b);
             sb.append("<div style='border:1px solid #ccc; padding:12px; margin:12px 0; font-family:Arial,sans-serif;'>");
-            sb.append("<p><strong>Dear ").append(parent).append(",</strong></p>");
-            sb.append("<p>This is a reminder regarding outstanding school fees for <strong>")
-                    .append(b.getStudentName()).append("</strong> (Adm: ").append(b.getAdmissionNumber())
-                    .append(", Class: ").append(b.getClassLabel()).append(").</p>");
-            sb.append("<table border='1' cellpadding='6' style='border-collapse:collapse;'>");
-            sb.append("<tr><td><strong>Description</strong></td><td><strong>Amount (KSh)</strong></td></tr>");
-            sb.append("<tr><td>Term Fee Charged</td><td>").append(CurrencyUtil.formatPlain(b.getTotalCharged())).append("</td></tr>");
-            sb.append("<tr><td>Amount Paid</td><td>").append(CurrencyUtil.formatPlain(b.getTotalPaid())).append("</td></tr>");
-            sb.append("<tr><td>Arrears B/F</td><td>").append(CurrencyUtil.formatPlain(b.getArrears())).append("</td></tr>");
-            sb.append("<tr style='background:#ffe0e0;'><td><strong>BALANCE DUE</strong></td><td><strong>")
-                    .append(CurrencyUtil.formatPlain(b.getBalance())).append("</strong></td></tr>");
-            sb.append("</table>");
-            sb.append("<p>Payment can be made via:<br>")
-                    .append("Bank: ").append(safe(school.getBankName())).append(" | A/C: ").append(safe(school.getBankAccount())).append("<br>")
-                    .append("M-Pesa PayBill: ").append(safe(school.getPayBill())).append(" | Account: ").append(safe(school.getPayBillAccount())).append("</p>");
-            sb.append("<p>Thank you for your prompt attention.</p>");
-            sb.append("<p>Yours faithfully,<br><strong>").append(safe(school.getPrincipal())).append("</strong><br>Principal</p>");
+            String emailBody = MailMergeEngine.merge(
+                    "<p><strong>Dear {Guardian_Name},</strong></p>"
+                    + "<p>This is a reminder regarding outstanding school fees for <strong>{Student_Name}</strong> (Adm: {Adm_No}, Class: {Class}).</p>"
+                    + "<table border='1' cellpadding='6' style='border-collapse:collapse;'>"
+                    + "<tr><td><strong>Description</strong></td><td><strong>Amount (KSh)</strong></td></tr>"
+                    + "<tr><td>Term Fee Charged</td><td>{Billed_Fee}</td></tr>"
+                    + "<tr><td>Amount Paid</td><td>{Paid_Amount}</td></tr>"
+                    + "<tr><td>Arrears B/F</td><td>{Arrears}</td></tr>"
+                    + "<tr style='background:#ffe0e0;'><td><strong>BALANCE DUE</strong></td><td><strong>{Total_Due}</strong></td></tr>"
+                    + "</table>"
+                    + "<p>Payment can be made via:<br>"
+                    + "Bank: " + safe(school.getBankName()) + " | A/C: " + safe(school.getBankAccount()) + "<br>"
+                    + "M-Pesa PayBill: " + safe(school.getPayBill()) + " | Account: " + safe(school.getPayBillAccount()) + "</p>"
+                    + "<p>Thank you for your prompt attention.</p>"
+                    + "<p>Yours faithfully,<br><strong>" + safe(school.getPrincipal()) + "</strong><br>Principal, " + safe(school.getSchoolName()) + "</p>",
+                    fields);
+            sb.append(emailBody);
             sb.append("</div>");
             sb.append("<hr>");
         }

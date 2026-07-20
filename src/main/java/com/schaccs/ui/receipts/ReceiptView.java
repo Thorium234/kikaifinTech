@@ -302,8 +302,10 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
             AlertUtil.warn("No receipt", "Post a payment first, then export the PDF.");
             return;
         }
-        Receipt exportReceipt = lastReceipt;
-        if (exportReceipt == null) {
+        Receipt exportReceipt;
+        if (lastReceipt != null) {
+            exportReceipt = lastReceipt;
+        } else {
             exportReceipt = new Receipt();
             exportReceipt.setReceiptNumber(0);
             exportReceipt.setDate(datePicker.getValue());
@@ -315,12 +317,13 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
             exportReceipt.setPaymentMode(modeBox.getValue());
             exportReceipt.setBankReference(refField.getText());
             exportReceipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
+            Receipt er = exportReceipt;
             allocationTable.getItems().forEach(a -> {
                 com.schaccs.model.receipt.ReceiptLine line = new com.schaccs.model.receipt.ReceiptLine();
                 line.setVoteheadCode(a.getVoteheadCode());
                 line.setVoteheadName(a.getVoteheadName());
                 line.setAmount(a.getAllocated());
-                exportReceipt.addLine(line);
+                er.addLine(line);
             });
         }
         FileChooser chooser = new FileChooser();

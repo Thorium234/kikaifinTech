@@ -7,14 +7,18 @@ import com.schaccs.model.student.StudentBalance;
 import com.schaccs.service.Services;
 import com.schaccs.service.export.PdfExportService;
 import com.schaccs.service.report.ReportService;
+import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.StudentStore;
+import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
+import com.schaccs.util.MailMergeEngine;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -29,6 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 public class FeeReminderView extends VBox implements MainLayout.Refreshable {
 
@@ -36,16 +41,22 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
     private final PdfExportService pdfExportService = new PdfExportService();
     private final TableView<StudentBalance> reminderTable = new TableView<>();
 
+    private final ComboBox<String> targetFormBox = new ComboBox<>();
+    private final ComboBox<String> targetStreamBox = new ComboBox<>();
+    private final SearchBar individualSearch = new SearchBar("Search individual by name or adm no...");
+    private final ComboBox<String> scopeBox = new ComboBox<>();
+
     public FeeReminderView() {
         setSpacing(16);
         setPadding(new Insets(8));
 
         Label heading = new Label("Fee Reminder \u2014 Mail Merge");
         heading.getStyleClass().add("section-title");
-        Label subtitle = new Label("View all defaulters, export personalised fee reminder letters as PDF, or copy SMS / Email templates for bulk communication.");
+        Label subtitle = new Label("Select a target group, then export personalised fee reminder letters as PDF, or copy SMS / Email templates for bulk communication.");
         subtitle.getStyleClass().add("muted");
         subtitle.setWrapText(true);
 
+        setupFilterControls();
         setupReminderTable();
 
         Button refreshBtn = new Button("Refresh");
@@ -68,7 +79,57 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
         bar.setPadding(new Insets(0, 0, 8, 0));
 
         VBox.setVgrow(reminderTable, Priority.ALWAYS);
-        getChildren().addAll(heading, subtitle, bar, reminderTable);
+
+        VBox filterCard = new VBox(8,
+                new Label("Target Selection:"),
+                scopeBox, individualSearch, new HBox(10, targetFormBox, targetStreamBox));
+        filterCard.getStyleClass().add("card");
+        filterCard.setPadding(new Insets(10));
+
+        getChildren().addAll(heading, subtitle, filterCard, bar, reminderTable);
+        loadDefaulters();
+    }
+
+    private void setupFilterControls() {
+        scopeBox.getItems().addAll("Entire School", "By Form/Grade", "By Stream", "Individual Student");
+        scopeBox.setValue("Entire School");
+        scopeBox.setOnAction(e -> updateFilterVisibility());
+
+        SchoolCustomStore scs = SchoolCustomStore.getInstance();
+        targetFormBox.setPromptText("Select Form/Grade");
+        targetFormBox.getItems().clear();
+        if (!scs.getFormClasses().isEmpty()) {
+            scs.getFormClasses().forEach(fc -> targetFormBox.getItems().add(fc.getName()));
+        } else {
+            targetFormBox.getItems().addAll("Form 1", "Form 2", "Form 3", "Form 4", "G10", "G11", "G12", "G13");
+        }
+
+        targetStreamBox.setPromptText("Select Stream");
+        targetStreamBox.getItems().clear();
+        if (!scs.getStreams().isEmpty()) {
+            scs.getStreams().forEach(s -> targetStreamBox.getItems().add(s.getName()));
+        } else {
+            targetStreamBox.getItems().addAll("A", "W", "E", "S", "N");
+        }
+
+        targetFormBox.setVisible(false);
+        targetStreamBox.setVisible(false);
+        individualSearch.setVisible(false);
+
+        targetFormBox.setOnAction(e -> loadDefaulters());
+        targetStreamBox.setOnAction(e -> loadDefaulters());
+        individualSearch.textProperty().addListener((obs, o, n) -> loadDefaulters());
+    }
+
+    private void updateFilterVisibility() {
+        String scope = scopeBox.getValue();
+        boolean byForm = "By Form/Grade".equals(scope);
+        boolean byStream = "By Stream".equals(scope);
+        boolean individual = "Individual Student".equals(scope);
+
+        targetFormBox.setVisible(byForm || byStream);
+        targetStreamBox.setVisible(byStream);
+        individualSearch.setVisible(individual);
         loadDefaulters();
     }
 
@@ -96,14 +157,45 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
     }
 
     private void loadDefaulters() {
-        List<StudentBalance> def = reportService.defaulters(null);
-        reminderTable.getItems().setAll(def);
+        List<StudentBalance> all = reportService.defaulters(null);
+        String scope = scopeBox.getValue();
+
+        if ("Individual Student".equals(scope)) {
+            String q = individualSearch.getText();
+            if (q != null && !q.isBlank()) {
+                String query = q.trim().toLowerCase();
+                all = all.stream()
+                        .filter(b -> b.getAdmissionNumber().toLowerCase().contains(query)
+                                || b.getStudentName().toLowerCase().contains(query))
+                        .collect(Collectors.toList());
+            }
+        } else if ("By Form/Grade".equals(scope)) {
+            String form = targetFormBox.getValue();
+            if (form != null && !form.isBlank()) {
+                all = all.stream()
+                        .filter(b -> b.getClassLabel().startsWith(form))
+                        .collect(Collectors.toList());
+            }
+        } else if ("By Stream".equals(scope)) {
+            String stream = targetStreamBox.getValue();
+            if (stream != null && !stream.isBlank()) {
+                all = all.stream()
+                        .filter(b -> b.getClassLabel().endsWith(stream))
+                        .collect(Collectors.toList());
+            }
+        }
+
+        reminderTable.getItems().setAll(all);
+    }
+
+    private List<StudentBalance> getFilteredDefaulters() {
+        return reminderTable.getItems();
     }
 
     private void exportFeeRemindersPdf() {
-        List<StudentBalance> defaulters = reminderTable.getItems();
+        List<StudentBalance> defaulters = getFilteredDefaulters();
         if (defaulters.isEmpty()) {
-            AlertUtil.warn("No defaulters", "Refresh the defaulter list first.");
+            AlertUtil.warn("No defaulters", "No defaulters match the current filter selection.");
             return;
         }
         FileChooser chooser = new FileChooser();
@@ -125,24 +217,25 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
     }
 
     private void copySmsTemplate() {
-        List<StudentBalance> defaulters = reminderTable.getItems();
+        List<StudentBalance> defaulters = getFilteredDefaulters();
         if (defaulters.isEmpty()) {
-            AlertUtil.warn("No defaulters", "Refresh the defaulter list first.");
+            AlertUtil.warn("No defaulters", "No defaulters match the current filter selection.");
             return;
         }
         StringBuilder sb = new StringBuilder();
         sb.append("FEE REMINDER BULK SMS\n");
         sb.append("=====================\n\n");
         for (StudentBalance b : defaulters) {
-            Student s = StudentStore.getInstance().findByAdmissionNumber(b.getAdmissionNumber()).orElse(null);
-            String phone = s != null && s.getPhone() != null ? s.getPhone() : "NO-PHONE";
-            String parent = s != null && s.getParentName() != null ? s.getParentName() : "Parent/Guardian";
+            var fields = MailMergeEngine.resolveFields(b);
+            String phone = fields.getOrDefault("Guardian_Phone", "");
+            if (phone.isBlank()) {
+                phone = fields.getOrDefault("Student_Phone", "NO-PHONE");
+            }
             sb.append("To: ").append(phone).append("\n");
-            sb.append("Dear ").append(parent).append(",\n");
-            sb.append("This is a reminder that KSh ").append(CurrencyUtil.formatPlain(b.getBalance()))
-                    .append(" in school fees for ").append(b.getStudentName())
-                    .append(" (").append(b.getAdmissionNumber()).append(" - ").append(b.getClassLabel())
-                    .append(") remains unpaid. Kindly clear the balance to avoid disruption. Thank you.");
+            String sms = MailMergeEngine.merge(
+                    "Dear {Guardian_Name}, this is a reminder that KSh {Total_Due} in school fees for {Student_Name} ({Adm_No} - {Class}) remains unpaid. Kindly clear the balance to avoid disruption. Thank you.",
+                    fields);
+            sb.append(sms);
             sb.append("\n\n");
         }
         ClipboardContent content = new ClipboardContent();
@@ -152,9 +245,9 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
     }
 
     private void copyEmailTemplate() {
-        List<StudentBalance> defaulters = reminderTable.getItems();
+        List<StudentBalance> defaulters = getFilteredDefaulters();
         if (defaulters.isEmpty()) {
-            AlertUtil.warn("No defaulters", "Refresh the defaulter list first.");
+            AlertUtil.warn("No defaulters", "No defaulters match the current filter selection.");
             return;
         }
         SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
@@ -163,26 +256,25 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
         sb.append("<h2>Fee Reminder - Bulk Email Template</h2>");
         sb.append("<hr>");
         for (StudentBalance b : defaulters) {
-            Student s = StudentStore.getInstance().findByAdmissionNumber(b.getAdmissionNumber()).orElse(null);
-            String parent = s != null && s.getParentName() != null ? s.getParentName() : "Parent/Guardian";
+            var fields = MailMergeEngine.resolveFields(b);
             sb.append("<div style='border:1px solid #ccc; padding:12px; margin:12px 0; font-family:Arial,sans-serif;'>");
-            sb.append("<p><strong>Dear ").append(parent).append(",</strong></p>");
-            sb.append("<p>This is a reminder regarding outstanding school fees for <strong>")
-                    .append(b.getStudentName()).append("</strong> (Adm: ").append(b.getAdmissionNumber())
-                    .append(", Class: ").append(b.getClassLabel()).append(").</p>");
-            sb.append("<table border='1' cellpadding='6' style='border-collapse:collapse;'>");
-            sb.append("<tr><td><strong>Description</strong></td><td><strong>Amount (KSh)</strong></td></tr>");
-            sb.append("<tr><td>Term Fee Charged</td><td>").append(CurrencyUtil.formatPlain(b.getTotalCharged())).append("</td></tr>");
-            sb.append("<tr><td>Amount Paid</td><td>").append(CurrencyUtil.formatPlain(b.getTotalPaid())).append("</td></tr>");
-            sb.append("<tr><td>Arrears B/F</td><td>").append(CurrencyUtil.formatPlain(b.getArrears())).append("</td></tr>");
-            sb.append("<tr style='background:#ffe0e0;'><td><strong>BALANCE DUE</strong></td><td><strong>")
-                    .append(CurrencyUtil.formatPlain(b.getBalance())).append("</strong></td></tr>");
-            sb.append("</table>");
-            sb.append("<p>Payment can be made via:<br>")
-                    .append("Bank: ").append(safe(school.getBankName())).append(" | A/C: ").append(safe(school.getBankAccount())).append("<br>")
-                    .append("M-Pesa PayBill: ").append(safe(school.getPayBill())).append(" | Account: ").append(safe(school.getPayBillAccount())).append("</p>");
-            sb.append("<p>Thank you for your prompt attention.</p>");
-            sb.append("<p>Yours faithfully,<br><strong>").append(safe(school.getPrincipal())).append("</strong><br>Principal</p>");
+            String emailBody = MailMergeEngine.merge(
+                    "<p><strong>Dear {Guardian_Name},</strong></p>"
+                    + "<p>This is a reminder regarding outstanding school fees for <strong>{Student_Name}</strong> (Adm: {Adm_No}, Class: {Class}).</p>"
+                    + "<table border='1' cellpadding='6' style='border-collapse:collapse;'>"
+                    + "<tr><td><strong>Description</strong></td><td><strong>Amount (KSh)</strong></td></tr>"
+                    + "<tr><td>Term Fee Charged</td><td>{Billed_Fee}</td></tr>"
+                    + "<tr><td>Amount Paid</td><td>{Paid_Amount}</td></tr>"
+                    + "<tr><td>Arrears B/F</td><td>{Arrears}</td></tr>"
+                    + "<tr style='background:#ffe0e0;'><td><strong>BALANCE DUE</strong></td><td><strong>{Total_Due}</strong></td></tr>"
+                    + "</table>"
+                    + "<p>Payment can be made via:<br>"
+                    + "Bank: " + safe(school.getBankName()) + " | A/C: " + safe(school.getBankAccount()) + "<br>"
+                    + "M-Pesa PayBill: " + safe(school.getPayBill()) + " | Account: " + safe(school.getPayBillAccount()) + "</p>"
+                    + "<p>Thank you for your prompt attention.</p>"
+                    + "<p>Yours faithfully,<br><strong>" + safe(school.getPrincipal()) + "</strong><br>Principal, " + safe(school.getSchoolName()) + "</p>",
+                    fields);
+            sb.append(emailBody);
             sb.append("</div>");
             sb.append("<hr>");
         }

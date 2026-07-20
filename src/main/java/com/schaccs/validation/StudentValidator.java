@@ -50,6 +50,10 @@ public class StudentValidator {
                 && !UPI.matcher(student.getUpi().trim()).matches()) {
             errors.add("UPI must be 8-20 alphanumeric characters.");
         }
+        if (student.getGuardianPhone() != null && !student.getGuardianPhone().isBlank()
+                && !KENYAN_PHONE.matcher(student.getGuardianPhone().replaceAll("\\s+", "")).matches()) {
+            errors.add("Guardian phone must be Kenyan format (+254, 254, 07, or 01...).");
+        }
         return errors;
     }
 }

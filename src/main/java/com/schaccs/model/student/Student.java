@@ -21,6 +21,8 @@ public class Student {
     private final StringProperty stream = new SimpleStringProperty();
     private final ObjectProperty<BoardingStatus> boardingStatus = new SimpleObjectProperty<>(BoardingStatus.BOARDING);
     private final StringProperty parentName = new SimpleStringProperty();
+    private final StringProperty guardianPhone = new SimpleStringProperty();
+    private final StringProperty guardianId = new SimpleStringProperty();
     private final StringProperty guardianKey = new SimpleStringProperty();
     private final StringProperty phone = new SimpleStringProperty();
     private final ObjectProperty<Integer> yearOfAdmission = new SimpleObjectProperty<>(2026);
@@ -161,6 +163,30 @@ public class Student {
         return parentName;
     }
 
+    public String getGuardianPhone() {
+        return guardianPhone.get();
+    }
+
+    public void setGuardianPhone(String value) {
+        guardianPhone.set(value);
+    }
+
+    public StringProperty guardianPhoneProperty() {
+        return guardianPhone;
+    }
+
+    public String getGuardianId() {
+        return guardianId.get();
+    }
+
+    public void setGuardianId(String value) {
+        guardianId.set(value);
+    }
+
+    public StringProperty guardianIdProperty() {
+        return guardianId;
+    }
+
     /** Shared key linking siblings/children of the same guardian for multi-child discounts. */
     public String getGuardianKey() {
         return guardianKey.get();
@@ -243,7 +269,9 @@ public class Student {
                 || contains(getName(), q)
                 || contains(getClassLabel(), q)
                 || contains(getPhone(), q)
-                || contains(getParentName(), q);
+                || contains(getParentName(), q)
+                || contains(getGuardianPhone(), q)
+                || contains(getGuardianId(), q);
     }
 
     private static boolean contains(String value, String q) {

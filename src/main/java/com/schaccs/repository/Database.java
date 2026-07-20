@@ -5,6 +5,7 @@ import com.schaccs.repository.migration.MigrationV2ReceiptReversed;
 import com.schaccs.repository.migration.MigrationV3SchoolLogoPath;
 import com.schaccs.repository.migration.MigrationV4ReceiptStampSignaturePaths;
 import com.schaccs.repository.migration.MigrationV5StudentAvatarAndGuardianFields;
+import com.schaccs.repository.migration.MigrationV9StudentGuardianPhoneId;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -190,7 +191,8 @@ public final class Database {
                 new MigrationV5StudentAvatarAndGuardianFields(),
                 new com.schaccs.repository.migration.MigrationV6V2Infrastructure(),
                 new com.schaccs.repository.migration.MigrationV7SchoolCustomTables(),
-                new com.schaccs.repository.migration.MigrationV8SyncInfrastructure()
+                new com.schaccs.repository.migration.MigrationV8SyncInfrastructure(),
+                new MigrationV9StudentGuardianPhoneId()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -293,6 +295,8 @@ public final class Database {
                         stream TEXT,
                         boarding_status TEXT,
                         parent_name TEXT,
+                        guardian_phone TEXT,
+                        guardian_id TEXT,
                         guardian_key TEXT,
                         phone TEXT,
                         avatar_path TEXT,

@@ -197,38 +197,38 @@ public final class DemoDataSeeder {
         List<Student> students = new ArrayList<>();
 
         String[][] data = {
-                {"2025/001", "Otieno Okoth",   "M", "Form 1", "A", "BOARDING", "0721-100-001"},
-                {"2025/002", "Wanjiku Njoroge","F", "Form 1", "A", "DAY",      "0721-100-002"},
-                {"2025/003", "Kimutai Kiprop", "M", "Form 1", "A", "BOARDING", "0721-100-003"},
-                {"2025/004", "Akinyi Omondi",  "F", "Form 1", "A", "DAY",      "0721-100-004"},
-                {"2025/005", "Muthoni Kariuki","F", "Form 1", "A", "BOARDING", "0721-100-005"},
-                {"2025/006", "Kamau Wachira",  "M", "Form 1", "A", "BOARDING", "0721-100-006"},
-                {"2024/001", "Kipchumba Rotich","M", "Form 2", "A", "BOARDING", "0722-200-001"},
-                {"2024/002", "Chebet Kiplagat","F", "Form 2", "A", "DAY",      "0722-200-002"},
-                {"2024/003", "Mutua Mwende",   "M", "Form 2", "A", "BOARDING", "0722-200-003"},
-                {"2024/004", "Nyambura Wainaina","F","Form 2", "A", "DAY",      "0722-200-004"},
-                {"2024/005", "Ochieng Onyango","M", "Form 2", "A", "BOARDING", "0722-200-005"},
-                {"2024/006", "Jepkosgei Biwott","F", "Form 2", "A", "BOARDING", "0722-200-006"},
-                {"2023/001", "Njenga Mbugua",  "M", "Form 3", "A", "BOARDING", "0723-300-001"},
-                {"2023/002", "Achieng Otieno", "F", "Form 3", "A", "DAY",      "0723-300-002"},
-                {"2023/003", "Kipkorir Langat","M", "Form 3", "A", "BOARDING", "0723-300-003"},
-                {"2023/004", "Wambui Gichuru", "F", "Form 3", "A", "DAY",      "0723-300-004"},
-                {"2023/005", "Wafula Simiyu",  "M", "Form 3", "A", "BOARDING", "0723-300-005"},
-                {"2023/006", "Chepkoech Rono", "F", "Form 3", "A", "BOARDING", "0723-300-006"},
-                {"2022/001", "Barasa Wekesa",  "M", "Form 4", "A", "BOARDING", "0724-400-001"},
-                {"2022/002", "Moraa Nyang'au", "F", "Form 4", "A", "DAY",      "0724-400-002"},
-                {"2022/003", "Kiprono Sawe",   "M", "Form 4", "A", "BOARDING", "0724-400-003"},
-                {"2022/004", "Njoki Thiong'o", "F", "Form 4", "A", "DAY",      "0724-400-004"},
-                {"2022/005", "Mwendwa Kilonzo","M", "Form 4", "A", "BOARDING", "0724-400-005"},
-                {"2022/006", "Jerotich Mutai", "F", "Form 4", "A", "BOARDING", "0724-400-006"},
-                {"2026/001", "Nyongesa Wanjala","M", "G10",    "W", "BOARDING", "0730-100-001"},
-                {"2026/002", "Akinyi Odhiambo", "F", "G10",    "E", "DAY",      "0730-100-002"},
-                {"2026/003", "Chepkemoi Kiprono","F","G11",    "S", "BOARDING", "0730-200-001"},
-                {"2026/004", "Omondi Otieno",    "M", "G11",   "N", "DAY",      "0730-200-002"},
-                {"2026/005", "Wanjiku Maina",    "F", "G12",   "W", "BOARDING", "0730-300-001"},
-                {"2026/006", "Kiprop Cheruiyot", "M", "G12",   "E", "BOARDING", "0730-300-002"},
-                {"2026/007", "Mueni Mutua",      "F", "G13",   "S", "DAY",      "0730-400-001"},
-                {"2026/008", "Kamau Njoroge",    "M", "G13",   "N", "BOARDING", "0730-400-002"},
+                {"2025/001", "Otieno Okoth",   "M", "Form 1", "A", "BOARDING", "0721-100-001", "Mary Okoth", "0721-100-901", "ID123401"},
+                {"2025/002", "Wanjiku Njoroge","F", "Form 1", "A", "DAY",      "0721-100-002", "John Njoroge", "0721-100-902", "ID123402"},
+                {"2025/003", "Kimutai Kiprop", "M", "Form 1", "A", "BOARDING", "0721-100-003", "Sarah Kiprop", "0721-100-903", "ID123403"},
+                {"2025/004", "Akinyi Omondi",  "F", "Form 1", "A", "DAY",      "0721-100-004", "Peter Omondi", "0721-100-904", "ID123404"},
+                {"2025/005", "Muthoni Kariuki","F", "Form 1", "A", "BOARDING", "0721-100-005", "David Kariuki", "0721-100-905", "ID123405"},
+                {"2025/006", "Kamau Wachira",  "M", "Form 1", "A", "BOARDING", "0721-100-006", "Grace Wachira", "0721-100-906", "ID123406"},
+                {"2024/001", "Kipchumba Rotich","M", "Form 2", "A", "BOARDING", "0722-200-001", "Jane Rotich", "0722-200-901", "ID123407"},
+                {"2024/002", "Chebet Kiplagat","F", "Form 2", "A", "DAY",      "0722-200-002", "Paul Kiplagat", "0722-200-902", "ID123408"},
+                {"2024/003", "Mutua Mwende",   "M", "Form 2", "A", "BOARDING", "0722-200-003", "Agnes Mwende", "0722-200-903", "ID123409"},
+                {"2024/004", "Nyambura Wainaina","F","Form 2", "A", "DAY",      "0722-200-004", "Samuel Wainaina", "0722-200-904", "ID123410"},
+                {"2024/005", "Ochieng Onyango","M", "Form 2", "A", "BOARDING", "0722-200-005", "Eunice Onyango", "0722-200-905", "ID123411"},
+                {"2024/006", "Jepkosgei Biwott","F", "Form 2", "A", "BOARDING", "0722-200-006", "William Biwott", "0722-200-906", "ID123412"},
+                {"2023/001", "Njenga Mbugua",  "M", "Form 3", "A", "BOARDING", "0723-300-001", "Ruth Mbugua", "0723-300-901", "ID123413"},
+                {"2023/002", "Achieng Otieno", "F", "Form 3", "A", "DAY",      "0723-300-002", "Tom Otieno", "0723-300-902", "ID123414"},
+                {"2023/003", "Kipkorir Langat","M", "Form 3", "A", "BOARDING", "0723-300-003", "Nancy Langat", "0723-300-903", "ID123415"},
+                {"2023/004", "Wambui Gichuru", "F", "Form 3", "A", "DAY",      "0723-300-004", "Francis Gichuru", "0723-300-904", "ID123416"},
+                {"2023/005", "Wafula Simiyu",  "M", "Form 3", "A", "BOARDING", "0723-300-005", "Catherine Simiyu", "0723-300-905", "ID123417"},
+                {"2023/006", "Chepkoech Rono", "F", "Form 3", "A", "BOARDING", "0723-300-006", "Joseph Rono", "0723-300-906", "ID123418"},
+                {"2022/001", "Barasa Wekesa",  "M", "Form 4", "A", "BOARDING", "0724-400-001", "Sarah Wekesa", "0724-400-901", "ID123419"},
+                {"2022/002", "Moraa Nyang'au", "F", "Form 4", "A", "DAY",      "0724-400-002", "Daniel Nyang'au", "0724-400-902", "ID123420"},
+                {"2022/003", "Kiprono Sawe",   "M", "Form 4", "A", "BOARDING", "0724-400-003", "Margaret Sawe", "0724-400-903", "ID123421"},
+                {"2022/004", "Njoki Thiong'o", "F", "Form 4", "A", "DAY",      "0724-400-004", "James Thiong'o", "0724-400-904", "ID123422"},
+                {"2022/005", "Mwendwa Kilonzo","M", "Form 4", "A", "BOARDING", "0724-400-005", "Elizabeth Kilonzo", "0724-400-905", "ID123423"},
+                {"2022/006", "Jerotich Mutai", "F", "Form 4", "A", "BOARDING", "0724-400-006", "Simon Mutai", "0724-400-906", "ID123424"},
+                {"2026/001", "Nyongesa Wanjala","M", "G10",    "W", "BOARDING", "0730-100-001", "Esther Wanjala", "0730-100-901", "ID123425"},
+                {"2026/002", "Akinyi Odhiambo", "F", "G10",    "E", "DAY",      "0730-100-002", "George Odhiambo", "0730-100-902", "ID123426"},
+                {"2026/003", "Chepkemoi Kiprono","F","G11",    "S", "BOARDING", "0730-200-001", "David Kiprono", "0730-200-901", "ID123427"},
+                {"2026/004", "Omondi Otieno",    "M", "G11",   "N", "DAY",      "0730-200-002", "Susan Otieno", "0730-200-902", "ID123428"},
+                {"2026/005", "Wanjiku Maina",    "F", "G12",   "W", "BOARDING", "0730-300-001", "Patrick Maina", "0730-300-901", "ID123429"},
+                {"2026/006", "Kiprop Cheruiyot", "M", "G12",   "E", "BOARDING", "0730-300-002", "Monica Cheruiyot", "0730-300-902", "ID123430"},
+                {"2026/007", "Mueni Mutua",      "F", "G13",   "S", "DAY",      "0730-400-001", "Bernard Mutua", "0730-400-901", "ID123431"},
+                {"2026/008", "Kamau Njoroge",    "M", "G13",   "N", "BOARDING", "0730-400-002", "Phoebe Njoroge", "0730-400-902", "ID123432"},
         };
 
         for (String[] row : data) {
@@ -238,6 +238,9 @@ public final class DemoDataSeeder {
             );
             s.setGender(row[2]);
             s.setAcademicYear(AppConfig.getInstance().getAcademicYear());
+            s.setParentName(row[7]);
+            s.setGuardianPhone(row[8]);
+            s.setGuardianId(row[9]);
             students.add(s);
         }
 

@@ -363,11 +363,11 @@ public final class PersistenceService {
         StudentStore store = StudentStore.getInstance();
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO students (id, admission_number, upi, name, gender, form_class, stream,
-                    boarding_status, parent_name, guardian_key, phone, avatar_path, year_of_admission, academic_year, status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    boarding_status, parent_name, guardian_phone, guardian_id, guardian_key, phone, avatar_path, year_of_admission, academic_year, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET admission_number=excluded.admission_number, upi=excluded.upi,
                     name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, stream=excluded.stream,
-                    boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, guardian_key=excluded.guardian_key, phone=excluded.phone,
+                    boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, guardian_phone=excluded.guardian_phone, guardian_id=excluded.guardian_id, guardian_key=excluded.guardian_key, phone=excluded.phone,
                     avatar_path=excluded.avatar_path, year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status
                 """);
              PreparedStatement ledPs = conn.prepareStatement(
@@ -387,12 +387,14 @@ public final class PersistenceService {
                 ps.setString(7, s.getStream());
                 ps.setString(8, enumName(s.getBoardingStatus()));
                 ps.setString(9, s.getParentName());
-                ps.setString(10, s.getGuardianKey());
-                ps.setString(11, s.getPhone());
-                ps.setString(12, s.getAvatarPath());
-                ps.setObject(13, s.getYearOfAdmission());
-                ps.setObject(14, s.getAcademicYear());
-                ps.setString(15, enumName(s.getStatus()));
+                ps.setString(10, s.getGuardianPhone());
+                ps.setString(11, s.getGuardianId());
+                ps.setString(12, s.getGuardianKey());
+                ps.setString(13, s.getPhone());
+                ps.setString(14, s.getAvatarPath());
+                ps.setObject(15, s.getYearOfAdmission());
+                ps.setObject(16, s.getAcademicYear());
+                ps.setString(17, enumName(s.getStatus()));
                 ps.addBatch();
 
                 StudentFeeLedger ledger = store.getLedger(s.getId());
@@ -440,6 +442,8 @@ public final class PersistenceService {
                     s.setBoardingStatus(BoardingStatus.valueOf(board));
                 }
                 s.setParentName(rs.getString("parent_name"));
+                s.setGuardianPhone(rs.getString("guardian_phone"));
+                s.setGuardianId(rs.getString("guardian_id"));
                 s.setGuardianKey(rs.getString("guardian_key"));
                 s.setPhone(rs.getString("phone"));
                 s.setAvatarPath(rs.getString("avatar_path"));

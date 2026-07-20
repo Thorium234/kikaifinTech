@@ -59,6 +59,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final ComboBox<String> genderBox = new ComboBox<>();
     private final ComboBox<BoardingStatus> boardingBox = new ComboBox<>();
     private final TextField phoneField = new TextField();
+    private final TextField parentNameField = new TextField();
+    private final TextField guardianPhoneField = new TextField();
+    private final TextField guardianIdField = new TextField();
 
     private Student editing;
 
@@ -127,6 +130,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         admField.setPromptText("Admission number (e.g. 2026/009)");
         nameField.setPromptText("Full name");
         phoneField.setPromptText("Phone (e.g. 0712345678)");
+        parentNameField.setPromptText("Parent / Guardian name");
+        guardianPhoneField.setPromptText("Guardian phone (e.g. 0712345678)");
+        guardianIdField.setPromptText("Guardian National ID");
 
         Button saveBtn = new Button("Save Student");
         saveBtn.getStyleClass().add("success-button");
@@ -146,7 +152,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 labeled("Stream", streamBox),
                 labeled("Gender", genderBox),
                 labeled("Boarding Status", boardingBox),
-                labeled("Phone", phoneField)
+                labeled("Phone", phoneField),
+                labeled("Parent / Guardian Name", parentNameField),
+                labeled("Guardian Phone", guardianPhoneField),
+                labeled("Guardian National ID", guardianIdField)
         );
         fields.setPadding(new Insets(10, 0, 0, 0));
 
@@ -206,6 +215,14 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         phone.setCellValueFactory(c -> c.getValue().phoneProperty());
         phone.setPrefWidth(130);
 
+        TableColumn<Student, String> parentCol = new TableColumn<>("Parent/Guardian");
+        parentCol.setCellValueFactory(c -> c.getValue().parentNameProperty());
+        parentCol.setPrefWidth(150);
+
+        TableColumn<Student, String> guardianPhoneCol = new TableColumn<>("Guardian Phone");
+        guardianPhoneCol.setCellValueFactory(c -> c.getValue().guardianPhoneProperty());
+        guardianPhoneCol.setPrefWidth(130);
+
         TableColumn<Student, String> st = new TableColumn<>("Status");
         st.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().getStatus() != null ? c.getValue().getStatus().getDisplayName() : ""));
@@ -227,7 +244,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             }
         });
 
-        table.getColumns().addAll(adm, name, cls, board, phone, st);
+        table.getColumns().addAll(adm, name, cls, board, phone, parentCol, guardianPhoneCol, st);
         table.setItems(filtered);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setRowFactory(tv -> new TableRow<>() {
@@ -260,6 +277,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         genderBox.setValue("Male");
         boardingBox.setValue(BoardingStatus.BOARDING);
         phoneField.clear();
+        parentNameField.clear();
+        guardianPhoneField.clear();
+        guardianIdField.clear();
         admField.setDisable(false);
         formTab.setText("Add Student");
     }
@@ -274,6 +294,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         genderBox.setValue(s.getGender() != null ? s.getGender() : "Male");
         boardingBox.setValue(s.getBoardingStatus() != null ? s.getBoardingStatus() : BoardingStatus.BOARDING);
         phoneField.setText(s.getPhone());
+        parentNameField.setText(s.getParentName());
+        guardianPhoneField.setText(s.getGuardianPhone());
+        guardianIdField.setText(s.getGuardianId());
         formTab.setText("Edit Student");
     }
 
@@ -285,6 +308,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         String gender = genderBox.getValue();
         BoardingStatus boarding = boardingBox.getValue();
         String phone = phoneField.getText().trim();
+        String parentName = parentNameField.getText().trim();
+        String guardianPhone = guardianPhoneField.getText().trim();
+        String guardianId = guardianIdField.getText().trim();
 
         if (adm.isEmpty() || name.isEmpty() || formClass == null || gender == null || boarding == null) {
             AlertUtil.warn("Missing fields", "Admission number, name, class, gender, and boarding status are required.");
@@ -295,6 +321,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             Student s = new Student(adm, name, formClass, stream, boarding, phone);
             s.setGender(gender);
             s.setStatus(StudentStatus.ACTIVE);
+            s.setParentName(parentName);
+            s.setGuardianPhone(guardianPhone);
+            s.setGuardianId(guardianId);
             List<String> errors = studentService.addStudent(s);
             if (!errors.isEmpty()) {
                 AlertUtil.warn("Validation", String.join("\n", errors));
@@ -311,6 +340,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             editing.setGender(gender);
             editing.setBoardingStatus(boarding);
             editing.setPhone(phone);
+            editing.setParentName(parentName);
+            editing.setGuardianPhone(guardianPhone);
+            editing.setGuardianId(guardianId);
             List<String> errors = studentService.updateStudent(editing);
             if (!errors.isEmpty()) {
                 AlertUtil.warn("Validation", String.join("\n", errors));
@@ -334,12 +366,13 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         try {
-            List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Stream", "Boarding Status", "Phone", "Status");
+            List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Stream", "Boarding Status", "Phone", "Parent/Guardian", "Guardian Phone", "Guardian ID", "Status");
             List<List<String>> rows = studentService.getAll().stream().map(s -> List.of(
                     safe(s.getAdmissionNumber()), safe(s.getName()), safe(s.getGender()),
                     safe(s.getFormClass()), safe(s.getStream()),
                     s.getBoardingStatus() != null ? s.getBoardingStatus().getDisplayName() : "",
                     safe(s.getPhone()),
+                    safe(s.getParentName()), safe(s.getGuardianPhone()), safe(s.getGuardianId()),
                     s.getStatus() != null ? s.getStatus().getDisplayName() : "")).toList();
             exportService.export(file.toPath(), "Students", headers, rows);
             AlertUtil.info("Export complete", "Students exported to:\n" + file.getAbsolutePath());
