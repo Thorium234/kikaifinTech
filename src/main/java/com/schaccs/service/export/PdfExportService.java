@@ -14,6 +14,7 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 
 import com.schaccs.model.report.IncomeExpenditureRow;
 import com.schaccs.model.report.TrialBalanceRow;
@@ -56,6 +57,8 @@ public class PdfExportService {
             float usableWidth = box.getWidth() - (2 * MARGIN);
             float y = box.getHeight() - MARGIN;
 
+            SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
+            drawWatermark(document, content, school, box);
             y = drawTitle(content, bold, title, y);
             float[] colWidths = evenWidths(headers.size(), usableWidth);
             y = drawHeader(content, bold, headers, colWidths, y);
@@ -69,6 +72,7 @@ public class PdfExportService {
                     usableWidth = box.getWidth() - (2 * MARGIN);
                     colWidths = evenWidths(headers.size(), usableWidth);
                     y = box.getHeight() - MARGIN;
+                    drawWatermark(document, content, school, box);
                     y = drawTitle(content, bold, title, y);
                     y = drawHeader(content, bold, headers, colWidths, y);
                 }
@@ -91,11 +95,9 @@ public class PdfExportService {
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
                 SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
-                y = drawLogo(document, content, school, box, y);
-                y = drawCentered(content, bold, safe(school.getMinistry()), 11f, box.getWidth() / 2, y, BRAND);
-                y = drawCentered(content, bold, safe(school.getSchoolName()), 14f, box.getWidth() / 2, y - 2, BRAND);
-                y = drawCentered(content, regular, safe(school.getLocation()), 9f, box.getWidth() / 2, y - 2, Color.DARK_GRAY);
-                y = drawReceiptBanner(content, box, y - 8, "OFFICIAL FEE RECEIPT");
+                drawWatermark(document, content, school, box);
+                y = drawSchoolHeader(document, content, school, box, y);
+                y = drawReceiptBanner(content, box, y, "OFFICIAL FEE RECEIPT");
 
                 y -= 12f;
                 content.setStrokingColor(BORDER);
@@ -235,6 +237,46 @@ public class PdfExportService {
         float x = (box.getWidth() - drawWidth) / 2f;
         content.drawImage(image, x, y - drawHeight, drawWidth, drawHeight);
         return y - drawHeight - 8f;
+    }
+
+    private void drawWatermark(PDDocument document, PDPageContentStream content, SchoolProfile school, PDRectangle box) throws IOException {
+        String logoPath = school.getLogoPath();
+        if (logoPath == null || logoPath.isBlank()) {
+            return;
+        }
+        Path path = Path.of(logoPath);
+        if (!Files.exists(path)) {
+            return;
+        }
+        PDImageXObject image = PDImageXObject.createFromFileByContent(path.toFile(), document);
+        float scale = Math.min(1f, 180f / Math.max(image.getWidth(), image.getHeight()));
+        float drawWidth = image.getWidth() * scale;
+        float drawHeight = image.getHeight() * scale;
+        float x = (box.getWidth() - drawWidth) / 2f;
+        float y = (box.getHeight() - drawHeight) / 2f;
+        PDExtendedGraphicsState gs = new PDExtendedGraphicsState();
+        gs.setNonStrokingAlphaConstant(0.1f);
+        gs.setStrokingAlphaConstant(0.1f);
+        content.setGraphicsStateParameters(gs);
+        content.drawImage(image, x, y, drawWidth, drawHeight);
+        gs.setNonStrokingAlphaConstant(1.0f);
+        gs.setStrokingAlphaConstant(1.0f);
+        content.setGraphicsStateParameters(gs);
+    }
+
+    private float drawSchoolHeader(PDDocument document, PDPageContentStream content, SchoolProfile school, PDRectangle box, float y) throws IOException {
+        PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+        PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+        y = drawLogo(document, content, school, box, y);
+        y = drawCentered(content, bold, safe(school.getMinistry()), 11f, box.getWidth() / 2, y, BRAND);
+        y = drawCentered(content, bold, safe(school.getSchoolName()), 14f, box.getWidth() / 2, y - 2, BRAND);
+        y = drawCentered(content, regular, safe(school.getLocation()), 9f, box.getWidth() / 2, y - 2, Color.DARK_GRAY);
+        y -= 12f;
+        content.setStrokingColor(BORDER);
+        float width = box.getWidth() - (2 * MARGIN);
+        content.addRect(MARGIN, y - 2f, width, 2f);
+        content.stroke();
+        return y - 20f;
     }
 
     private float drawReceiptBanner(PDPageContentStream content, PDRectangle box, float y, String text) throws IOException {
@@ -412,15 +454,11 @@ public class PdfExportService {
                 float width = page.getMediaBox().getWidth() - (2 * MARGIN);
 
                 try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                    float y = page.getMediaBox().getHeight() - MARGIN;
+                    PDRectangle box = page.getMediaBox();
+                    float y = box.getHeight() - MARGIN;
 
-                    y = drawCentered(content, bold, safe(school.getSchoolName()), 14f, page.getMediaBox().getWidth() / 2, y, BRAND);
-                    y = drawCentered(content, regular, safe(school.getLocation()), 9f, page.getMediaBox().getWidth() / 2, y - 2, Color.DARK_GRAY);
-                    y -= 12f;
-                    content.setStrokingColor(BORDER);
-                    content.addRect(MARGIN, y - 2f, width, 2f);
-                    content.stroke();
-                    y -= 20f;
+                    drawWatermark(document, content, school, box);
+                    y = drawSchoolHeader(document, content, school, box, y);
 
                     String parentName = "";
                     Student student = studentStore.findByAdmissionNumber(def.getAdmissionNumber()).orElse(null);

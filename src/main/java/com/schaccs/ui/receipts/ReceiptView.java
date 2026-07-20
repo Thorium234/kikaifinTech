@@ -25,7 +25,6 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -166,16 +165,9 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         previewCard.setMinWidth(320);
         VBox.setVgrow(lower, Priority.ALWAYS);
 
-        ScrollPane lowerScroll = new ScrollPane(lower);
-        lowerScroll.setFitToWidth(true);
-        lowerScroll.setFitToHeight(true);
-        lowerScroll.setPannable(true);
-        lowerScroll.getStyleClass().add("inline-scroll-pane");
-        VBox.setVgrow(lowerScroll, Priority.ALWAYS);
-
         VBox headerCard = new VBox(8, badge, heading, subHeading, policy);
         headerCard.getStyleClass().addAll("card", "receipt-header-card");
-        getChildren().addAll(headerCard, searchCard, lowerScroll);
+        getChildren().addAll(headerCard, searchCard, lower);
         updateReceiptMode();
         filterStudents("");
     }
