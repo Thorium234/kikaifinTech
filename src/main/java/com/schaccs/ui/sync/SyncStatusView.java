@@ -228,7 +228,10 @@ public class SyncStatusView extends VBox implements MainLayout.Refreshable {
         CompletableFuture.runAsync(() -> {
             boolean online = DatasourceManager.getInstance().isOnline();
             if (online) {
-                DatasourceManager.getInstance().getRemoteConnection();
+                try {
+                    DatasourceManager.getInstance().getRemoteConnection();
+                } catch (Exception ignored) {
+                }
             }
             SyncReportService.SyncReport report = reportService.generate();
 
