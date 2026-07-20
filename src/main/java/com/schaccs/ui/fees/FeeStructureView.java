@@ -63,25 +63,23 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
 
         VBox itemsCard = new VBox(8, new Label("Fee Lines"), itemTable, buildItemToolbar());
         itemsCard.getStyleClass().add("card");
-        VBox.setVgrow(itemTable, Priority.ALWAYS);
 
         VBox vhCard = new VBox(8, new Label("Vote Heads"), voteheadTable);
         vhCard.getStyleClass().add("card");
         vhCard.setPrefWidth(360);
         vhCard.setMinWidth(300);
-        VBox.setVgrow(voteheadTable, Priority.ALWAYS);
 
         HBox body = new HBox(16, itemsCard, vhCard);
         body.setFillHeight(true);
         HBox.setHgrow(itemsCard, Priority.ALWAYS);
-        VBox.setVgrow(body, Priority.ALWAYS);
 
         VBox structureToolbar = buildStructureToolbar();
 
         Label note = new Label("2026 boarding totals: Term 1 = 21,000 · Term 2 = 12,500 · Term 3 = 7,000 · Year = 40,500");
         note.getStyleClass().add("muted");
 
-        VBox.setVgrow(body, Priority.ALWAYS);
+        itemTable.setPrefHeight(300);
+        voteheadTable.setPrefHeight(300);
         getChildren().addAll(heading, structureToolbar, filters, body, note);
         loadItems();
     }
