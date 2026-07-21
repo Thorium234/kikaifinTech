@@ -159,19 +159,21 @@ public final class DemoDataSeeder {
         return List.of(
                 new Votehead("TUIT", "Tuition", AccountType.SCHOOL_FUND, 1),
                 new Votehead("BORD", "Boarding", AccountType.SCHOOL_FUND, 2),
-                new Votehead("ACTIV", "Activities", AccountType.SCHOOL_FUND, 3),
-                new Votehead("COMP", "Computer", AccountType.SCHOOL_FUND, 4),
-                new Votehead("DEV", "Development", AccountType.FSE_OPERATIONS, 5),
-                new Votehead("MED", "Medical", AccountType.SCHOOL_FUND, 6),
-                new Votehead("TRANSP", "Transport", AccountType.SCHOOL_FUND, 7)
+                new Votehead("LUNCH", "Lunch Fee", AccountType.SCHOOL_FUND, 3),
+                new Votehead("ACTIV", "Activities", AccountType.SCHOOL_FUND, 4),
+                new Votehead("COMP", "Computer", AccountType.SCHOOL_FUND, 5),
+                new Votehead("DEV", "Development", AccountType.FSE_OPERATIONS, 6),
+                new Votehead("MED", "Medical", AccountType.SCHOOL_FUND, 7),
+                new Votehead("TRANSP", "Transport", AccountType.SCHOOL_FUND, 8)
         );
     }
 
     private static FeeStructure createBoardingFeeStructure(int year, FeeStructureStore feeStore) {
         FeeStructure fs = new FeeStructure(year, "ALL", BoardingStatus.BOARDING, "Boarding Fee Structure " + year);
         for (AcademicTerm term : AcademicTerm.values()) {
-            fs.addItem(new FeeStructureItem("TUIT", "Tuition", term, BoardingStatus.BOARDING, CurrencyConfig.money("8000.00")));
-            fs.addItem(new FeeStructureItem("BORD", "Boarding", term, BoardingStatus.BOARDING, CurrencyConfig.money("12000.00")));
+            fs.addItem(new FeeStructureItem("TUIT", "Tuition", term, BoardingStatus.BOARDING, CurrencyConfig.money("10000.00")));
+            fs.addItem(new FeeStructureItem("BORD", "Boarding", term, BoardingStatus.BOARDING, CurrencyConfig.money("15000.00")));
+            fs.addItem(new FeeStructureItem("LUNCH", "Lunch Fee", term, BoardingStatus.BOARDING, CurrencyConfig.money("3000.00")));
             fs.addItem(new FeeStructureItem("ACTIV", "Activities", term, BoardingStatus.BOARDING, CurrencyConfig.money("2000.00")));
             fs.addItem(new FeeStructureItem("COMP", "Computer", term, BoardingStatus.BOARDING, CurrencyConfig.money("1500.00")));
             fs.addItem(new FeeStructureItem("DEV", "Development", term, BoardingStatus.BOARDING, CurrencyConfig.money("3000.00")));
@@ -184,11 +186,12 @@ public final class DemoDataSeeder {
     private static FeeStructure createDayFeeStructure(int year, FeeStructureStore feeStore) {
         FeeStructure fs = new FeeStructure(year, "ALL", BoardingStatus.DAY, "Day Fee Structure " + year);
         for (AcademicTerm term : AcademicTerm.values()) {
-            fs.addItem(new FeeStructureItem("TUIT", "Tuition", term, BoardingStatus.DAY, CurrencyConfig.money("8000.00")));
+            fs.addItem(new FeeStructureItem("TUIT", "Tuition", term, BoardingStatus.DAY, CurrencyConfig.money("10000.00")));
+            fs.addItem(new FeeStructureItem("LUNCH", "Lunch Fee", term, BoardingStatus.DAY, CurrencyConfig.money("3000.00")));
             fs.addItem(new FeeStructureItem("ACTIV", "Activities", term, BoardingStatus.DAY, CurrencyConfig.money("2000.00")));
             fs.addItem(new FeeStructureItem("COMP", "Computer", term, BoardingStatus.DAY, CurrencyConfig.money("1500.00")));
             fs.addItem(new FeeStructureItem("DEV", "Development", term, BoardingStatus.DAY, CurrencyConfig.money("3000.00")));
-            fs.addItem(new FeeStructureItem("MED", "Medical", term, BoardingStatus.DAY, CurrencyConfig.money("500.00")));
+            fs.addItem(new FeeStructureItem("MED", "Medical", term, BoardingStatus.DAY, CurrencyConfig.money("1000.00")));
         }
         return fs;
     }

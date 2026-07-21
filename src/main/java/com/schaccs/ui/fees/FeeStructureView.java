@@ -75,7 +75,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
 
         VBox structureToolbar = buildStructureToolbar();
 
-        Label note = new Label("2026 boarding totals: Term 1 = 21,000 · Term 2 = 12,500 · Term 3 = 7,000 · Year = 40,500");
+        Label note = new Label("Use the dialog to create Day, Boarding, or both structures side by side with per-term votehead amounts.");
         note.getStyleClass().add("muted");
 
         itemTable.setPrefHeight(300);
@@ -87,7 +87,10 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
     private VBox buildStructureToolbar() {
         Button newStruct = new Button("New Structure");
         newStruct.getStyleClass().add("primary-button");
-        newStruct.setOnAction(e -> createStructure());
+        newStruct.setOnAction(e -> {
+            new FeeStructureDialog(store, getScene().getWindow()).showAndWait();
+            refresh();
+        });
 
         Button delStruct = new Button("Delete Structure");
         delStruct.getStyleClass().add("secondary-button");
@@ -120,14 +123,6 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         HBox bar = new HBox(8, vhBox, term, amount, add, remove);
         bar.setAlignment(Pos.CENTER_LEFT);
         return bar;
-    }
-
-    private void createStructure() {
-        FeeStructure s = new FeeStructure(2026, "ALL", BoardingStatus.BOARDING, "New Fee Structure");
-        store.addStructure(s);
-        structureBox.getSelectionModel().select(s);
-        PersistenceService.getInstance().saveAll();
-        AlertUtil.info("Created", "New fee structure added. Add fee lines, then it saves automatically.");
     }
 
     private void deleteStructure() {

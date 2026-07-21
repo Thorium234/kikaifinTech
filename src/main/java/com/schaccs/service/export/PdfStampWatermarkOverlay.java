@@ -9,6 +9,7 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
+import org.apache.pdfbox.util.Matrix;
 
 import java.awt.Color;
 import java.io.IOException;
@@ -18,10 +19,11 @@ import java.time.format.DateTimeFormatter;
 public final class PdfStampWatermarkOverlay {
 
     private static final Color STAMP_COLOR = new Color(26, 35, 126);
-    private static final float STAMP_OPACITY = 0.25f;
+    private static final float STAMP_OPACITY = 0.75f;
     private static final float STAMP_WIDTH = 220f;
     private static final float STAMP_HEIGHT = 100f;
     private static final float ROTATION_DEGREES = -35f;
+    private static final float CORNER_RADIUS = 8f;
 
     private PdfStampWatermarkOverlay() {}
 
@@ -56,7 +58,8 @@ public final class PdfStampWatermarkOverlay {
         dateStr = dateStr.replace("%s", daySuffix);
         String approvedLine = "Approved: " + dateStr;
         String schoolLine = school.getSchoolName();
-        String yearTerm = AppConfig.getInstance().getAcademicYear() + " - " + com.schaccs.enums.AcademicTerm.TERM_1.getDisplayName();
+        String yearTerm = AppConfig.getInstance().getAcademicYear() + " - "
+                + com.schaccs.enums.AcademicTerm.TERM_1.getDisplayName();
         String refLine = "Ref: " + ref;
 
         content.saveGraphicsState();
@@ -71,34 +74,28 @@ public final class PdfStampWatermarkOverlay {
         content.setStrokingColor(STAMP_COLOR);
         content.setLineWidth(1.5f);
 
-        float cos = (float) Math.cos(Math.toRadians(ROTATION_DEGREES));
-        float sin = (float) Math.sin(Math.toRadians(ROTATION_DEGREES));
-
         float hw = STAMP_WIDTH / 2f;
         float hh = STAMP_HEIGHT / 2f;
-        float[] corners = {
-                -hw, -hh,  hw, -hh,  hw, hh,  -hw, hh
-        };
-        float[] rot = new float[8];
-        for (int i = 0; i < 4; i++) {
-            float x = corners[i * 2];
-            float y = corners[i * 2 + 1];
-            rot[i * 2] = x * cos - y * sin + cx;
-            rot[i * 2 + 1] = x * sin + y * cos + cy;
-        }
 
+        double rad = Math.toRadians(ROTATION_DEGREES);
+        float cos = (float) Math.cos(rad);
+        float sin = (float) Math.sin(rad);
+        float tx = cx - cx * cos + cy * sin;
+        float ty = cy - cx * sin - cy * cos;
         content.saveGraphicsState();
         content.beginText();
-        content.setTextRotation(ROTATION_DEGREES, cx, cy);
+        content.setTextMatrix(new Matrix(cos, sin, -sin, cos, tx, ty));
         content.setFont(bold, 4f);
         content.newLineAtOffset(0, 0);
         content.endText();
         content.restoreGraphicsState();
 
-        content.addRect(cx - hw, cy - hh, STAMP_WIDTH, STAMP_HEIGHT);
+        // Outer rounded rectangle (double border)
+        drawRoundedRect(content, cx - hw - 4, cy - hh - 4, STAMP_WIDTH + 8, STAMP_HEIGHT + 8, CORNER_RADIUS);
         content.stroke();
 
-        content.addRect(cx - hw - 4, cy - hh - 4, STAMP_WIDTH + 8, STAMP_HEIGHT + 8);
+        // Inner rounded rectangle
+        drawRoundedRect(content, cx - hw, cy - hh, STAMP_WIDTH, STAMP_HEIGHT, CORNER_RADIUS);
         content.stroke();
 
         content.setLineWidth(0.5f);
@@ -141,6 +138,22 @@ public final class PdfStampWatermarkOverlay {
         content.setNonStrokingColor(Color.BLACK);
         content.setStrokingColor(Color.BLACK);
         content.setLineWidth(1f);
+    }
+
+    private static void drawRoundedRect(PDPageContentStream content,
+                                         float x, float y, float w, float h,
+                                         float r) throws IOException {
+        r = Math.min(r, Math.min(w / 2f, h / 2f));
+        content.moveTo(x + r, y);
+        content.lineTo(x + w - r, y);
+        content.curveTo(x + w, y, x + w, y + r, x + w, y + r);
+        content.lineTo(x + w, y + h - r);
+        content.curveTo(x + w, y + h, x + w - r, y + h, x + w - r, y + h);
+        content.lineTo(x + r, y + h);
+        content.curveTo(x, y + h, x, y + h - r, x, y + h - r);
+        content.lineTo(x, y + r);
+        content.curveTo(x, y, x + r, y, x + r, y);
+        content.closePath();
     }
 
     private static String truncate(String text, float width, PDType1Font font, float fontSize) throws IOException {

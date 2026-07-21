@@ -4,9 +4,11 @@ import com.schaccs.accounting.AccountingEngine;
 import com.schaccs.accounting.ReceiptAllocationEngine;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.AccountType;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.fee.FeeAllocation;
+import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
@@ -56,7 +58,11 @@ public class ReceiptService {
 
     public List<FeeAllocation> previewAllocation(Student student, BigDecimal amount) {
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
-        return allocationEngine.allocate(ledger, amount);
+        FeeStructure fs = resolveFeeStructure(student);
+        if (fs == null) {
+            return allocationEngine.allocate(ledger, amount);
+        }
+        return allocationEngine.allocate(ledger, amount, fs, ledger.getCurrentTerm());
     }
 
     public Result receivePayment(Student student, BigDecimal amount, PaymentMode mode,
@@ -67,7 +73,10 @@ public class ReceiptService {
         }
 
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
-        List<FeeAllocation> allocations = allocationEngine.allocate(ledger, amount);
+        FeeStructure fs = resolveFeeStructure(student);
+        List<FeeAllocation> allocations = fs != null
+                ? allocationEngine.allocate(ledger, amount, fs, ledger.getCurrentTerm())
+                : allocationEngine.allocate(ledger, amount);
         List<ReceiptLine> createdLines = new ArrayList<>();
 
         Receipt receipt = new Receipt();
@@ -146,6 +155,13 @@ public class ReceiptService {
             receiptStore.getReceipts().remove(receipt);
             return Result.failure(List.of("Failed to post receipt: " + e.getMessage()));
         }
+    }
+
+    private FeeStructure resolveFeeStructure(Student student) {
+        int year = student.getAcademicYear() != null
+                ? student.getAcademicYear()
+                : AppConfig.getInstance().getAcademicYear();
+        return feeStore.findStructure(year, student.getBoardingStatus()).orElse(null);
     }
 
     public List<Receipt> allReceipts() {
