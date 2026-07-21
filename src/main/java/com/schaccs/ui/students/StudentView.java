@@ -30,6 +30,8 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -145,24 +147,33 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
         HBox actions = new HBox(10, saveBtn, clearBtn);
         actions.setAlignment(Pos.CENTER_LEFT);
+        actions.setPadding(new Insets(12, 0, 0, 0));
 
-        VBox fields = new VBox(12,
-                labeled("Admission No", admField),
-                labeled("Full Name", nameField),
-                labeled("Class", classBox),
-                labeled("Stream", streamBox),
-                labeled("Gender", genderBox),
-                labeled("Boarding Status", boardingBox),
-                labeled("Phone", phoneField),
-                labeled("Parent / Guardian Name", parentNameField),
-                labeled("Guardian Phone", guardianPhoneField),
-                labeled("Guardian National ID", guardianIdField)
-        );
-        fields.setPadding(new Insets(10, 0, 0, 0));
+        GridPane grid = new GridPane();
+        grid.setHgap(20);
+        grid.setVgap(4);
+        ColumnConstraints cc = new ColumnConstraints();
+        cc.setFillWidth(true);
+        cc.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(cc, cc);
 
-        VBox card = new VBox(14, fields, actions);
+        // Column 1 — Student details
+        grid.add(labeled("Admission No", admField), 0, 0);
+        grid.add(labeled("Full Name", nameField), 0, 1);
+        grid.add(labeled("Class", classBox), 0, 2);
+        grid.add(labeled("Stream", streamBox), 0, 3);
+        grid.add(labeled("Gender", genderBox), 0, 4);
+        grid.add(labeled("Boarding Status", boardingBox), 0, 5);
+
+        // Column 2 — Contact & Guardian
+        grid.add(labeled("Phone", phoneField), 1, 0);
+        grid.add(labeled("Parent / Guardian Name", parentNameField), 1, 1);
+        grid.add(labeled("Guardian Phone", guardianPhoneField), 1, 2);
+        grid.add(labeled("Guardian National ID", guardianIdField), 1, 3);
+
+        VBox card = new VBox(14, grid, actions);
         card.getStyleClass().add("card");
-        card.setMaxWidth(500);
+        card.setMaxWidth(700);
 
         ScrollPane formScroll = new ScrollPane(card);
         formScroll.setFitToWidth(true);
