@@ -166,7 +166,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
         ScrollPane formScroll = new ScrollPane(card);
         formScroll.setFitToWidth(true);
-        formScroll.setFitToHeight(true);
+        formScroll.setFitToHeight(false);
         formScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         formScroll.getStyleClass().add("content-scroll");
 
