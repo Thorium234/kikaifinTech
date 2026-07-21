@@ -6,6 +6,7 @@ import com.schaccs.repository.migration.MigrationV3SchoolLogoPath;
 import com.schaccs.repository.migration.MigrationV4ReceiptStampSignaturePaths;
 import com.schaccs.repository.migration.MigrationV5StudentAvatarAndGuardianFields;
 import com.schaccs.repository.migration.MigrationV9StudentGuardianPhoneId;
+import com.schaccs.repository.migration.MigrationV10PdfStampEnabled;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -192,7 +193,8 @@ public final class Database {
                 new com.schaccs.repository.migration.MigrationV6V2Infrastructure(),
                 new com.schaccs.repository.migration.MigrationV7SchoolCustomTables(),
                 new com.schaccs.repository.migration.MigrationV8SyncInfrastructure(),
-                new MigrationV9StudentGuardianPhoneId()
+                new MigrationV9StudentGuardianPhoneId(),
+                new MigrationV10PdfStampEnabled()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -248,7 +250,8 @@ public final class Database {
                         sibling_discount_rate TEXT,
                         logo_path TEXT,
                         stamp_path TEXT,
-                        signature_path TEXT
+                        signature_path TEXT,
+                        pdf_stamp_enabled INTEGER NOT NULL DEFAULT 1
                     )
                     """);
             st.execute("""

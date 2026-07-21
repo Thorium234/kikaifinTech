@@ -24,6 +24,7 @@ public final class SchoolProfile {
     private String logoPath;
     private String stampPath;
     private String signaturePath;
+    private boolean pdfStampEnabled = true;
 
     public String getSchoolName() {
         return schoolName;
@@ -167,5 +168,13 @@ public final class SchoolProfile {
 
     public void setSignaturePath(String signaturePath) {
         this.signaturePath = signaturePath;
+    }
+
+    public boolean isPdfStampEnabled() {
+        return pdfStampEnabled;
+    }
+
+    public void setPdfStampEnabled(boolean pdfStampEnabled) {
+        this.pdfStampEnabled = pdfStampEnabled;
     }
 }

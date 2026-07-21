@@ -61,6 +61,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final TextField logoPath = new TextField();
     private final TextField stampPath = new TextField();
     private final TextField signaturePath = new TextField();
+    private final javafx.scene.control.CheckBox pdfStampToggle = new javafx.scene.control.CheckBox("Enable Digital Verification Stamp on PDF Documents");
     private final ImageView logoPreview = new ImageView();
     private final ImageView stampPreview = new ImageView();
     private final ImageView signaturePreview = new ImageView();
@@ -117,6 +118,8 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         grid.add(new Label("Sibling Discount"), 0, r);
         siblingRate.setPromptText("e.g. 0.10 = 10%");
         grid.add(new HBox(8, siblingDiscount, siblingRate), 1, r++);
+        grid.add(new Label("PDF Stamp"), 0, r);
+        grid.add(pdfStampToggle, 1, r++);
         grid.add(new Label("Receipt Logo"), 0, r);
         logoPath.setPromptText("Optional logo image path for receipt PDFs");
         Button browseLogo = new Button("Browse...");
@@ -388,6 +391,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         cashPolicy.setText(p.getCashPolicy());
         siblingDiscount.setSelected(p.isSiblingDiscountEnabled());
         siblingRate.setText(p.getSiblingDiscountRate().toPlainString());
+        pdfStampToggle.setSelected(p.isPdfStampEnabled());
         logoPath.setText(p.getLogoPath() == null ? "" : p.getLogoPath());
         stampPath.setText(p.getStampPath() == null ? "" : p.getStampPath());
         signaturePath.setText(p.getSignaturePath() == null ? "" : p.getSignaturePath());
@@ -717,6 +721,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
             p.setSiblingDiscountEnabled(siblingDiscount.isSelected());
             p.setSiblingDiscountRate(CurrencyConfig.money(siblingRate.getText().trim().isEmpty()
                     ? "0.00" : siblingRate.getText().trim()));
+            p.setPdfStampEnabled(pdfStampToggle.isSelected());
             p.setLogoPath(logoPath.getText().trim().isEmpty() ? null : logoPath.getText().trim());
             p.setStampPath(stampPath.getText().trim().isEmpty() ? null : stampPath.getText().trim());
             p.setSignaturePath(signaturePath.getText().trim().isEmpty() ? null : signaturePath.getText().trim());

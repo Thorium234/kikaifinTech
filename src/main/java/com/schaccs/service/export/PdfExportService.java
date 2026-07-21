@@ -3,6 +3,7 @@ package com.schaccs.service.export;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.config.SchoolProfile;
+import com.schaccs.service.export.PdfStampWatermarkOverlay;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
@@ -262,6 +263,9 @@ public class PdfExportService {
 
                 // ── Cash policy ──
                 drawParagraph(content, bold, regular, "Policy", safe(school.getCashPolicy()), y, width);
+
+                PdfStampWatermarkOverlay.drawReceiptStamp(document, page, content,
+                        receipt.getReceiptNumberDisplay(), receipt.getStudentName());
             }
             document.save(path.toFile());
         }
@@ -682,6 +686,9 @@ public class PdfExportService {
                     content.newLineAtOffset(MARGIN, y);
                     content.showText("Principal, " + safe(school.getSchoolName()));
                     content.endText();
+
+                    PdfStampWatermarkOverlay.drawVerificationStamp(document, page, content,
+                            def.getAdmissionNumber(), def.getStudentName());
                 }
             }
             document.save(path.toFile());
