@@ -1220,10 +1220,10 @@ public final class PersistenceService {
     private void saveAccountStoreEntities(Connection conn) throws SQLException {
         AccountStore store = AccountStore.getInstance();
         try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO accounts (id, code, name, parent_id, account_type, normal_balance, statement_category, active, is_control_account)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                INSERT INTO accounts (id, code, name, parent_id, normal_balance, statement_category, active, is_control_account)
+                VALUES (?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET code=excluded.code, name=excluded.name,
-                    parent_id=excluded.parent_id, account_type=excluded.account_type,
+                    parent_id=excluded.parent_id,
                     normal_balance=excluded.normal_balance, statement_category=excluded.statement_category,
                     active=excluded.active, is_control_account=excluded.is_control_account
                 """)) {
@@ -1232,11 +1232,10 @@ public final class PersistenceService {
                 ps.setString(2, a.getCode());
                 ps.setString(3, a.getName());
                 ps.setString(4, a.getParentId());
-                ps.setString(5, enumName(a.getAccountType()));
-                ps.setString(6, enumName(a.getNormalBalance()));
-                ps.setString(7, enumName(a.getStatementCategory()));
-                ps.setInt(8, a.isActive() ? 1 : 0);
-                ps.setInt(9, a.isControlAccount() ? 1 : 0);
+                ps.setString(5, enumName(a.getNormalBalance()));
+                ps.setString(6, enumName(a.getStatementCategory()));
+                ps.setInt(7, a.isActive() ? 1 : 0);
+                ps.setInt(8, a.isControlAccount() ? 1 : 0);
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -1377,15 +1376,15 @@ public final class PersistenceService {
                 a.setCode(rs.getString("code"));
                 a.setName(rs.getString("name"));
                 a.setParentId(rs.getString("parent_id"));
-                String acctType = rs.getString("account_type");
-                if (acctType != null) {
-                    a.setAccountType(AccountType.valueOf(acctType));
-                } else {
-                    String nb = rs.getString("normal_balance");
-                    if (nb != null) a.setNormalBalance(NormalBalance.valueOf(nb));
-                    String sc = rs.getString("statement_category");
-                    if (sc != null) a.setStatementCategory(StatementCategory.valueOf(sc));
+                String code = rs.getString("code");
+                AccountType at = resolveAccountTypeByCode(code);
+                if (at != null) {
+                    a.setAccountType(at);
                 }
+                String nb = rs.getString("normal_balance");
+                if (nb != null && at == null) a.setNormalBalance(NormalBalance.valueOf(nb));
+                String sc = rs.getString("statement_category");
+                if (sc != null && at == null) a.setStatementCategory(StatementCategory.valueOf(sc));
                 a.setActive(rs.getInt("active") != 0);
                 a.setControlAccount(rs.getInt("is_control_account") != 0);
                 store.getAccounts().add(a);
@@ -1478,6 +1477,14 @@ public final class PersistenceService {
 
     private static LocalDateTime parseDateTime(String s) {
         return s == null || s.isBlank() ? null : LocalDateTime.parse(s);
+    }
+
+    private static AccountType resolveAccountTypeByCode(String code) {
+        if (code == null) return null;
+        for (AccountType at : AccountType.values()) {
+            if (at.getCode().equals(code)) return at;
+        }
+        return null;
     }
 
     private static String enumName(Enum<?> e) {
