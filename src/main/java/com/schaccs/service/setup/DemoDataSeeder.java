@@ -135,14 +135,16 @@ public final class DemoDataSeeder {
                 double payRatioT3 = Double.parseDouble(plan[3]);
 
                 StudentFeeLedger ledger = studentStore.getLedger(s.getId());
-                feeCalc.chargeAnnualFees(s);
 
                 if (hasArrears) {
                     ledger.setArrears(CurrencyConfig.money("18500.00"));
                 }
 
+                feeCalc.chargeTermFees(s, AcademicTerm.TERM_1);
                 createReceipt(s, ledger, payRatioT1, AcademicTerm.TERM_1, accounting, receiptStore);
+                feeCalc.chargeTermFees(s, AcademicTerm.TERM_2);
                 createReceipt(s, ledger, payRatioT2, AcademicTerm.TERM_2, accounting, receiptStore);
+                feeCalc.chargeTermFees(s, AcademicTerm.TERM_3);
                 createReceipt(s, ledger, payRatioT3, AcademicTerm.TERM_3, accounting, receiptStore);
             }
 
@@ -300,8 +302,11 @@ public final class DemoDataSeeder {
                                        double payRatio, AcademicTerm term,
                                        AccountingEngine accounting,
                                        ReceiptStore receiptStore) {
-        BigDecimal chargedForTerm = ledger.getTotalCharged().multiply(CurrencyConfig.money("0.33333"));
-        BigDecimal payAmount = CurrencyConfig.money(chargedForTerm.multiply(CurrencyConfig.money(String.valueOf(payRatio))));
+        BigDecimal termFee = FeeStructureStore.getInstance()
+                .findStructure(AppConfig.getInstance().getAcademicYear(), student.getBoardingStatus())
+                .map(fs -> fs.totalForTerm(term))
+                .orElse(BigDecimal.ZERO);
+        BigDecimal payAmount = CurrencyConfig.money(termFee.multiply(CurrencyConfig.money(String.valueOf(payRatio))));
         if (payAmount.compareTo(BigDecimal.ZERO) <= 0) return;
 
         PaymentMode mode = pickPaymentMode();

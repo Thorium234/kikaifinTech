@@ -1,5 +1,6 @@
 package com.schaccs.ui.students;
 
+import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
@@ -65,6 +66,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final TextField parentNameField = new TextField();
     private final TextField guardianPhoneField = new TextField();
     private final TextField guardianIdField = new TextField();
+    private final Label feeStructureLabel = new Label();
 
     private Student editing;
 
@@ -171,7 +173,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         grid.add(labeled("Guardian Phone", guardianPhoneField), 1, 2);
         grid.add(labeled("Guardian National ID", guardianIdField), 1, 3);
 
-        VBox card = new VBox(14, grid, actions);
+        feeStructureLabel.getStyleClass().add("muted");
+        boardingBox.setOnAction(e -> updateFeeStructureLabel());
+        updateFeeStructureLabel();
+
+        VBox card = new VBox(14, grid, feeStructureLabel, actions);
         card.getStyleClass().add("card");
         card.setMaxWidth(700);
 
@@ -245,6 +251,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         st.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().getStatus() != null ? c.getValue().getStatus().getDisplayName() : ""));
         st.setPrefWidth(90);
+
+        var columns1 = new TableColumn[]{adm, name, cls, board, phone, parentCol, guardianPhoneCol, st};
+        @SuppressWarnings("unchecked")
+        table.getColumns().addAll(columns1);
+
         st.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -262,7 +273,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             }
         });
 
-        table.getColumns().addAll(adm, name, cls, board, phone, parentCol, guardianPhoneCol, st);
         table.setItems(filtered);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setRowFactory(tv -> new TableRow<>() {
@@ -286,6 +296,21 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         });
     }
 
+    private void updateFeeStructureLabel() {
+        BoardingStatus bs = boardingBox.getValue();
+        if (bs == null) return;
+        int year = com.schaccs.config.AppConfig.getInstance().getAcademicYear();
+        com.schaccs.store.FeeStructureStore fsStore = com.schaccs.store.FeeStructureStore.getInstance();
+        fsStore.findStructure(year, bs).ifPresentOrElse(
+                fs -> {
+                    java.math.BigDecimal termTotal = fs.totalForTerm(AcademicTerm.TERM_1);
+                    feeStructureLabel.setText("Fee structure: " + fs.getName()
+                            + " | Term 1 total: KES " + com.schaccs.util.CurrencyUtil.formatPlain(termTotal));
+                },
+                () -> feeStructureLabel.setText("No fee structure found for " + bs.getDisplayName() + " in " + year)
+        );
+    }
+
     private void clearForm() {
         editing = null;
         admField.clear();
@@ -300,6 +325,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         guardianIdField.clear();
         admField.setDisable(false);
         formTab.setText("Add Student");
+        updateFeeStructureLabel();
     }
 
     private void loadForm(Student s) {
@@ -316,6 +342,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         guardianPhoneField.setText(s.getGuardianPhone());
         guardianIdField.setText(s.getGuardianId());
         formTab.setText("Edit Student");
+        updateFeeStructureLabel();
     }
 
     private void save() {
@@ -339,6 +366,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             Student s = new Student(adm, name, formClass, stream, boarding, phone);
             s.setGender(gender);
             s.setStatus(StudentStatus.ACTIVE);
+            s.setAcademicYear(com.schaccs.config.AppConfig.getInstance().getAcademicYear());
             s.setParentName(parentName);
             s.setGuardianPhone(guardianPhone);
             s.setGuardianId(guardianId);
@@ -347,9 +375,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 AlertUtil.warn("Validation", String.join("\n", errors));
                 return;
             }
-            feeService.chargeAnnualFees(s);
+            feeService.chargeTermFees(s, AcademicTerm.TERM_1);
             PersistenceService.getInstance().saveAll();
-            AlertUtil.info("Saved", "Student " + adm + " added and fees charged.");
+            AlertUtil.info("Saved", "Student " + adm + " added with Term 1 fees charged.");
         } else {
             editing.setAdmissionNumber(adm);
             editing.setName(name);
