@@ -1,5 +1,6 @@
 package com.schaccs.repository;
 
+import com.schaccs.store.AccountStore;
 import com.schaccs.util.DisasterRecoveryEngine;
 import com.schaccs.util.MockData;
 
@@ -22,6 +23,7 @@ public final class AppBootstrap {
             MockData.load();
             persistence.saveAll();
         }
+        AccountStore.getInstance().seedDefaultAccounts();
         disasterRecoveryEngine = new DisasterRecoveryEngine();
         disasterRecoveryEngine.start();
     }

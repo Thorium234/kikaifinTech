@@ -7,6 +7,7 @@ import com.schaccs.repository.migration.MigrationV4ReceiptStampSignaturePaths;
 import com.schaccs.repository.migration.MigrationV5StudentAvatarAndGuardianFields;
 import com.schaccs.repository.migration.MigrationV9StudentGuardianPhoneId;
 import com.schaccs.repository.migration.MigrationV10PdfStampEnabled;
+import com.schaccs.repository.migration.MigrationV11AccountingFoundation;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -194,7 +195,8 @@ public final class Database {
                 new com.schaccs.repository.migration.MigrationV7SchoolCustomTables(),
                 new com.schaccs.repository.migration.MigrationV8SyncInfrastructure(),
                 new MigrationV9StudentGuardianPhoneId(),
-                new MigrationV10PdfStampEnabled()
+                new MigrationV10PdfStampEnabled(),
+                new MigrationV11AccountingFoundation()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {

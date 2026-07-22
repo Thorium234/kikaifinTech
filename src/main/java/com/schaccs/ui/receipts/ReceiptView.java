@@ -195,7 +195,9 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         });
         bal.setPrefWidth(120);
 
-        studentTable.getColumns().addAll(adm, name, cls, bal);
+        var columns1 = new TableColumn[]{adm, name, cls, bal};
+        @SuppressWarnings("unchecked")
+        studentTable.getColumns().addAll(columns1);
         studentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         studentTable.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> selectStudent(s));
     }
@@ -217,7 +219,9 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         after.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getOutstandingAfter())));
         after.setPrefWidth(100);
 
-        allocationTable.getColumns().addAll(vh, due, alloc, after);
+        var columns2 = new TableColumn[]{vh, due, alloc, after};
+        @SuppressWarnings("unchecked")
+        allocationTable.getColumns().addAll(columns2);
         allocationTable.setPrefHeight(180);
         allocationTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
@@ -298,34 +302,11 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
     }
 
     private void exportReceiptPdf() {
-        if (lastReceipt == null && (previewArea.getText() == null || previewArea.getText().isBlank())) {
+        if (lastReceipt == null) {
             AlertUtil.warn("No receipt", "Post a payment first, then export the PDF.");
             return;
         }
-        Receipt exportReceipt;
-        if (lastReceipt != null) {
-            exportReceipt = lastReceipt;
-        } else {
-            exportReceipt = new Receipt();
-            exportReceipt.setReceiptNumber(0);
-            exportReceipt.setDate(datePicker.getValue());
-            exportReceipt.setStudentId(selected != null ? selected.getId() : null);
-            exportReceipt.setAdmissionNumber(selected != null ? selected.getAdmissionNumber() : "");
-            exportReceipt.setStudentName(selected != null ? selected.getName() : "");
-            exportReceipt.setClassLabel(selected != null ? selected.getClassLabel() : "");
-            exportReceipt.setAmount(amountField.getAmount());
-            exportReceipt.setPaymentMode(modeBox.getValue());
-            exportReceipt.setBankReference(refField.getText());
-            exportReceipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
-            Receipt er = exportReceipt;
-            allocationTable.getItems().forEach(a -> {
-                com.schaccs.model.receipt.ReceiptLine line = new com.schaccs.model.receipt.ReceiptLine();
-                line.setVoteheadCode(a.getVoteheadCode());
-                line.setVoteheadName(a.getVoteheadName());
-                line.setAmount(a.getAllocated());
-                er.addLine(line);
-            });
-        }
+        Receipt exportReceipt = lastReceipt;
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Export Receipt PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));

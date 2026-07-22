@@ -414,7 +414,9 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         checksumCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()[3]));
         TableColumn<String[], String> appliedCol = new TableColumn<>("Applied At");
         appliedCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()[4]));
-        migrationTable.getColumns().addAll(versionCol, nameCol, descCol, checksumCol, appliedCol);
+        var columns1 = new TableColumn[]{versionCol, nameCol, descCol, checksumCol, appliedCol};
+        @SuppressWarnings("unchecked")
+        migrationTable.getColumns().addAll(columns1);
         migrationTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         migrationTable.setPrefHeight(220);
     }

@@ -63,8 +63,7 @@ public class DoubleEntryEngine {
     }
 
     /**
-     * Fee receipt: Debit Bank/Cash (School Fund), Credit income voteheads.
-     * Simplified single-account model for V1 school fund collections.
+     * Fee receipt: Debit Cash at Bank, Credit income votehead.
      */
     public void postFeeReceipt(String reference, String narration, AccountType incomeAccount,
                                 String voteheadCode, BigDecimal amount, String studentId,
@@ -73,10 +72,10 @@ public class DoubleEntryEngine {
         journal.setDate(date);
         journal.setReference(reference);
         journal.setNarration(narration);
-        // Debit cash/bank under School Fund
-        journal.addLine(AccountType.SCHOOL_FUND, "CASH_BANK", amount, CurrencyConfig.zero(),
+        // Debit cash at bank (asset)
+        journal.addLine(AccountType.CASH_AT_BANK, "CASH_BANK", amount, CurrencyConfig.zero(),
                 "Cash/Bank — " + narration);
-        // Credit income
+        // Credit income votehead (revenue)
         journal.addLine(incomeAccount, voteheadCode, CurrencyConfig.zero(), amount, narration);
         postJournal(journal, createdBy, studentId, receiptId, voucherId, TransactionType.FEE_RECEIPT);
     }

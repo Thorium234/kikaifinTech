@@ -48,7 +48,14 @@ public final class LedgerStore {
         AccountType type = entry.getAccountType();
         if (type != null) {
             BigDecimal current = accountBalances.getOrDefault(type, CurrencyConfig.zero());
-            BigDecimal next = current.add(entry.getDebit()).subtract(entry.getCredit());
+            BigDecimal next;
+            if (type.isDebitNormal()) {
+                // Debit-normal: debit increases, credit decreases
+                next = current.add(entry.getDebit()).subtract(entry.getCredit());
+            } else {
+                // Credit-normal: credit increases, debit decreases
+                next = current.add(entry.getCredit()).subtract(entry.getDebit());
+            }
             accountBalances.put(type, CurrencyConfig.money(next));
             entry.setBalance(accountBalances.get(type));
         }

@@ -25,6 +25,7 @@ public class FinancialTransaction {
     private String voucherId;
     private String createdBy;
     private LocalDateTime createdAt;
+    private String reversalOfId;
 
     public FinancialTransaction() {
         this.id = UUID.randomUUID().toString();
@@ -149,4 +150,7 @@ public class FinancialTransaction {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public String getReversalOfId() { return reversalOfId; }
+    public void setReversalOfId(String reversalOfId) { this.reversalOfId = reversalOfId; }
 }

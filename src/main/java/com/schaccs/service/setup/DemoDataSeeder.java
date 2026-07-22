@@ -385,7 +385,7 @@ public final class DemoDataSeeder {
         voucherStore.addCreditor(cred2);
 
         PaymentVoucher v1 = new PaymentVoucher();
-        v1.setVoucherNumber(NumberGenerator.nextReceiptNumber());
+        v1.setVoucherNumber(AppConfig.getInstance().getSchoolProfile().allocateVoucherNumber());
         v1.setDate(LocalDate.of(2026, 3, 15));
         v1.setCreditorId(cred1.getId());
         v1.setCreditorName(cred1.getName());
@@ -410,7 +410,7 @@ public final class DemoDataSeeder {
                 null, null, v1.getId(), LocalDate.of(2026, 3, 15));
 
         PaymentVoucher v2 = new PaymentVoucher();
-        v2.setVoucherNumber(NumberGenerator.nextReceiptNumber());
+        v2.setVoucherNumber(AppConfig.getInstance().getSchoolProfile().allocateVoucherNumber());
         v2.setDate(LocalDate.of(2026, 6, 20));
         v2.setCreditorId(cred2.getId());
         v2.setCreditorName(cred2.getName());
@@ -436,7 +436,7 @@ public final class DemoDataSeeder {
     }
 
     private static PaymentMode pickPaymentMode() {
-        PaymentMode[] modes = {PaymentMode.BANK_SLIP, PaymentMode.MPESA, PaymentMode.CHEQUE, PaymentMode.CASH};
+        PaymentMode[] modes = {PaymentMode.BANK_SLIP, PaymentMode.MPESA, PaymentMode.CHEQUE};
         return modes[RANDOM.nextInt(modes.length)];
     }
 

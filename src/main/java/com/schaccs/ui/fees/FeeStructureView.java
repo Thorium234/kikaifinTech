@@ -200,7 +200,9 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         amount.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
         amount.setPrefWidth(120);
 
-        itemTable.getColumns().addAll(term, code, name, amount);
+        @SuppressWarnings("unchecked")
+        TableColumn<FeeStructureItem, String>[] columns1 = new TableColumn[]{term, code, name, amount};
+        itemTable.getColumns().addAll(columns1);
         itemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
 
@@ -218,7 +220,9 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
                 c.getValue().getAccountType() != null ? c.getValue().getAccountType().getDisplayName() : ""));
         acct.setPrefWidth(120);
 
-        voteheadTable.getColumns().addAll(code, name, acct);
+        var columns2 = new TableColumn[]{code, name, acct};
+        @SuppressWarnings("unchecked")
+        voteheadTable.getColumns().addAll(columns2);
         voteheadTable.setItems(store.getVoteheads());
         voteheadTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }

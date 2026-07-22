@@ -132,7 +132,9 @@ public class SyncStatusView extends VBox implements MainLayout.Refreshable {
         pctCol.setCellValueFactory(c -> new SimpleStringProperty(
                 String.format("%.1f%%", c.getValue().getSyncPercentage())));
 
-        breakdownTable.getColumns().addAll(tableCol, totalCol, syncedCol, pendingCol, pctCol);
+        var columns1 = new TableColumn[]{tableCol, totalCol, syncedCol, pendingCol, pctCol};
+        @SuppressWarnings("unchecked")
+        breakdownTable.getColumns().addAll(columns1);
         breakdownTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         breakdownTable.setPrefHeight(300);
         VBox.setVgrow(breakdownTable, Priority.ALWAYS);

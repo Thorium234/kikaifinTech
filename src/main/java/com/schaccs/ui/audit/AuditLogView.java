@@ -44,7 +44,9 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
 
         TableColumn<AuditLog, String> tsCol = new TableColumn<>("Timestamp");
         tsCol.setCellValueFactory(c -> new SimpleStringProperty(
-                c.getValue().getTimestamp() != null ? DateUtil.format(c.getValue().getTimestamp().toLocalDate()) : ""));
+                c.getValue().getTimestamp() != null
+                        ? java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss").format(c.getValue().getTimestamp())
+                        : ""));
         TableColumn<AuditLog, String> actionCol = new TableColumn<>("Action");
         actionCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getActionType()));
         TableColumn<AuditLog, String> entityCol = new TableColumn<>("Entity");
@@ -95,6 +97,7 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void exportAuditLog() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Export Audit Log");
@@ -117,6 +120,7 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void exportAuditLogPdf() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Export Audit Log PDF");

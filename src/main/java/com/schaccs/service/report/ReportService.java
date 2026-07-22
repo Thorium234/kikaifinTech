@@ -174,8 +174,23 @@ public class ReportService {
 
     public BigDecimal totalCollectionAll() {
         return receiptStore.getReceipts().stream()
+                .filter(r -> !r.isReversed())
                 .map(Receipt::getAmount)
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
+    }
+
+    public java.util.List<java.util.Map.Entry<LocalDate, BigDecimal>> dailyCollectionTrend(int days) {
+        Map<LocalDate, BigDecimal> trend = new java.util.LinkedHashMap<>();
+        LocalDate today = LocalDate.now();
+        for (int i = days - 1; i >= 0; i--) {
+            trend.put(today.minusDays(i), CurrencyConfig.zero());
+        }
+        for (Receipt r : receiptStore.getReceipts()) {
+            if (r.getDate() != null && trend.containsKey(r.getDate()) && !r.isReversed()) {
+                trend.put(r.getDate(), trend.get(r.getDate()).add(r.getAmount()));
+            }
+        }
+        return new ArrayList<>(trend.entrySet());
     }
 
     public BigDecimal totalOutstanding() {

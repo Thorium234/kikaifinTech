@@ -95,20 +95,27 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Label subtitle = new Label("Analyse balances, collections, receipts, ageing, and trial balance outputs from one reporting hub.");
         subtitle.getStyleClass().addAll("muted", "reports-subtitle");
 
-        TabPane tabs = new TabPane();
-        tabs.getTabs().addAll(
-                tab("Fee Balances", buildBalances()),
-                tab("Defaulters", buildDefaulters()),
-                tab("Daily Collection", buildDaily()),
-                tab("Votehead Summary", buildVotehead()),
-                tab("Student Statement", buildStatement()),
-                tab("Receipt Reprint", buildReprint()),
-                tab("Ageing", buildAgeing()),
-                tab("Trial Balance", buildTrial()),
-                tab("Cashbook", buildCashbook()),
-                tab("Income & Expenditure", buildIncomeExpenditure()),
-                tab("Balance Sheet", buildBalanceSheet())
-        );
+        javafx.scene.control.TabPane tabs = new javafx.scene.control.TabPane();
+        javafx.scene.control.Tab balTab = tab("Fee Balances", buildBalances());
+        javafx.scene.control.Tab defTab = tab("Defaulters", buildDefaulters());
+        javafx.scene.control.Tab dailyTab2 = tab("Daily Collection", buildDaily());
+        javafx.scene.control.Tab vhTab = tab("Votehead Summary", buildVotehead());
+        javafx.scene.control.Tab stmtTab = tab("Student Statement", buildStatement());
+        javafx.scene.control.Tab repTab = tab("Receipt Reprint", buildReprint());
+        javafx.scene.control.Tab ageTab = tab("Ageing", buildAgeing());
+        javafx.scene.control.Tab tbTab = tab("Trial Balance", buildTrial());
+        javafx.scene.control.Tab cbTab = tab("Cashbook", buildCashbook());
+        javafx.scene.control.Tab ieTab = tab("Income & Expenditure", buildIncomeExpenditure());
+        javafx.scene.control.Tab bsTab = tab("Balance Sheet", buildBalanceSheet());
+        tabs.getTabs().addAll(balTab, defTab, dailyTab2, vhTab, stmtTab, repTab, ageTab, tbTab, cbTab, ieTab, bsTab);
+        tabs.getSelectionModel().selectedItemProperty().addListener((obs, o, t) -> {
+            if (t == balTab) refreshBalances();
+            else if (t == defTab) refreshDefaulters();
+            else if (t == dailyTab2) refreshDaily();
+            else if (t == vhTab) refreshVotehead();
+            else if (t == repTab) reprintTable.setItems(ReceiptStore.getInstance().getReceipts());
+            else if (t == tbTab) refreshTrial();
+        });
         VBox.setVgrow(tabs, Priority.ALWAYS);
 
         Button reportPackBtn = new Button("Export Full Report Pack");
@@ -195,7 +202,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         arrears.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getArrears())));
         TableColumn<StudentBalance, String> bal = new TableColumn<>("Balance");
         bal.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
-        table.getColumns().addAll(adm, name, cls, charged, paid, arrears, bal);
+        var columns1 = new TableColumn[]{adm, name, cls, charged, paid, arrears, bal};
+        @SuppressWarnings("unchecked")
+        table.getColumns().addAll(columns1);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
 
@@ -208,7 +217,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         count.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getReceiptCount())));
         TableColumn<CollectionSummary, String> total = new TableColumn<>("Total");
         total.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getTotalAmount())));
-        dailyTable.getColumns().addAll(date, mode, count, total);
+        var columns2 = new TableColumn[]{date, mode, count, total};
+        @SuppressWarnings("unchecked")
+        dailyTable.getColumns().addAll(columns2);
         dailyTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Button load = new Button("Load");
@@ -239,7 +250,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         coll.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getCollected())));
         TableColumn<VoteheadSummary, String> out = new TableColumn<>("Outstanding");
         out.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getOutstanding())));
-        voteheadTable.getColumns().addAll(code, name, charged, coll, out);
+        var columns3 = new TableColumn[]{code, name, charged, coll, out};
+        @SuppressWarnings("unchecked")
+        voteheadTable.getColumns().addAll(columns3);
         voteheadTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Button refresh = new Button("Refresh");
@@ -347,7 +360,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         amount.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
         TableColumn<Receipt, String> date = new TableColumn<>("Date");
         date.setCellValueFactory(c -> new SimpleStringProperty(DateUtil.format(c.getValue().getDate())));
-        reprintTable.getColumns().addAll(num, student, amount, date);
+        var columns4 = new TableColumn[]{num, student, amount, date};
+        @SuppressWarnings("unchecked")
+        reprintTable.getColumns().addAll(columns4);
         reprintTable.setItems(ReceiptStore.getInstance().getReceipts());
         reprintTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         reprintTable.getSelectionModel().selectedItemProperty().addListener((obs, o, r) -> {
@@ -424,7 +439,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         debit.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getDebit())));
         TableColumn<TrialBalanceRow, String> credit = new TableColumn<>("Credit");
         credit.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getCredit())));
-        trialTable.getColumns().addAll(acct, debit, credit);
+        var columns5 = new TableColumn[]{acct, debit, credit};
+        @SuppressWarnings("unchecked")
+        trialTable.getColumns().addAll(columns5);
         trialTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         Button refresh = new Button("Refresh");
         refresh.getStyleClass().add("secondary-button");
@@ -461,7 +478,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         payCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getPayments())));
         TableColumn<CashbookRow, String> balCol = new TableColumn<>("Balance");
         balCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
-        cashbookTable.getColumns().addAll(dateCol, refCol, descCol, recCol, payCol, balCol);
+        var columns6 = new TableColumn[]{dateCol, refCol, descCol, recCol, payCol, balCol};
+        @SuppressWarnings("unchecked")
+        cashbookTable.getColumns().addAll(columns6);
         cashbookTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Button load = new Button("Load");
@@ -489,7 +508,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         itemCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getItem()));
         TableColumn<IncomeExpenditureRow, String> amtCol = new TableColumn<>("Amount");
         amtCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
-        ieTable.getColumns().addAll(catCol, itemCol, amtCol);
+        var columns7 = new TableColumn[]{catCol, itemCol, amtCol};
+        @SuppressWarnings("unchecked")
+        ieTable.getColumns().addAll(columns7);
         ieTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Button refresh = new Button("Refresh");
@@ -515,7 +536,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         itemCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getItem()));
         TableColumn<BalanceSheetRow, String> amtCol = new TableColumn<>("Amount");
         amtCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
-        balanceSheetTable.getColumns().addAll(secCol, itemCol, amtCol);
+        var columns8 = new TableColumn[]{secCol, itemCol, amtCol};
+        @SuppressWarnings("unchecked")
+        balanceSheetTable.getColumns().addAll(columns8);
         balanceSheetTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Button refresh = new Button("Refresh");
@@ -652,7 +675,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         TableColumn<AgeingBucket, String> cnt = new TableColumn<>("Students");
         cnt.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getStudents())));
         cnt.setPrefWidth(100);
-        table.getColumns().addAll(bucket, amt, cnt);
+        var columns9 = new TableColumn[]{bucket, amt, cnt};
+        @SuppressWarnings("unchecked")
+        table.getColumns().addAll(columns9);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Button refresh = new Button("Refresh");
@@ -1104,11 +1129,31 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
 
     @Override
     public void refresh() {
+        refreshBalances();
+        refreshDefaulters();
+        refreshDaily();
+        refreshVotehead();
+        refreshTrial();
+        // Ageing, Cashbook, I&E, Balance Sheet, Statement, Reprint load on tab selection
+    }
+
+    private void refreshBalances() {
         balancesTable.getItems().setAll(reportService.feeBalances(termBox.getValue()));
+    }
+
+    private void refreshDefaulters() {
         defaultersTable.getItems().setAll(reportService.defaulters(termBox.getValue(), null));
+    }
+
+    private void refreshDaily() {
         dailyTable.getItems().setAll(reportService.dailyCollection(dailyDate.getValue()));
+    }
+
+    private void refreshVotehead() {
         voteheadTable.getItems().setAll(reportService.voteheadSummaries());
+    }
+
+    private void refreshTrial() {
         trialTable.getItems().setAll(reportService.trialBalance());
-        reprintTable.setItems(ReceiptStore.getInstance().getReceipts());
     }
 }

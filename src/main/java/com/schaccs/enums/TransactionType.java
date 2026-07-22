@@ -6,7 +6,14 @@ public enum TransactionType {
     PAYMENT_VOUCHER("Payment Voucher"),
     JOURNAL("Journal Entry"),
     OPENING_BALANCE("Opening Balance"),
-    ADJUSTMENT("Adjustment");
+    ADJUSTMENT("Adjustment"),
+    REVERSAL("Reversal"),
+    REFUND("Refund"),
+    TRANSFER("Transfer"),
+    CREDIT_NOTE("Credit Note"),
+    DEBIT_NOTE("Debit Note"),
+    DEPRECIATION("Depreciation"),
+    CONTRA("Contra Entry");
 
     private final String displayName;
 

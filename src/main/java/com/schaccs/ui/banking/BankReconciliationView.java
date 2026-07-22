@@ -61,7 +61,9 @@ public class BankReconciliationView extends VBox implements MainLayout.Refreshab
         diffCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getDifference())));
         TableColumn<BankReconciliation, String> statusCol = new TableColumn<>("Status");
         statusCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getStatus()));
-        listTable.getColumns().addAll(dateCol, bookCol, stmtCol, diffCol, statusCol);
+        @SuppressWarnings("unchecked")
+        var columns1 = new TableColumn[]{dateCol, bookCol, stmtCol, diffCol, statusCol};
+        listTable.getColumns().addAll(columns1);
         listTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         TableColumn<BankReconciliation.ReconciliationItem, String> itType = new TableColumn<>("Type");
@@ -74,7 +76,9 @@ public class BankReconciliationView extends VBox implements MainLayout.Refreshab
         itAmt.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
         TableColumn<BankReconciliation.ReconciliationItem, String> itCleared = new TableColumn<>("Cleared");
         itCleared.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().isCleared() ? "Yes" : "No"));
-        itemsTable.getColumns().addAll(itType, itRef, itDesc, itAmt, itCleared);
+        @SuppressWarnings("unchecked")
+        var columns2 = new TableColumn[]{itType, itRef, itDesc, itAmt, itCleared};
+        itemsTable.getColumns().addAll(columns2);
         itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(itemsTable, Priority.ALWAYS);
 

@@ -24,6 +24,10 @@ import com.schaccs.util.MailMergeEngine;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -77,6 +81,13 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         FlowPane cards = new FlowPane(12, 12);
         cards.getChildren().addAll(studentsCard, collectionCard, todayCard, outstandingCard, schoolFundCard);
 
+        LineChart<String, Number> trendChart = createTrendChart();
+        trendChart.setPrefHeight(240);
+        trendChart.setMaxWidth(800);
+        VBox chartBox = new VBox(4, new Label("Daily Collection (Last 30 Days)"), trendChart);
+        chartBox.getStyleClass().add("card");
+        chartBox.setPadding(new Insets(12));
+
         Label recentTitle = new Label("Recent Receipts");
         recentTitle.getStyleClass().add("section-title");
         setupRecentReceipts();
@@ -110,8 +121,32 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         tableScroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(tableScroll, Priority.ALWAYS);
 
-        getChildren().addAll(heading, integrityBanner, cards, tableScroll, feeReminderSection);
+        getChildren().addAll(heading, integrityBanner, cards, chartBox, tableScroll, feeReminderSection);
         refresh();
+    }
+
+    private LineChart<String, Number> createTrendChart() {
+        CategoryAxis xAxis = new CategoryAxis();
+        NumberAxis yAxis = new NumberAxis();
+        yAxis.setLabel("Amount (KSh)");
+        LineChart<String, Number> chart = new LineChart<>(xAxis, yAxis);
+        chart.setAnimated(false);
+        chart.setLegendVisible(false);
+        chart.setCreateSymbols(true);
+        return chart;
+    }
+
+    private void refreshTrendChart() {
+        LineChart<String, Number> chart = (LineChart<String, Number>) ((VBox) getChildren().get(3)).getChildren().get(1);
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        var trend = reportService.dailyCollectionTrend(30);
+        for (var entry : trend) {
+            series.getData().add(new XYChart.Data<>(
+                    entry.getKey().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM")),
+                    entry.getValue()));
+        }
+        chart.getData().clear();
+        chart.getData().add(series);
     }
 
     private VBox buildFeeReminderSection() {
@@ -139,7 +174,9 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         paid.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getTotalPaid())));
         TableColumn<StudentBalance, String> bal = new TableColumn<>("Balance");
         bal.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
-        reminderTable.getColumns().addAll(adm, name, phone, cls, charged, paid, bal);
+        @SuppressWarnings("unchecked")
+        TableColumn<StudentBalance, String>[] columns1 = new TableColumn[]{adm, name, phone, cls, charged, paid, bal};
+        reminderTable.getColumns().addAll(columns1);
         reminderTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         reminderTable.setPrefHeight(280);
 
@@ -317,7 +354,9 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         date.setCellValueFactory(c -> new SimpleStringProperty(DateUtil.format(c.getValue().getDate())));
         date.setPrefWidth(100);
 
-        recentReceipts.getColumns().addAll(num, student, amount, date);
+        @SuppressWarnings("unchecked")
+        TableColumn<Receipt, String>[] columns2 = new TableColumn[]{num, student, amount, date};
+        recentReceipts.getColumns().addAll(columns2);
         recentReceipts.setPrefHeight(260);
         recentReceipts.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
@@ -335,7 +374,9 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         bal.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
         bal.setPrefWidth(120);
 
-        topDefaulters.getColumns().addAll(adm, name, bal);
+        @SuppressWarnings("unchecked")
+        TableColumn<StudentBalance, String>[] columns3 = new TableColumn[]{adm, name, bal};
+        topDefaulters.getColumns().addAll(columns3);
         topDefaulters.setPrefHeight(260);
         topDefaulters.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
@@ -346,7 +387,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         collectionCard.setValue(CurrencyUtil.format(reportService.totalCollectionAll()));
         todayCard.setValue(CurrencyUtil.format(reportService.totalCollectionOn(LocalDate.now())));
         outstandingCard.setValue(CurrencyUtil.format(reportService.totalOutstanding()));
-        schoolFundCard.setValue(CurrencyUtil.format(accountingService.balance(AccountType.SCHOOL_FUND)));
+        schoolFundCard.setValue(CurrencyUtil.format(accountingService.balance(AccountType.CASH_AT_BANK)));
 
         if (reportService.isLedgerBalanced()) {
             integrityBanner.setText("");
@@ -363,5 +404,6 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         topDefaulters.getItems().setAll(def);
 
         reminderTable.getItems().setAll(reportService.defaulters(null));
+        refreshTrendChart();
     }
 }

@@ -43,6 +43,12 @@ public final class PdfStampWatermarkOverlay {
         drawStamp(document, page, content, "APPROVED / VERIFIED", transactionRef, context);
     }
 
+    private static String currentTermLabel = null;
+
+    public static void setCurrentTermLabel(String label) {
+        currentTermLabel = label;
+    }
+
     private static void drawStamp(PDDocument document, PDPage page, PDPageContentStream content,
                                    String headerText, String ref, String context) throws IOException {
         SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
@@ -58,8 +64,8 @@ public final class PdfStampWatermarkOverlay {
         dateStr = dateStr.replace("%s", daySuffix);
         String approvedLine = "Approved: " + dateStr;
         String schoolLine = school.getSchoolName();
-        String yearTerm = AppConfig.getInstance().getAcademicYear() + " - "
-                + com.schaccs.enums.AcademicTerm.TERM_1.getDisplayName();
+        String termLabel = currentTermLabel != null ? currentTermLabel : com.schaccs.enums.AcademicTerm.TERM_1.getDisplayName();
+        String yearTerm = AppConfig.getInstance().getAcademicYear() + " - " + termLabel;
         String refLine = "Ref: " + ref;
 
         content.saveGraphicsState();

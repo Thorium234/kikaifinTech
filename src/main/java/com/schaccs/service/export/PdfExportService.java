@@ -264,6 +264,11 @@ public class PdfExportService {
                 // ── Cash policy ──
                 drawParagraph(content, bold, regular, "Policy", safe(school.getCashPolicy()), y, width);
 
+                com.schaccs.model.student.StudentFeeLedger stampLedger =
+                        com.schaccs.store.StudentStore.getInstance().getLedger(receipt.getStudentId());
+                PdfStampWatermarkOverlay.setCurrentTermLabel(
+                        stampLedger != null && stampLedger.getCurrentTerm() != null
+                                ? stampLedger.getCurrentTerm().getDisplayName() : null);
                 PdfStampWatermarkOverlay.drawReceiptStamp(document, page, content,
                         receipt.getReceiptNumberDisplay(), receipt.getStudentName());
             }
@@ -687,6 +692,11 @@ public class PdfExportService {
                     content.showText("Principal, " + safe(school.getSchoolName()));
                     content.endText();
 
+                    com.schaccs.model.student.StudentFeeLedger stampLedger2 =
+                            com.schaccs.store.StudentStore.getInstance().getLedger(def.getStudentId());
+                    PdfStampWatermarkOverlay.setCurrentTermLabel(
+                            stampLedger2 != null && stampLedger2.getCurrentTerm() != null
+                                    ? stampLedger2.getCurrentTerm().getDisplayName() : null);
                     PdfStampWatermarkOverlay.drawVerificationStamp(document, page, content,
                             def.getAdmissionNumber(), def.getStudentName());
                 }

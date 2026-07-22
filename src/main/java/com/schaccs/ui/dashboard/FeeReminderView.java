@@ -152,7 +152,9 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
         paid.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getTotalPaid())));
         TableColumn<StudentBalance, String> bal = new TableColumn<>("Balance");
         bal.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
-        reminderTable.getColumns().addAll(adm, name, phone, cls, charged, paid, bal);
+        @SuppressWarnings("unchecked")
+        TableColumn<StudentBalance, String>[] columns1 = new TableColumn[]{adm, name, phone, cls, charged, paid, bal};
+        reminderTable.getColumns().addAll(columns1);
         reminderTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
 
