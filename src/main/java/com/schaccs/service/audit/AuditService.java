@@ -31,6 +31,20 @@ public class AuditService {
         PersistenceService.getInstance().saveAll();
     }
 
+    public void logFieldChange(String entityType, String entityId, String fieldName,
+                               String oldValue, String newValue, String changedBy) {
+        AuditLog log = new AuditLog();
+        log.setEntityType(entityType);
+        log.setEntityId(entityId);
+        log.setFieldName(fieldName);
+        log.setOldValue(oldValue);
+        log.setNewValue(newValue);
+        log.setPerformedBy(changedBy);
+        log.setTimestamp(LocalDateTime.now());
+        store.add(log);
+        PersistenceService.getInstance().saveAll();
+    }
+
     public AuditStore getStore() {
         return store;
     }

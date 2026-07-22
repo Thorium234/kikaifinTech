@@ -71,6 +71,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private final TableView<CashbookRow> cashbookTable = new TableView<>();
     private final TableView<IncomeExpenditureRow> ieTable = new TableView<>();
     private final TableView<BalanceSheetRow> balanceSheetTable = new TableView<>();
+    private final TableView<ReportService.CashFlowRow> cashFlowTable = new TableView<>();
     private final TableView<Receipt> reprintTable = new TableView<>();
     private final TextArea statementArea = new TextArea();
     private final TextArea reprintPreview = new TextArea();
@@ -82,6 +83,10 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private final DatePicker cashbookFrom = new DatePicker(LocalDate.now().withDayOfMonth(1));
     private final DatePicker cashbookTo = new DatePicker(LocalDate.now());
     private final ComboBox<AcademicTerm> termBox = new ComboBox<>();
+    private final DatePicker trialFromDate = new DatePicker(LocalDate.now().withDayOfMonth(1));
+    private final DatePicker trialToDate = new DatePicker(LocalDate.now());
+    private final DatePicker cashFlowFrom = new DatePicker(LocalDate.now().withDayOfMonth(1));
+    private final DatePicker cashFlowTo = new DatePicker(LocalDate.now());
     private final Label reportsModeBadge = new Label();
 
     public ReportsView() {
@@ -107,7 +112,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         javafx.scene.control.Tab cbTab = tab("Cashbook", buildCashbook());
         javafx.scene.control.Tab ieTab = tab("Income & Expenditure", buildIncomeExpenditure());
         javafx.scene.control.Tab bsTab = tab("Balance Sheet", buildBalanceSheet());
-        tabs.getTabs().addAll(balTab, defTab, dailyTab2, vhTab, stmtTab, repTab, ageTab, tbTab, cbTab, ieTab, bsTab);
+        javafx.scene.control.Tab cfTab = tab("Cash Flow", buildCashFlow());
+        tabs.getTabs().addAll(balTab, defTab, dailyTab2, vhTab, stmtTab, repTab, ageTab, tbTab, cbTab, ieTab, bsTab, cfTab);
         tabs.getSelectionModel().selectedItemProperty().addListener((obs, o, t) -> {
             if (t == balTab) refreshBalances();
             else if (t == defTab) refreshDefaulters();
@@ -115,6 +121,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
             else if (t == vhTab) refreshVotehead();
             else if (t == repTab) reprintTable.setItems(ReceiptStore.getInstance().getReceipts());
             else if (t == tbTab) refreshTrial();
+            else if (t == ieTab) refreshIncomeExpenditure();
+            else if (t == bsTab) refreshBalanceSheet();
+            else if (t == cfTab) refreshCashFlow();
         });
         VBox.setVgrow(tabs, Priority.ALWAYS);
 
@@ -202,8 +211,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         arrears.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getArrears())));
         TableColumn<StudentBalance, String> bal = new TableColumn<>("Balance");
         bal.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
-        var columns1 = new TableColumn[]{adm, name, cls, charged, paid, arrears, bal};
         @SuppressWarnings("unchecked")
+        var columns1 = new TableColumn[]{adm, name, cls, charged, paid, arrears, bal};
         table.getColumns().addAll(columns1);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
@@ -217,8 +226,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         count.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getReceiptCount())));
         TableColumn<CollectionSummary, String> total = new TableColumn<>("Total");
         total.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getTotalAmount())));
-        var columns2 = new TableColumn[]{date, mode, count, total};
         @SuppressWarnings("unchecked")
+        var columns2 = new TableColumn[]{date, mode, count, total};
         dailyTable.getColumns().addAll(columns2);
         dailyTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -250,8 +259,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         coll.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getCollected())));
         TableColumn<VoteheadSummary, String> out = new TableColumn<>("Outstanding");
         out.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getOutstanding())));
-        var columns3 = new TableColumn[]{code, name, charged, coll, out};
         @SuppressWarnings("unchecked")
+        var columns3 = new TableColumn[]{code, name, charged, coll, out};
         voteheadTable.getColumns().addAll(columns3);
         voteheadTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -360,8 +369,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         amount.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
         TableColumn<Receipt, String> date = new TableColumn<>("Date");
         date.setCellValueFactory(c -> new SimpleStringProperty(DateUtil.format(c.getValue().getDate())));
-        var columns4 = new TableColumn[]{num, student, amount, date};
         @SuppressWarnings("unchecked")
+        var columns4 = new TableColumn[]{num, student, amount, date};
         reprintTable.getColumns().addAll(columns4);
         reprintTable.setItems(ReceiptStore.getInstance().getReceipts());
         reprintTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
@@ -439,13 +448,13 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         debit.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getDebit())));
         TableColumn<TrialBalanceRow, String> credit = new TableColumn<>("Credit");
         credit.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getCredit())));
-        var columns5 = new TableColumn[]{acct, debit, credit};
         @SuppressWarnings("unchecked")
+        var columns5 = new TableColumn[]{acct, debit, credit};
         trialTable.getColumns().addAll(columns5);
         trialTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         Button refresh = new Button("Refresh");
         refresh.getStyleClass().add("secondary-button");
-        refresh.setOnAction(e -> trialTable.getItems().setAll(reportService.trialBalance()));
+        refresh.setOnAction(e -> refreshTrial());
         Button export = new Button("Export Trial Balance");
         export.getStyleClass().add("secondary-button");
         export.setOnAction(e -> exportTrialBalance());
@@ -458,7 +467,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdfLedger = new Button("PDF Ledger");
         pdfLedger.getStyleClass().add("secondary-button");
         pdfLedger.setOnAction(e -> exportLedgerTransactionsPdf());
-        VBox box = new VBox(10, reportSectionTitle("Trial Balance", "Validate ledger equality and export trial balance or ledger transaction data."), new HBox(10, refresh, export, pdf, exportLedger, pdfLedger), trialTable);
+        HBox dateBar = new HBox(6, new Label("From:"), trialFromDate, new Label("To:"), trialToDate);
+        dateBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        VBox box = new VBox(10, reportSectionTitle("Trial Balance", "Validate ledger equality and export trial balance or ledger transaction data."), dateBar, new HBox(10, refresh, export, pdf, exportLedger, pdfLedger), trialTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(trialTable, Priority.ALWAYS);
@@ -478,8 +489,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         payCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getPayments())));
         TableColumn<CashbookRow, String> balCol = new TableColumn<>("Balance");
         balCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getBalance())));
-        var columns6 = new TableColumn[]{dateCol, refCol, descCol, recCol, payCol, balCol};
         @SuppressWarnings("unchecked")
+        var columns6 = new TableColumn[]{dateCol, refCol, descCol, recCol, payCol, balCol};
         cashbookTable.getColumns().addAll(columns6);
         cashbookTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -508,8 +519,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         itemCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getItem()));
         TableColumn<IncomeExpenditureRow, String> amtCol = new TableColumn<>("Amount");
         amtCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
-        var columns7 = new TableColumn[]{catCol, itemCol, amtCol};
         @SuppressWarnings("unchecked")
+        var columns7 = new TableColumn[]{catCol, itemCol, amtCol};
         ieTable.getColumns().addAll(columns7);
         ieTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -536,8 +547,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         itemCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getItem()));
         TableColumn<BalanceSheetRow, String> amtCol = new TableColumn<>("Amount");
         amtCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
-        var columns8 = new TableColumn[]{secCol, itemCol, amtCol};
         @SuppressWarnings("unchecked")
+        var columns8 = new TableColumn[]{secCol, itemCol, amtCol};
         balanceSheetTable.getColumns().addAll(columns8);
         balanceSheetTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -554,6 +565,36 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(balanceSheetTable, Priority.ALWAYS);
+        return box;
+    }
+
+    private VBox buildCashFlow() {
+        TableColumn<ReportService.CashFlowRow, String> catCol = new TableColumn<>("Category");
+        catCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getCategory()));
+        TableColumn<ReportService.CashFlowRow, String> itemCol = new TableColumn<>("Item");
+        itemCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getItem()));
+        TableColumn<ReportService.CashFlowRow, String> amtCol = new TableColumn<>("Amount");
+        amtCol.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
+        @SuppressWarnings("unchecked")
+        var columns9 = new TableColumn[]{catCol, itemCol, amtCol};
+        cashFlowTable.getColumns().addAll(columns9);
+        cashFlowTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Button load = new Button("Load");
+        load.getStyleClass().add("primary-button");
+        load.setOnAction(e -> cashFlowTable.getItems().setAll(
+                reportService.cashFlowStatement(cashFlowFrom.getValue(), cashFlowTo.getValue())));
+        Button export = new Button("Export");
+        export.getStyleClass().add("secondary-button");
+        export.setOnAction(e -> exportCashFlow());
+        Button pdf = new Button("PDF");
+        pdf.getStyleClass().add("secondary-button");
+        pdf.setOnAction(e -> exportCashFlowPdf());
+        HBox bar = new HBox(10, new Label("From:"), cashFlowFrom, new Label("To:"), cashFlowTo, load, export, pdf);
+        VBox box = new VBox(10, reportSectionTitle("Cash Flow Statement", "Analyse cash inflows and outflows across operating, investing, and financing activities."), bar, cashFlowTable);
+        box.getStyleClass().add("reports-section-card");
+        box.setPadding(new Insets(10));
+        VBox.setVgrow(cashFlowTable, Priority.ALWAYS);
         return box;
     }
 
@@ -654,6 +695,37 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         });
     }
 
+    private void exportCashFlow() {
+        File file = chooseSaveFile("Export Cash Flow Statement", "cash-flow.csv");
+        if (file == null) return;
+        try {
+            List<String> headers = List.of("Category", "Item", "Amount");
+            List<List<String>> rows = cashFlowTable.getItems().stream().map(r -> List.of(
+                    r.getCategory(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+            exportService.export(file.toPath(), "Cash Flow Statement", headers, rows);
+            AlertUtil.info("Export complete", "Cash flow statement exported to:\n" + file.getAbsolutePath());
+        } catch (IOException e) {
+            AlertUtil.error("Export failed", e.getMessage());
+        }
+    }
+
+    private void exportCashFlowPdf() {
+        File file = choosePdfFile("Export Cash Flow Statement PDF", "cash-flow.pdf");
+        if (file == null) return;
+        File finalFile = file;
+        List<String> headers = List.of("Category", "Item", "Amount");
+        List<List<String>> rows = cashFlowTable.getItems().stream().map(r -> List.of(
+                r.getCategory(), r.getItem(), CurrencyUtil.formatPlain(r.getAmount()))).toList();
+        CompletableFuture.runAsync(() -> {
+            try {
+                pdfExportService.exportTable(finalFile.toPath(), "Cash Flow Statement", headers, rows);
+                Platform.runLater(() -> AlertUtil.info("Export complete", "PDF exported to:\n" + finalFile.getAbsolutePath()));
+            } catch (IOException e) {
+                Platform.runLater(() -> AlertUtil.error("Export failed", e.getMessage()));
+            }
+        });
+    }
+
     private void rolloverArrears() {
         if (!AlertUtil.confirm("Confirm", "Move all active students' current outstanding balances into arrears?")) {
             return;
@@ -675,8 +747,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         TableColumn<AgeingBucket, String> cnt = new TableColumn<>("Students");
         cnt.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getStudents())));
         cnt.setPrefWidth(100);
-        var columns9 = new TableColumn[]{bucket, amt, cnt};
         @SuppressWarnings("unchecked")
+        var columns9 = new TableColumn[]{bucket, amt, cnt};
         table.getColumns().addAll(columns9);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -1154,6 +1226,22 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     }
 
     private void refreshTrial() {
-        trialTable.getItems().setAll(reportService.trialBalance());
+        LocalDate f = trialFromDate.getValue();
+        LocalDate t = trialToDate.getValue();
+        trialTable.getItems().setAll(reportService.trialBalance(f, t));
     }
+
+    private void refreshIncomeExpenditure() {
+        ieTable.getItems().setAll(reportService.incomeExpenditure());
+    }
+
+    private void refreshBalanceSheet() {
+        balanceSheetTable.getItems().setAll(reportService.balanceSheet());
+    }
+
+    private void refreshCashFlow() {
+        cashFlowTable.getItems().setAll(
+                reportService.cashFlowStatement(cashFlowFrom.getValue(), cashFlowTo.getValue()));
+    }
+
 }

@@ -32,7 +32,10 @@ public enum AccountType {
     MAINTENANCE("Maintenance", "MAINT", NormalBalance.DEBIT, StatementCategory.INCOME_EXPENDITURE),
     SUPPLIES("Supplies", "SUPPLY", NormalBalance.DEBIT, StatementCategory.INCOME_EXPENDITURE),
     TRAVEL("Travel & Transport", "TRAVEL", NormalBalance.DEBIT, StatementCategory.INCOME_EXPENDITURE),
-    GENERAL_EXPENSES("General Expenses", "GEN_EXP", NormalBalance.DEBIT, StatementCategory.INCOME_EXPENDITURE);
+    GENERAL_EXPENSES("General Expenses", "GEN_EXP", NormalBalance.DEBIT, StatementCategory.INCOME_EXPENDITURE),
+
+    // Equity (Credit Normal, Balance Sheet)
+    RETAINED_EARNINGS("Retained Earnings", "RE", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET);
 
     private final String displayName;
     private final String code;

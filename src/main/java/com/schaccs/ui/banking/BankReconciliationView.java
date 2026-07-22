@@ -159,9 +159,10 @@ public class BankReconciliationView extends VBox implements MainLayout.Refreshab
             AlertUtil.warn("Invalid balance", "Enter a valid statement balance.");
             return;
         }
-        BankReconciliation rec = service.createReconciliation(date, stmtBal, notesArea.getText().trim());
+        BankReconciliation rec = service.createReconciliation(
+                com.schaccs.enums.AccountType.SCHOOL_FUND, date, stmtBal, notesArea.getText().trim());
         rec.getItems().clear();
-        rec.getItems().addAll(service.calculateUnclearedItems(rec));
+        rec.getItems().addAll(service.calculateUnclearedItems(rec, com.schaccs.enums.AccountType.SCHOOL_FUND));
         itemsTable.getItems().setAll(rec.getItems());
         bookBalanceField.setText(CurrencyUtil.formatPlain(rec.getBookBalance()));
         listTable.getItems().setAll(store.getReconciliations());

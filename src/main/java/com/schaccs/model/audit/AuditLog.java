@@ -12,6 +12,9 @@ public class AuditLog {
     private String entityId;
     private String detailsJson;
     private String performedBy;
+    private String fieldName;
+    private String oldValue;
+    private String newValue;
 
     public AuditLog() {
         this.id = UUID.randomUUID().toString();
@@ -40,4 +43,10 @@ public class AuditLog {
     public void setDetailsJson(String detailsJson) { this.detailsJson = detailsJson; }
     public String getPerformedBy() { return performedBy; }
     public void setPerformedBy(String performedBy) { this.performedBy = performedBy; }
+    public String getFieldName() { return fieldName; }
+    public void setFieldName(String fieldName) { this.fieldName = fieldName; }
+    public String getOldValue() { return oldValue; }
+    public void setOldValue(String oldValue) { this.oldValue = oldValue; }
+    public String getNewValue() { return newValue; }
+    public void setNewValue(String newValue) { this.newValue = newValue; }
 }

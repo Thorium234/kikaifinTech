@@ -220,8 +220,8 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
                 c.getValue().getAccountType() != null ? c.getValue().getAccountType().getDisplayName() : ""));
         acct.setPrefWidth(120);
 
-        var columns2 = new TableColumn[]{code, name, acct};
         @SuppressWarnings("unchecked")
+        var columns2 = new TableColumn[]{code, name, acct};
         voteheadTable.getColumns().addAll(columns2);
         voteheadTable.setItems(store.getVoteheads());
         voteheadTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);

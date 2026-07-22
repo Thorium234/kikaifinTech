@@ -6,13 +6,22 @@ import com.schaccs.config.SchoolProfile;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.AccountType;
 import com.schaccs.enums.BoardingStatus;
+import com.schaccs.enums.NormalBalance;
+import com.schaccs.enums.StatementCategory;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.enums.TransactionType;
 import com.schaccs.enums.VoucherStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
+import com.schaccs.model.finance.Account;
+import com.schaccs.model.finance.Asset;
+import com.schaccs.model.finance.AssetCategory;
+import com.schaccs.model.finance.Budget;
+import com.schaccs.model.finance.BudgetLine;
+import com.schaccs.model.finance.DepreciationSchedule;
 import com.schaccs.model.finance.FinancialTransaction;
+import com.schaccs.model.finance.FiscalYear;
 import com.schaccs.model.finance.LedgerEntry;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.receipt.Receipt;
@@ -25,6 +34,7 @@ import com.schaccs.model.voucher.PaymentVoucher;
 import com.schaccs.model.voucher.Lpo;
 import com.schaccs.model.voucher.Invoice;
 import com.schaccs.model.voucher.Imprest;
+import com.schaccs.store.AccountStore;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
@@ -93,12 +103,14 @@ public final class PersistenceService {
             saveAuditLog(conn);
             saveBankReconciliation(conn);
             saveSchoolCustom(conn);
+            saveAccountStoreEntities(conn);
         });
     }
 
     public synchronized void loadAll() {
         try {
             Connection conn = Database.getInstance().getConnection();
+            AccountStore.getInstance().clear();
             StudentStore.getInstance().clear();
             FeeStructureStore.getInstance().clear();
             ReceiptStore.getInstance().clear();
@@ -122,6 +134,7 @@ public final class PersistenceService {
             loadAuditLog(conn);
             loadBankReconciliation(conn);
             loadSchoolCustom(conn);
+            loadAccountStoreEntities(conn);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load data: " + e.getMessage(), e);
         }
@@ -167,6 +180,13 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM bank_reconciliation");
             st.executeUpdate("DELETE FROM school_form_classes");
             st.executeUpdate("DELETE FROM school_streams");
+            st.executeUpdate("DELETE FROM depreciation_schedules");
+            st.executeUpdate("DELETE FROM assets");
+            st.executeUpdate("DELETE FROM asset_categories");
+            st.executeUpdate("DELETE FROM budget_lines");
+            st.executeUpdate("DELETE FROM budgets");
+            st.executeUpdate("DELETE FROM fiscal_years");
+            st.executeUpdate("DELETE FROM accounts");
         }
     }
 
@@ -497,14 +517,14 @@ public final class PersistenceService {
     private void saveReceipts(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO receipts (id, receipt_number, date, student_id, admission_number, student_name,
-                    class_label, amount, payment_mode, bank_reference, received_by, notes, created_at, reversed)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    class_label, amount, payment_mode, bank_reference, received_by, notes, created_at, reversed, verification_hash)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET receipt_number=excluded.receipt_number, date=excluded.date,
                     student_id=excluded.student_id, admission_number=excluded.admission_number,
                     student_name=excluded.student_name, class_label=excluded.class_label, amount=excluded.amount,
                     payment_mode=excluded.payment_mode, bank_reference=excluded.bank_reference,
                     received_by=excluded.received_by, notes=excluded.notes, created_at=excluded.created_at,
-                    reversed=excluded.reversed
+                    reversed=excluded.reversed, verification_hash=excluded.verification_hash
                 """);
              PreparedStatement linePs = conn.prepareStatement(
                      "INSERT INTO receipt_lines (id, receipt_id, votehead_code, votehead_name, amount) "
@@ -526,6 +546,7 @@ public final class PersistenceService {
                 ps.setString(12, r.getNotes());
                 ps.setString(13, dateTime(r.getCreatedAt()));
                 ps.setInt(14, r.isReversed() ? 1 : 0);
+                ps.setString(15, r.getVerificationHash());
                 ps.addBatch();
                 for (ReceiptLine line : r.getLines()) {
                     linePs.setString(1, line.getId());
@@ -566,6 +587,7 @@ public final class PersistenceService {
                     r.setCreatedAt(LocalDateTime.parse(created));
                 }
                 r.setReversed(rs.getInt("reversed") == 1);
+                r.setVerificationHash(rs.getString("verification_hash"));
                 loadReceiptLines(conn, r);
                 store.add(r);
             }
@@ -1026,11 +1048,12 @@ public final class PersistenceService {
 
     private void saveAuditLog(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO audit_log (id, timestamp, action_type, entity_type, entity_id, details_json, performed_by) "
-                        + "VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+                "INSERT INTO audit_log (id, timestamp, action_type, entity_type, entity_id, details_json, performed_by, field_name, old_value, new_value) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
                         + "timestamp=excluded.timestamp, action_type=excluded.action_type, "
                         + "entity_type=excluded.entity_type, entity_id=excluded.entity_id, "
-                        + "details_json=excluded.details_json, performed_by=excluded.performed_by")) {
+                        + "details_json=excluded.details_json, performed_by=excluded.performed_by, "
+                        + "field_name=excluded.field_name, old_value=excluded.old_value, new_value=excluded.new_value")) {
             for (var entry : AuditStore.getInstance().getEntries()) {
                 ps.setString(1, entry.getId());
                 ps.setString(2, dateTime(entry.getTimestamp()));
@@ -1039,6 +1062,9 @@ public final class PersistenceService {
                 ps.setString(5, entry.getEntityId());
                 ps.setString(6, entry.getDetailsJson());
                 ps.setString(7, entry.getPerformedBy());
+                ps.setString(8, entry.getFieldName());
+                ps.setString(9, entry.getOldValue());
+                ps.setString(10, entry.getNewValue());
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -1058,6 +1084,9 @@ public final class PersistenceService {
                 entry.setEntityId(rs.getString("entity_id"));
                 entry.setDetailsJson(rs.getString("details_json"));
                 entry.setPerformedBy(rs.getString("performed_by"));
+                entry.setFieldName(rs.getString("field_name"));
+                entry.setOldValue(rs.getString("old_value"));
+                entry.setNewValue(rs.getString("new_value"));
                 store.add(entry);
             }
         }
@@ -1186,6 +1215,269 @@ public final class PersistenceService {
                         rs.getString("id"), rs.getString("name")));
             }
         }
+    }
+
+    private void saveAccountStoreEntities(Connection conn) throws SQLException {
+        AccountStore store = AccountStore.getInstance();
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO accounts (id, code, name, parent_id, account_type, normal_balance, statement_category, active, is_control_account)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET code=excluded.code, name=excluded.name,
+                    parent_id=excluded.parent_id, account_type=excluded.account_type,
+                    normal_balance=excluded.normal_balance, statement_category=excluded.statement_category,
+                    active=excluded.active, is_control_account=excluded.is_control_account
+                """)) {
+            for (Account a : store.getAccounts()) {
+                ps.setString(1, a.getId());
+                ps.setString(2, a.getCode());
+                ps.setString(3, a.getName());
+                ps.setString(4, a.getParentId());
+                ps.setString(5, enumName(a.getAccountType()));
+                ps.setString(6, enumName(a.getNormalBalance()));
+                ps.setString(7, enumName(a.getStatementCategory()));
+                ps.setInt(8, a.isActive() ? 1 : 0);
+                ps.setInt(9, a.isControlAccount() ? 1 : 0);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO fiscal_years (id, year, start_date, end_date, is_open, is_closed, closed_at, closed_by)
+                VALUES (?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET year=excluded.year, start_date=excluded.start_date,
+                    end_date=excluded.end_date, is_open=excluded.is_open, is_closed=excluded.is_closed,
+                    closed_at=excluded.closed_at, closed_by=excluded.closed_by
+                """)) {
+            for (FiscalYear fy : store.getFiscalYears()) {
+                ps.setString(1, fy.getId());
+                ps.setInt(2, fy.getYear());
+                ps.setString(3, date(fy.getStartDate()));
+                ps.setString(4, date(fy.getEndDate()));
+                ps.setInt(5, fy.isOpen() ? 1 : 0);
+                ps.setInt(6, fy.isClosed() ? 1 : 0);
+                ps.setString(7, dateTime(fy.getClosedAt()));
+                ps.setString(8, fy.getClosedBy());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO budgets (id, fiscal_year_id, name, is_approved, approved_at, approved_by)
+                VALUES (?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET fiscal_year_id=excluded.fiscal_year_id,
+                    name=excluded.name, is_approved=excluded.is_approved,
+                    approved_at=excluded.approved_at, approved_by=excluded.approved_by
+                """)) {
+            for (Budget b : store.getBudgets()) {
+                ps.setString(1, b.getId());
+                ps.setString(2, b.getFiscalYearId());
+                ps.setString(3, b.getName());
+                ps.setInt(4, b.isApproved() ? 1 : 0);
+                ps.setString(5, dateTime(b.getApprovedAt()));
+                ps.setString(6, b.getApprovedBy());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO budget_lines (id, budget_id, account_id, votehead_code, allocated_amount, spent_amount, committed_amount)
+                VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET budget_id=excluded.budget_id,
+                    account_id=excluded.account_id, votehead_code=excluded.votehead_code,
+                    allocated_amount=excluded.allocated_amount, spent_amount=excluded.spent_amount,
+                    committed_amount=excluded.committed_amount
+                """)) {
+            for (BudgetLine bl : store.getBudgetLines()) {
+                ps.setString(1, bl.getId());
+                ps.setString(2, bl.getBudgetId());
+                ps.setString(3, bl.getAccountId());
+                ps.setString(4, bl.getVoteheadCode());
+                ps.setString(5, money(bl.getAllocatedAmount()));
+                ps.setString(6, money(bl.getSpentAmount()));
+                ps.setString(7, money(bl.getCommittedAmount()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO asset_categories (id, name, depreciation_method, useful_life_years, salvage_value_percent)
+                VALUES (?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET name=excluded.name,
+                    depreciation_method=excluded.depreciation_method,
+                    useful_life_years=excluded.useful_life_years,
+                    salvage_value_percent=excluded.salvage_value_percent
+                """)) {
+            for (AssetCategory ac : store.getAssetCategories()) {
+                ps.setString(1, ac.getId());
+                ps.setString(2, ac.getName());
+                ps.setString(3, enumName(ac.getDepreciationMethod()));
+                ps.setInt(4, ac.getUsefulLifeYears());
+                ps.setDouble(5, ac.getSalvageValuePercent());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO assets (id, category_id, asset_code, name, description, purchase_date,
+                    purchase_cost, current_value, salvage_value, location, condition, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET category_id=excluded.category_id,
+                    asset_code=excluded.asset_code, name=excluded.name, description=excluded.description,
+                    purchase_date=excluded.purchase_date, purchase_cost=excluded.purchase_cost,
+                    current_value=excluded.current_value, salvage_value=excluded.salvage_value,
+                    location=excluded.location, condition=excluded.condition, status=excluded.status
+                """)) {
+            for (Asset a : store.getAssets()) {
+                ps.setString(1, a.getId());
+                ps.setString(2, a.getCategoryId());
+                ps.setString(3, a.getAssetCode());
+                ps.setString(4, a.getName());
+                ps.setString(5, a.getDescription());
+                ps.setString(6, date(a.getPurchaseDate()));
+                ps.setString(7, money(a.getPurchaseCost()));
+                ps.setString(8, money(a.getCurrentValue()));
+                ps.setString(9, money(a.getSalvageValue()));
+                ps.setString(10, a.getLocation());
+                ps.setString(11, a.getCondition());
+                ps.setString(12, enumName(a.getStatus()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO depreciation_schedules (id, asset_id, period_start, period_end,
+                    depreciation_amount, accumulated_depreciation, net_book_value)
+                VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET asset_id=excluded.asset_id,
+                    period_start=excluded.period_start, period_end=excluded.period_end,
+                    depreciation_amount=excluded.depreciation_amount,
+                    accumulated_depreciation=excluded.accumulated_depreciation,
+                    net_book_value=excluded.net_book_value
+                """)) {
+            for (DepreciationSchedule ds : store.getDepreciationSchedules()) {
+                ps.setString(1, ds.getId());
+                ps.setString(2, ds.getAssetId());
+                ps.setString(3, date(ds.getPeriodStart()));
+                ps.setString(4, date(ds.getPeriodEnd()));
+                ps.setString(5, money(ds.getDepreciationAmount()));
+                ps.setString(6, money(ds.getAccumulatedDepreciation()));
+                ps.setString(7, money(ds.getNetBookValue()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadAccountStoreEntities(Connection conn) throws SQLException {
+        AccountStore store = AccountStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM accounts ORDER BY code")) {
+            while (rs.next()) {
+                Account a = Account.withId(rs.getString("id"));
+                a.setCode(rs.getString("code"));
+                a.setName(rs.getString("name"));
+                a.setParentId(rs.getString("parent_id"));
+                String acctType = rs.getString("account_type");
+                if (acctType != null) {
+                    a.setAccountType(AccountType.valueOf(acctType));
+                } else {
+                    String nb = rs.getString("normal_balance");
+                    if (nb != null) a.setNormalBalance(NormalBalance.valueOf(nb));
+                    String sc = rs.getString("statement_category");
+                    if (sc != null) a.setStatementCategory(StatementCategory.valueOf(sc));
+                }
+                a.setActive(rs.getInt("active") != 0);
+                a.setControlAccount(rs.getInt("is_control_account") != 0);
+                store.getAccounts().add(a);
+            }
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM fiscal_years ORDER BY year DESC")) {
+            while (rs.next()) {
+                FiscalYear fy = FiscalYear.withId(rs.getString("id"));
+                fy.setYear(rs.getInt("year"));
+                fy.setStartDate(parseDate(rs.getString("start_date")));
+                fy.setEndDate(parseDate(rs.getString("end_date")));
+                fy.setOpen(rs.getInt("is_open") != 0);
+                fy.setClosed(rs.getInt("is_closed") != 0);
+                fy.setClosedAt(parseDateTime(rs.getString("closed_at")));
+                fy.setClosedBy(rs.getString("closed_by"));
+                store.getFiscalYears().add(fy);
+            }
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM budgets ORDER BY name")) {
+            while (rs.next()) {
+                Budget b = Budget.withId(rs.getString("id"));
+                b.setFiscalYearId(rs.getString("fiscal_year_id"));
+                b.setName(rs.getString("name"));
+                b.setApproved(rs.getInt("is_approved") != 0);
+                b.setApprovedAt(parseDateTime(rs.getString("approved_at")));
+                b.setApprovedBy(rs.getString("approved_by"));
+                store.getBudgets().add(b);
+            }
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM budget_lines")) {
+            while (rs.next()) {
+                BudgetLine bl = BudgetLine.withId(rs.getString("id"));
+                bl.setBudgetId(rs.getString("budget_id"));
+                bl.setAccountId(rs.getString("account_id"));
+                bl.setVoteheadCode(rs.getString("votehead_code"));
+                bl.setAllocatedAmount(parseMoney(rs.getString("allocated_amount")));
+                bl.setSpentAmount(parseMoney(rs.getString("spent_amount")));
+                bl.setCommittedAmount(parseMoney(rs.getString("committed_amount")));
+                store.getBudgetLines().add(bl);
+            }
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM asset_categories ORDER BY name")) {
+            while (rs.next()) {
+                AssetCategory ac = AssetCategory.withId(rs.getString("id"));
+                ac.setName(rs.getString("name"));
+                String dm = rs.getString("depreciation_method");
+                if (dm != null) ac.setDepreciationMethod(AssetCategory.DepreciationMethod.valueOf(dm));
+                ac.setUsefulLifeYears(rs.getInt("useful_life_years"));
+                ac.setSalvageValuePercent(rs.getDouble("salvage_value_percent"));
+                store.getAssetCategories().add(ac);
+            }
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM assets ORDER BY name")) {
+            while (rs.next()) {
+                Asset a = Asset.withId(rs.getString("id"));
+                a.setCategoryId(rs.getString("category_id"));
+                a.setAssetCode(rs.getString("asset_code"));
+                a.setName(rs.getString("name"));
+                a.setDescription(rs.getString("description"));
+                a.setPurchaseDate(parseDate(rs.getString("purchase_date")));
+                a.setPurchaseCost(parseMoney(rs.getString("purchase_cost")));
+                a.setCurrentValue(parseMoney(rs.getString("current_value")));
+                a.setSalvageValue(parseMoney(rs.getString("salvage_value")));
+                a.setLocation(rs.getString("location"));
+                a.setCondition(rs.getString("condition"));
+                String status = rs.getString("status");
+                if (status != null) a.setStatus(Asset.AssetStatus.valueOf(status));
+                store.getAssets().add(a);
+            }
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM depreciation_schedules")) {
+            while (rs.next()) {
+                DepreciationSchedule ds = DepreciationSchedule.withId(rs.getString("id"));
+                ds.setAssetId(rs.getString("asset_id"));
+                ds.setPeriodStart(parseDate(rs.getString("period_start")));
+                ds.setPeriodEnd(parseDate(rs.getString("period_end")));
+                ds.setDepreciationAmount(parseMoney(rs.getString("depreciation_amount")));
+                ds.setAccumulatedDepreciation(parseMoney(rs.getString("accumulated_depreciation")));
+                ds.setNetBookValue(parseMoney(rs.getString("net_book_value")));
+                store.getDepreciationSchedules().add(ds);
+            }
+        }
+    }
+
+    private static LocalDateTime parseDateTime(String s) {
+        return s == null || s.isBlank() ? null : LocalDateTime.parse(s);
     }
 
     private static String enumName(Enum<?> e) {

@@ -8,6 +8,8 @@ import com.schaccs.repository.migration.MigrationV5StudentAvatarAndGuardianField
 import com.schaccs.repository.migration.MigrationV9StudentGuardianPhoneId;
 import com.schaccs.repository.migration.MigrationV10PdfStampEnabled;
 import com.schaccs.repository.migration.MigrationV11AccountingFoundation;
+import com.schaccs.repository.migration.MigrationV12AddReceiptHash;
+import com.schaccs.repository.migration.MigrationV13AddAuditTrail;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -196,7 +198,9 @@ public final class Database {
                 new com.schaccs.repository.migration.MigrationV8SyncInfrastructure(),
                 new MigrationV9StudentGuardianPhoneId(),
                 new MigrationV10PdfStampEnabled(),
-                new MigrationV11AccountingFoundation()
+                new MigrationV11AccountingFoundation(),
+                new MigrationV12AddReceiptHash(),
+                new MigrationV13AddAuditTrail()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -559,5 +563,10 @@ public final class Database {
             }
             connection = null;
         }
+    }
+
+    public void reopenConnection() throws SQLException {
+        connection = null;
+        getConnection();
     }
 }

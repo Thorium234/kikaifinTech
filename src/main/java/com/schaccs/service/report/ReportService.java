@@ -85,7 +85,7 @@ public class ReportService {
             }
             StudentFeeLedger ledger = studentStore.getLedger(s.getId());
             BigDecimal expected = expectedTermFee(s, term);
-            BigDecimal paid = ledger.getTotalPaid();
+            BigDecimal paid = ledger.getTotalPaid().min(expected);
             BigDecimal balance = CurrencyConfig.money(expected.subtract(paid).max(CurrencyConfig.zero()));
             list.add(new StudentBalance(s, expected, paid, CurrencyConfig.zero(), balance));
         }
@@ -229,19 +229,24 @@ public class ReportService {
     }
 
     public List<TrialBalanceRow> trialBalance() {
+        return trialBalance(null, null);
+    }
+
+    public List<TrialBalanceRow> trialBalance(LocalDate from, LocalDate to) {
         Map<AccountType, BigDecimal> debits = new EnumMap<>(AccountType.class);
         Map<AccountType, BigDecimal> credits = new EnumMap<>(AccountType.class);
         for (AccountType t : AccountType.values()) {
             debits.put(t, CurrencyConfig.zero());
             credits.put(t, CurrencyConfig.zero());
         }
-        for (FinancialTransaction tx : ledgerStore.getTransactions()) {
-            if (tx.getAccountType() == null) {
-                continue;
-            }
+        java.util.stream.Stream<FinancialTransaction> stream = ledgerStore.getTransactions().stream();
+        if (from != null) stream = stream.filter(t -> !t.getDate().isBefore(from));
+        if (to != null) stream = stream.filter(t -> !t.getDate().isAfter(to));
+        stream.forEach(tx -> {
+            if (tx.getAccountType() == null) return;
             debits.merge(tx.getAccountType(), tx.getDebit(), BigDecimal::add);
             credits.merge(tx.getAccountType(), tx.getCredit(), BigDecimal::add);
-        }
+        });
         List<TrialBalanceRow> rows = new ArrayList<>();
         for (AccountType t : AccountType.values()) {
             rows.add(new TrialBalanceRow(t, debits.get(t), credits.get(t)));
@@ -280,19 +285,15 @@ public class ReportService {
 
     public List<com.schaccs.model.report.IncomeExpenditureRow> incomeExpenditure() {
         List<com.schaccs.model.report.IncomeExpenditureRow> rows = new java.util.ArrayList<>();
-        for (Votehead vh : feeStore.getVoteheads()) {
-            BigDecimal charged = CurrencyConfig.zero();
-            BigDecimal collected = CurrencyConfig.zero();
-            for (Student s : studentStore.getStudents()) {
-                StudentFeeLedger l = studentStore.getLedger(s.getId());
-                charged = charged.add(l.getCharged(vh.getCode()));
-                collected = collected.add(l.getPaid(vh.getCode()));
+        Map<AccountType, BigDecimal> balances = ledgerStore.getAccountBalances();
+        for (Map.Entry<AccountType, BigDecimal> e : balances.entrySet()) {
+            AccountType at = e.getKey();
+            BigDecimal bal = e.getValue();
+            if (bal.compareTo(CurrencyConfig.zero()) == 0) continue;
+            if (at.getStatementCategory() == com.schaccs.enums.StatementCategory.INCOME_EXPENDITURE) {
+                String category = at.getNormalBalance() == com.schaccs.enums.NormalBalance.CREDIT ? "Income" : "Expenditure";
+                rows.add(new com.schaccs.model.report.IncomeExpenditureRow(category, at.getDisplayName(), bal));
             }
-            rows.add(new com.schaccs.model.report.IncomeExpenditureRow("Income", vh.getName(), collected));
-        }
-        for (var voucher : com.schaccs.store.VoucherStore.getInstance().getVouchers()) {
-            rows.add(new com.schaccs.model.report.IncomeExpenditureRow(
-                    "Expenditure", voucher.getVoteheadName(), voucher.getAmount()));
         }
         return rows;
     }
@@ -322,6 +323,86 @@ public class ReportService {
         rows.add(new com.schaccs.model.report.BalanceSheetRow("Fund Balance",
                 "Accumulated Surplus/(Deficit)",
                 CurrencyConfig.money(totalIncome.subtract(totalExpense))));
+        return rows;
+    }
+
+    public static class CashFlowRow {
+        private final String category;
+        private final String item;
+        private final BigDecimal amount;
+
+        public CashFlowRow(String category, String item, BigDecimal amount) {
+            this.category = category;
+            this.item = item;
+            this.amount = amount;
+        }
+
+        public String getCategory() { return category; }
+        public String getItem() { return item; }
+        public BigDecimal getAmount() { return amount; }
+
+        @Override
+        public String toString() {
+            return category + " | " + item + " | " + CurrencyConfig.format(amount);
+        }
+    }
+
+    public List<CashFlowRow> cashFlowStatement(LocalDate from, LocalDate to) {
+        List<FinancialTransaction> filtered = ledgerStore.getTransactions().stream()
+                .filter(t -> !t.getDate().isBefore(from) && !t.getDate().isAfter(to))
+                .toList();
+
+        List<CashFlowRow> rows = new ArrayList<>();
+
+        // Cash Flow from Operating Activities
+        BigDecimal receipts = filtered.stream()
+                .filter(t -> t.getAccountType() == AccountType.CASH_AT_BANK)
+                .map(FinancialTransaction::getDebit)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+        BigDecimal payments = filtered.stream()
+                .filter(t -> t.getAccountType() == AccountType.CASH_AT_BANK)
+                .map(FinancialTransaction::getCredit)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+
+        rows.add(new CashFlowRow("Operating", "Cash Receipts", receipts));
+        rows.add(new CashFlowRow("Operating", "Cash Payments", payments.negate()));
+        BigDecimal netOperating = CurrencyConfig.money(receipts.subtract(payments));
+        rows.add(new CashFlowRow("Operating", "Net Cash from Operating Activities", netOperating));
+
+        // Cash Flow from Investing Activities
+        BigDecimal fixedAssetPurchases = filtered.stream()
+                .filter(t -> t.getAccountType() == AccountType.FIXED_ASSETS)
+                .map(FinancialTransaction::getDebit)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+        rows.add(new CashFlowRow("Investing", "Purchase of Fixed Assets", fixedAssetPurchases.negate()));
+        BigDecimal netInvesting = CurrencyConfig.money(fixedAssetPurchases.negate());
+        rows.add(new CashFlowRow("Investing", "Net Cash from Investing Activities", netInvesting));
+
+        // Cash Flow from Financing Activities
+        BigDecimal financing = filtered.stream()
+                .filter(t -> t.getAccountType() == AccountType.RETAINED_EARNINGS)
+                .map(FinancialTransaction::getCredit)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+        rows.add(new CashFlowRow("Financing", "Capital Contributions", financing));
+        BigDecimal netFinancing = CurrencyConfig.money(financing);
+        rows.add(new CashFlowRow("Financing", "Net Cash from Financing Activities", netFinancing));
+
+        // Summary
+        BigDecimal netChange = CurrencyConfig.money(netOperating.add(netInvesting).add(netFinancing));
+        rows.add(new CashFlowRow("Summary", "Net Increase/(Decrease) in Cash", netChange));
+
+        // Opening cash balance
+        BigDecimal openingBalance = CurrencyConfig.zero();
+        for (FinancialTransaction tx : ledgerStore.getTransactions()) {
+            if (tx.getDate().isBefore(from) && tx.getAccountType() == AccountType.CASH_AT_BANK) {
+                openingBalance = CurrencyConfig.money(openingBalance.add(tx.getDebit()).subtract(tx.getCredit()));
+            }
+        }
+        rows.add(new CashFlowRow("Summary", "Opening Cash Balance", openingBalance));
+
+        BigDecimal closingBalance = CurrencyConfig.money(openingBalance.add(netChange));
+        rows.add(new CashFlowRow("Summary", "Closing Cash Balance", closingBalance));
+
         return rows;
     }
 }

@@ -91,6 +91,7 @@ public class ReceiptService {
         receipt.setBankReference(bankReference);
         receipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
         receipt.setNotes(notes);
+        receipt.computeVerificationHash();
 
         String ref = "RCPT-" + receipt.getReceiptNumber();
 
@@ -166,6 +167,10 @@ public class ReceiptService {
 
     public List<Receipt> allReceipts() {
         return receiptStore.getReceipts();
+    }
+
+    public boolean verifyReceipt(Receipt r) {
+        return r.isVerified();
     }
 
     public static final class Result {

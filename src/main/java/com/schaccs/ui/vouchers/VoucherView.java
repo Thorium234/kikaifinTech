@@ -274,8 +274,8 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         out.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getOutstanding())));
         TableColumn<Commitment, String> st = new TableColumn<>("Status");
         st.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getStatus()));
-        var columns1 = new TableColumn[]{date, cred, vh, amt, out, st};
         @SuppressWarnings("unchecked")
+        var columns1 = new TableColumn[]{date, cred, vh, amt, out, st};
         commitmentTable.getColumns().addAll(columns1);
         commitmentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         commitmentTable.setPrefHeight(220);
@@ -333,8 +333,8 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         TableColumn<PaymentVoucher, String> st = new TableColumn<>("Status");
         st.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().getStatus() != null ? c.getValue().getStatus().getDisplayName() : ""));
-        var columns2 = new TableColumn[]{num, date, cred, vh, amt, st};
         @SuppressWarnings("unchecked")
+        var columns2 = new TableColumn[]{num, date, cred, vh, amt, st};
         voucherTable.getColumns().addAll(columns2);
         voucherTable.setItems(store.getVouchers());
         voucherTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
@@ -547,8 +547,8 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         amount.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
         TableColumn<Lpo, String> status = new TableColumn<>("Status");
         status.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getStatus()));
-        var columns3 = new TableColumn[]{num, date, creditor, amount, status};
         @SuppressWarnings("unchecked")
+        var columns3 = new TableColumn[]{num, date, creditor, amount, status};
         lpoTable.getColumns().addAll(columns3);
         lpoTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         lpoTable.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, value) -> {
@@ -570,8 +570,8 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         amount.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
         TableColumn<Invoice, String> status = new TableColumn<>("Status");
         status.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getStatus()));
-        var columns4 = new TableColumn[]{num, date, creditor, amount, status};
         @SuppressWarnings("unchecked")
+        var columns4 = new TableColumn[]{num, date, creditor, amount, status};
         invoiceTable.getColumns().addAll(columns4);
         invoiceTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         invoiceTable.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, value) -> {
@@ -593,8 +593,8 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         surrendered.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getSurrenderedAmount())));
         TableColumn<Imprest, String> status = new TableColumn<>("Status");
         status.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getStatus()));
-        var columns5 = new TableColumn[]{staff, date, amount, surrendered, status};
         @SuppressWarnings("unchecked")
+        var columns5 = new TableColumn[]{staff, date, amount, surrendered, status};
         imprestTable.getColumns().addAll(columns5);
         imprestTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         imprestTable.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, value) -> {

@@ -55,7 +55,13 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
         entityIdCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getEntityId()));
         TableColumn<AuditLog, String> byCol = new TableColumn<>("Performed By");
         byCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getPerformedBy()));
-        table.getColumns().addAll(tsCol, actionCol, entityCol, entityIdCol, byCol);
+        TableColumn<AuditLog, String> fieldCol = new TableColumn<>("Field");
+        fieldCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getFieldName()));
+        TableColumn<AuditLog, String> oldCol = new TableColumn<>("Old Value");
+        oldCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getOldValue()));
+        TableColumn<AuditLog, String> newCol = new TableColumn<>("New Value");
+        newCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getNewValue()));
+        table.getColumns().addAll(tsCol, actionCol, entityCol, entityIdCol, fieldCol, oldCol, newCol, byCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(table, Priority.ALWAYS);
 
@@ -93,7 +99,10 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
                     e.getActionType().toLowerCase().contains(q)
                             || e.getEntityType().toLowerCase().contains(q)
                             || (e.getEntityId() != null && e.getEntityId().toLowerCase().contains(q))
-                            || (e.getPerformedBy() != null && e.getPerformedBy().toLowerCase().contains(q))));
+                            || (e.getPerformedBy() != null && e.getPerformedBy().toLowerCase().contains(q))
+                            || (e.getFieldName() != null && e.getFieldName().toLowerCase().contains(q))
+                            || (e.getOldValue() != null && e.getOldValue().toLowerCase().contains(q))
+                            || (e.getNewValue() != null && e.getNewValue().toLowerCase().contains(q))));
         }
     }
 
@@ -108,10 +117,13 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         try {
-            List<String> headers = List.of("Timestamp", "Action", "Entity", "Entity ID", "Performed By");
+            List<String> headers = List.of("Timestamp", "Action", "Entity", "Entity ID", "Field", "Old Value", "New Value", "Performed By");
             List<List<String>> rows = table.getItems().stream().map(e -> List.of(
                     e.getTimestamp() != null ? e.getTimestamp().toString() : "",
                     e.getActionType(), e.getEntityType(), e.getEntityId() != null ? e.getEntityId() : "",
+                    e.getFieldName() != null ? e.getFieldName() : "",
+                    e.getOldValue() != null ? e.getOldValue() : "",
+                    e.getNewValue() != null ? e.getNewValue() : "",
                     e.getPerformedBy() != null ? e.getPerformedBy() : "")).toList();
             exportService.export(file.toPath(), "Audit Log", headers, rows);
             AlertUtil.info("Export complete", "Audit log exported to:\n" + file.getAbsolutePath());
@@ -129,10 +141,13 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         try {
-            List<String> headers = List.of("Timestamp", "Action", "Entity", "Entity ID", "Performed By");
+            List<String> headers = List.of("Timestamp", "Action", "Entity", "Entity ID", "Field", "Old Value", "New Value", "Performed By");
             List<List<String>> rows = table.getItems().stream().map(e -> List.of(
                     e.getTimestamp() != null ? e.getTimestamp().toString() : "",
                     e.getActionType(), e.getEntityType(), e.getEntityId() != null ? e.getEntityId() : "",
+                    e.getFieldName() != null ? e.getFieldName() : "",
+                    e.getOldValue() != null ? e.getOldValue() : "",
+                    e.getNewValue() != null ? e.getNewValue() : "",
                     e.getPerformedBy() != null ? e.getPerformedBy() : "")).toList();
             pdfExportService.exportTable(file.toPath(), "Audit Log", headers, rows);
             AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());

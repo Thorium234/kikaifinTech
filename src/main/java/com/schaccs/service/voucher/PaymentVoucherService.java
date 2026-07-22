@@ -122,7 +122,7 @@ public class PaymentVoucherService {
         voucher.setPaymentMode(mode);
         voucher.setBankReference(bankReference);
         voucher.setPreparedBy(AppConfig.getInstance().getCurrentUser());
-        voucher.setApprovedBy(AppConfig.getInstance().getCurrentUser());
+        // approvedBy intentionally null — set by a separate approval step
         voucher.setNotes(notes);
 
         BigDecimal prevAmountPaid = commitment.getAmountPaid();
@@ -152,6 +152,19 @@ public class PaymentVoucherService {
             errors.add("Failed to post payment voucher: " + e.getMessage());
             return errors;
         }
+    }
+
+    public void approveVoucher(PaymentVoucher voucher) {
+        if (voucher.getApprovedBy() != null) {
+            throw new IllegalStateException("Voucher " + voucher.getVoucherNumber() + " is already approved.");
+        }
+        String currentUser = AppConfig.getInstance().getCurrentUser();
+        if (currentUser.equals(voucher.getPreparedBy())) {
+            throw new IllegalStateException("Preparer and approver cannot be the same person.");
+        }
+        voucher.setApprovedBy(currentUser);
+        voucher.setStatus(VoucherStatus.APPROVED);
+        PersistenceService.getInstance().saveAll();
     }
 
     public List<String> createLpo(Creditor creditor, Votehead votehead, BigDecimal amount,

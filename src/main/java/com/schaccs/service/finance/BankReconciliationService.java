@@ -1,7 +1,7 @@
 package com.schaccs.service.finance;
 
-import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.AccountType;
 import com.schaccs.model.finance.BankReconciliation;
 import com.schaccs.model.finance.FinancialTransaction;
 import com.schaccs.repository.PersistenceService;
@@ -13,6 +13,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class BankReconciliationService {
 
@@ -28,15 +31,15 @@ public class BankReconciliationService {
         this.ledgerStore = ledgerStore;
     }
 
-    public BigDecimal getBookBalance() {
-        return ledgerStore.getAccountBalance(com.schaccs.enums.AccountType.SCHOOL_FUND);
+    public BigDecimal getBookBalance(AccountType accountType) {
+        return ledgerStore.getAccountBalance(accountType);
     }
 
-    public BankReconciliation createReconciliation(LocalDate statementDate, BigDecimal statementBalance, String notes) {
+    public BankReconciliation createReconciliation(AccountType accountType, LocalDate statementDate, BigDecimal statementBalance, String notes) {
         BankReconciliation rec = new BankReconciliation();
         rec.setStatementDate(statementDate);
         rec.setStatementBalance(statementBalance);
-        rec.setBookBalance(getBookBalance());
+        rec.setBookBalance(getBookBalance(accountType));
         rec.setStatus("DRAFT");
         rec.setNotes(notes);
         rec.setCreatedAt(LocalDateTime.now());
@@ -50,26 +53,35 @@ public class BankReconciliationService {
         rec.calculate();
     }
 
-    public List<BankReconciliation.ReconciliationItem> calculateUnclearedItems(BankReconciliation rec) {
+    public List<BankReconciliation.ReconciliationItem> calculateUnclearedItems(BankReconciliation rec, AccountType accountType) {
         List<BankReconciliation.ReconciliationItem> items = new ArrayList<>();
+        LocalDate statementDate = rec.getStatementDate();
+
+        Set<String> reversedIds = ledgerStore.getTransactions().stream()
+                .map(FinancialTransaction::getReversalOfId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
         for (var tx : ledgerStore.getTransactions()) {
-            if ("FEE_RECEIPT".equals(tx.getType().name())) {
-                BankReconciliation.ReconciliationItem item = new BankReconciliation.ReconciliationItem();
+            if (tx.getAccountType() != accountType) continue;
+            if (tx.getDate() != null && tx.getDate().isAfter(statementDate)) continue;
+            if (reversedIds.contains(tx.getId())) continue;
+
+            BankReconciliation.ReconciliationItem item = new BankReconciliation.ReconciliationItem();
+            item.setReference(tx.getReference());
+            item.setDescription(tx.getDescription());
+            item.setCleared(false);
+
+            if (tx.getDebit().compareTo(BigDecimal.ZERO) > 0) {
                 item.setType("DEPOSIT");
-                item.setReference(tx.getReference());
-                item.setDescription(tx.getDescription());
                 item.setAmount(tx.getDebit());
-                item.setCleared(false);
-                items.add(item);
-            } else if ("PAYMENT_VOUCHER".equals(tx.getType().name())) {
-                BankReconciliation.ReconciliationItem item = new BankReconciliation.ReconciliationItem();
+            } else if (tx.getCredit().compareTo(BigDecimal.ZERO) > 0) {
                 item.setType("CHEQUE");
-                item.setReference(tx.getReference());
-                item.setDescription(tx.getDescription());
                 item.setAmount(tx.getCredit());
-                item.setCleared(false);
-                items.add(item);
+            } else {
+                continue;
             }
+            items.add(item);
         }
         return items;
     }
@@ -81,10 +93,10 @@ public class BankReconciliationService {
         PersistenceService.getInstance().saveAll();
     }
 
-    public List<FinancialTransaction> getUnclearedTransactions() {
+    public List<FinancialTransaction> getUnclearedTransactions(AccountType accountType) {
         return ledgerStore.getTransactions().stream()
-                .filter(t -> "PAYMENT_VOUCHER".equals(t.getType().name())
-                        || "FEE_RECEIPT".equals(t.getType().name()))
+                .filter(t -> t.getAccountType() == accountType)
+                .filter(t -> t.getReversalOfId() == null)
                 .toList();
     }
 }

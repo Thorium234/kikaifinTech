@@ -195,8 +195,8 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         });
         bal.setPrefWidth(120);
 
-        var columns1 = new TableColumn[]{adm, name, cls, bal};
         @SuppressWarnings("unchecked")
+        var columns1 = new TableColumn[]{adm, name, cls, bal};
         studentTable.getColumns().addAll(columns1);
         studentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         studentTable.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> selectStudent(s));
@@ -219,8 +219,8 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         after.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getOutstandingAfter())));
         after.setPrefWidth(100);
 
-        var columns2 = new TableColumn[]{vh, due, alloc, after};
         @SuppressWarnings("unchecked")
+        var columns2 = new TableColumn[]{vh, due, alloc, after};
         allocationTable.getColumns().addAll(columns2);
         allocationTable.setPrefHeight(180);
         allocationTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);

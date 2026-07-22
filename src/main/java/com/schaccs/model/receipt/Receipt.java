@@ -6,6 +6,9 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -26,6 +29,7 @@ public class Receipt {
     private String notes;
     private LocalDateTime createdAt;
     private boolean reversed = false;
+    private String verificationHash;
     private final ObservableList<ReceiptLine> lines = FXCollections.observableArrayList();
 
     public Receipt() {
@@ -154,6 +158,38 @@ public class Receipt {
 
     public void setReversed(boolean reversed) {
         this.reversed = reversed;
+    }
+
+    public String getVerificationHash() {
+        return verificationHash;
+    }
+
+    public void setVerificationHash(String verificationHash) {
+        this.verificationHash = verificationHash;
+    }
+
+    public void computeVerificationHash() {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            String raw = receiptNumber + "|" + date + "|" + studentId + "|" + amount + "|" + paymentMode + "|" + bankReference + "|" + amount;
+            byte[] hashBytes = md.digest(raw.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            this.verificationHash = sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
+    }
+
+    public boolean isVerified() {
+        if (verificationHash == null || verificationHash.isEmpty()) {
+            return false;
+        }
+        String oldHash = this.verificationHash;
+        computeVerificationHash();
+        return oldHash.equals(this.verificationHash);
     }
 
     public ObservableList<ReceiptLine> getLines() {

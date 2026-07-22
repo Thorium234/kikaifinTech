@@ -4,6 +4,7 @@ import com.schaccs.config.AppConfig;
 import com.schaccs.config.SchoolProfile;
 import com.schaccs.config.ThemeConfig;
 import com.schaccs.enums.AccountType;
+import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentBalance;
@@ -12,6 +13,7 @@ import com.schaccs.service.export.PdfExportService;
 import com.schaccs.service.finance.AccountingService;
 import com.schaccs.service.report.ReportService;
 import com.schaccs.service.student.StudentService;
+import com.schaccs.store.AccountStore;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.DashboardCard;
@@ -27,9 +29,11 @@ import javafx.geometry.Insets;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.PieChart;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -43,8 +47,12 @@ import javafx.stage.FileChooser;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class DashboardView extends VBox implements MainLayout.Refreshable {
@@ -63,6 +71,10 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
     private final TableView<StudentBalance> topDefaulters = new TableView<>();
     private final TableView<StudentBalance> reminderTable = new TableView<>();
     private final Label integrityBanner = new Label();
+    private final PieChart paymentModeChart = new PieChart();
+    private final ProgressBar budgetProgressBar = new ProgressBar(0);
+    private final Label budgetPctLabel = new Label("0.0%");
+
     public DashboardView() {
         setSpacing(16);
         setPadding(new Insets(4));
@@ -87,6 +99,29 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         VBox chartBox = new VBox(4, new Label("Daily Collection (Last 30 Days)"), trendChart);
         chartBox.getStyleClass().add("card");
         chartBox.setPadding(new Insets(12));
+
+        paymentModeChart.setTitle("Payment Mode (This Month)");
+        paymentModeChart.setAnimated(false);
+        paymentModeChart.setLabelsVisible(true);
+        paymentModeChart.setPrefHeight(180);
+
+        VBox pieBox = new VBox(4, new Label("Payment Mode Breakdown"), paymentModeChart);
+        pieBox.getStyleClass().add("card");
+        pieBox.setPadding(new Insets(12));
+        pieBox.setPrefWidth(400);
+
+        budgetProgressBar.setPrefWidth(Double.MAX_VALUE);
+        budgetProgressBar.setPrefHeight(22);
+
+        Label budgetTitle = new Label("Budget Utilization");
+        budgetTitle.getStyleClass().add("section-title");
+
+        VBox budgetBox = new VBox(8, budgetTitle, budgetProgressBar, budgetPctLabel);
+        budgetBox.getStyleClass().add("card");
+        budgetBox.setPadding(new Insets(12));
+        budgetBox.setPrefWidth(300);
+
+        HBox chartsGaugeBox = new HBox(16, pieBox, budgetBox);
 
         Label recentTitle = new Label("Recent Receipts");
         recentTitle.getStyleClass().add("section-title");
@@ -121,7 +156,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         tableScroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(tableScroll, Priority.ALWAYS);
 
-        getChildren().addAll(heading, integrityBanner, cards, chartBox, tableScroll, feeReminderSection);
+        getChildren().addAll(heading, integrityBanner, cards, chartBox, chartsGaugeBox, tableScroll, feeReminderSection);
         refresh();
     }
 
@@ -147,6 +182,33 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         }
         chart.getData().clear();
         chart.getData().add(series);
+    }
+
+    private void refreshPieChart() {
+        List<Receipt> receipts = ReceiptStore.getInstance().getReceipts();
+        YearMonth currentMonth = YearMonth.now();
+        Map<PaymentMode, BigDecimal> modeTotals = new HashMap<>();
+        for (Receipt r : receipts) {
+            if (r.getDate() == null) continue;
+            if (!YearMonth.from(r.getDate()).equals(currentMonth)) continue;
+            if (r.isReversed()) continue;
+            modeTotals.merge(r.getPaymentMode(), r.getAmount(), BigDecimal::add);
+        }
+        paymentModeChart.getData().clear();
+        for (Map.Entry<PaymentMode, BigDecimal> e : modeTotals.entrySet()) {
+            paymentModeChart.getData().add(new PieChart.Data(
+                    e.getKey().getDisplayName(),
+                    e.getValue().doubleValue()
+            ));
+        }
+    }
+
+    private void refreshBudgetGauge() {
+        AccountStore.getInstance().findOpenFiscalYear().ifPresent(fy -> {
+            double pct = Services.getInstance().budget().getOverallUtilization(fy.getId());
+            budgetProgressBar.setProgress(pct / 100.0);
+            budgetPctLabel.setText(String.format("%.1f%% utilized", pct));
+        });
     }
 
     private VBox buildFeeReminderSection() {
@@ -405,5 +467,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
 
         reminderTable.getItems().setAll(reportService.defaulters(null));
         refreshTrendChart();
+        refreshPieChart();
+        refreshBudgetGauge();
     }
 }

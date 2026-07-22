@@ -252,8 +252,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 c.getValue().getStatus() != null ? c.getValue().getStatus().getDisplayName() : ""));
         st.setPrefWidth(90);
 
-        var columns1 = new TableColumn[]{adm, name, cls, board, phone, parentCol, guardianPhoneCol, st};
         @SuppressWarnings("unchecked")
+        var columns1 = new TableColumn[]{adm, name, cls, board, phone, parentCol, guardianPhoneCol, st};
         table.getColumns().addAll(columns1);
 
         st.setCellFactory(col -> new TableCell<>() {
