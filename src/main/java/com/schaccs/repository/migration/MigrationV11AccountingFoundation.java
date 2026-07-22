@@ -204,7 +204,7 @@ public class MigrationV11AccountingFoundation implements SchemaMigration {
             case "CASH_AT_BANK", "ACCOUNTS_RECEIVABLE", "FEE_ARREARS", "ADVANCE_BALANCES",
                  "PETTY_CASH", "FIXED_ASSETS", "SALARIES", "UTILITIES", "MAINTENANCE",
                  "SUPPLIES", "TRAVEL", "GENERAL_EXPENSES",
-                 "SALARY", "UTIL", "MAINT", "SUPPLY", "TRAVEL", "GEN_EXP" -> false;
+                 "SALARY", "UTIL", "MAINT", "SUPPLY", "GEN_EXP" -> false;
             default -> true; // Credit-normal by default (income accounts)
         };
     }

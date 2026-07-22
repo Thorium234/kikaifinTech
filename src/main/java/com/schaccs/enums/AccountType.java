@@ -23,7 +23,7 @@ public enum AccountType {
     BOARDING_FEES("Boarding Fees", "BOARDING", NormalBalance.CREDIT, StatementCategory.INCOME_EXPENDITURE),
     ACTIVITY_FEES("Activity Fees", "ACTIVITY", NormalBalance.CREDIT, StatementCategory.INCOME_EXPENDITURE),
     OTHER_INCOME("Other Income", "OTHER", NormalBalance.CREDIT, StatementCategory.INCOME_EXPENDITURE),
-    FSE_AID("FSE Operations Aid", "FSE-OP", NormalBalance.CREDIT, StatementCategory.INCOME_EXPENDITURE),
+    FSE_OPERATIONS("FSE Operations Aid", "FSE-OP", NormalBalance.CREDIT, StatementCategory.INCOME_EXPENDITURE),
     FSE_TUITION("FSE Tuition Aid", "FSE-TU", NormalBalance.CREDIT, StatementCategory.INCOME_EXPENDITURE),
 
     // Expenses (Debit Normal, I&E)

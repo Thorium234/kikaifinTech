@@ -15,7 +15,7 @@ public final class BackupService {
 
     private static final BackupService INSTANCE = new BackupService();
 
-    private BackupService() {
+    public BackupService() {
     }
 
     public static BackupService getInstance() {
