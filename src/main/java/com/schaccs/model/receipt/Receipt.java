@@ -187,9 +187,23 @@ public class Receipt {
         if (verificationHash == null || verificationHash.isEmpty()) {
             return false;
         }
-        String oldHash = this.verificationHash;
-        computeVerificationHash();
-        return oldHash.equals(this.verificationHash);
+        String currentHash = computeHash();
+        return verificationHash.equals(currentHash);
+    }
+
+    private String computeHash() {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            String raw = receiptNumber + "|" + date + "|" + studentId + "|" + amount + "|" + paymentMode + "|" + bankReference + "|" + amount;
+            byte[] hashBytes = md.digest(raw.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     public ObservableList<ReceiptLine> getLines() {

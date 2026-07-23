@@ -75,6 +75,47 @@ public final class LedgerStore {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Removes all transactions and ledger entries tied to a given receipt,
+     * then recalculates account balances from the remaining entries.
+     * Used for rollback when persistence fails after accounting entries were posted.
+     */
+    public void removeByReceiptId(String receiptId) {
+        if (receiptId == null) return;
+        java.util.Set<String> removedTxIds = new java.util.HashSet<>();
+        transactions.removeIf(tx -> {
+            if (receiptId.equals(tx.getReceiptId())) {
+                removedTxIds.add(tx.getId());
+                return true;
+            }
+            return false;
+        });
+        ledgerEntries.removeIf(e -> removedTxIds.contains(e.getTransactionId()));
+        recalculateBalances();
+    }
+
+    /**
+     * Rebuilds account balances from scratch using all remaining ledger entries.
+     */
+    public void recalculateBalances() {
+        for (AccountType type : AccountType.values()) {
+            accountBalances.put(type, CurrencyConfig.zero());
+        }
+        for (int i = ledgerEntries.size() - 1; i >= 0; i--) {
+            LedgerEntry entry = ledgerEntries.get(i);
+            AccountType type = entry.getAccountType();
+            if (type == null) continue;
+            BigDecimal current = accountBalances.getOrDefault(type, CurrencyConfig.zero());
+            BigDecimal next;
+            if (type.isDebitNormal()) {
+                next = current.add(entry.getDebit()).subtract(entry.getCredit());
+            } else {
+                next = current.add(entry.getCredit()).subtract(entry.getDebit());
+            }
+            accountBalances.put(type, CurrencyConfig.money(next));
+        }
+    }
+
     public void clear() {
         transactions.clear();
         ledgerEntries.clear();

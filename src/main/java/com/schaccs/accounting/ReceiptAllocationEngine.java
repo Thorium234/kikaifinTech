@@ -71,6 +71,7 @@ public class ReceiptAllocationEngine {
         // 3. Equal distribution across current-term outstanding voteheads
         Map<String, BigDecimal> outstanding = ledger.getOutstandingByVotehead().entrySet().stream()
                 .filter(e -> termCodes.contains(e.getKey()))
+                .filter(e -> e.getValue().compareTo(BigDecimal.ZERO) > 0)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                         (a, b) -> a, LinkedHashMap::new));
 
@@ -90,7 +91,10 @@ public class ReceiptAllocationEngine {
     private BigDecimal distributeEqually(List<FeeAllocation> allocations,
                                           Map<String, BigDecimal> outstanding,
                                           BigDecimal remaining) {
+        int maxIterations = outstanding.size() * 10 + 10;
+        int iterations = 0;
         while (!outstanding.isEmpty() && remaining.compareTo(BigDecimal.ZERO) > 0) {
+            if (++iterations > maxIterations) break;
             int count = outstanding.size();
             BigDecimal equalShare = remaining.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_DOWN);
             BigDecimal expectedTotal = equalShare.multiply(BigDecimal.valueOf(count));

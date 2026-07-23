@@ -400,7 +400,9 @@ public final class PersistenceService {
                              + "advance=excluded.advance, current_term=excluded.current_term");
              PreparedStatement linePs = conn.prepareStatement(
                      "INSERT INTO student_ledger_lines (student_id, votehead_code, kind, amount) VALUES (?,?,?,?) "
-                             + "ON CONFLICT(student_id, votehead_code, kind) DO UPDATE SET amount=excluded.amount")) {
+                             + "ON CONFLICT(student_id, votehead_code, kind) DO UPDATE SET amount=excluded.amount");
+             PreparedStatement clearLines = conn.prepareStatement(
+                     "DELETE FROM student_ledger_lines WHERE student_id = ?")) {
             for (Student s : store.getStudents()) {
                 ps.setString(1, s.getId());
                 ps.setString(2, s.getAdmissionNumber());
@@ -428,6 +430,9 @@ public final class PersistenceService {
                 ledPs.setString(4, enumName(ledger.getCurrentTerm()));
                 ledPs.addBatch();
 
+                clearLines.setString(1, s.getId());
+                clearLines.addBatch();
+
                 for (Map.Entry<String, BigDecimal> e : ledger.getChargedByVotehead().entrySet()) {
                     linePs.setString(1, s.getId());
                     linePs.setString(2, e.getKey());
@@ -445,6 +450,7 @@ public final class PersistenceService {
             }
             ps.executeBatch();
             ledPs.executeBatch();
+            clearLines.executeBatch();
             linePs.executeBatch();
         }
     }
