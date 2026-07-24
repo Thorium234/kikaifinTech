@@ -24,6 +24,8 @@ public class Sidebar extends VBox {
     public static final String SYNC = "Sync";
     public static final String FEE_REMINDER = "Fee Reminder";
     public static final String FIXED_ASSETS = "Fixed Assets";
+    public static final String EMPLOYEES = "Employees";
+    public static final String PAYROLL = "Payroll";
     public static final String SCHOOL_CUSTOM = "School Custom";
     public static final String SETTINGS = "Settings";
 
@@ -53,6 +55,8 @@ public class Sidebar extends VBox {
         addNav(BANK_RECONCILIATION, "Bank Reconciliation");
         addNav(SYNC, "Sync");
         addNav(FIXED_ASSETS, "Fixed Assets");
+        addNav(EMPLOYEES, "Employees");
+        addNav(PAYROLL, "Payroll");
         addNav(SCHOOL_CUSTOM, "School Custom");
         addNav(SETTINGS, "Settings");
 

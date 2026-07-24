@@ -16,6 +16,8 @@ import com.schaccs.service.student.StudentService;
 import com.schaccs.service.sync.SyncEngine;
 import com.schaccs.service.sync.SyncReportService;
 import com.schaccs.service.voucher.PaymentVoucherService;
+import com.schaccs.service.payroll.EmployeeService;
+import com.schaccs.service.payroll.PayrollService;
 
 /**
  * Central locator for application services.
@@ -43,6 +45,8 @@ public final class Services {
     private final SchoolCustomService schoolCustomService = new SchoolCustomService();
     private final SyncEngine syncEngine = SyncEngine.getInstance();
     private final SyncReportService syncReportService = SyncReportService.getInstance();
+    private final EmployeeService employeeService = new EmployeeService();
+    private final PayrollService payrollService = new PayrollService();
 
     private Services() {
     }
@@ -113,5 +117,13 @@ public final class Services {
 
     public SyncReportService syncReport() {
         return syncReportService;
+    }
+
+    public EmployeeService employee() {
+        return employeeService;
+    }
+
+    public PayrollService payroll() {
+        return payrollService;
     }
 }

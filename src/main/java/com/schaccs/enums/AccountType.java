@@ -35,7 +35,15 @@ public enum AccountType {
     GENERAL_EXPENSES("General Expenses", "GEN_EXP", NormalBalance.DEBIT, StatementCategory.INCOME_EXPENDITURE),
 
     // Equity (Credit Normal, Balance Sheet)
-    RETAINED_EARNINGS("Retained Earnings", "RE", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET);
+    RETAINED_EARNINGS("Retained Earnings", "RE", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET),
+
+    // Payroll Liabilities (Credit Normal, Balance Sheet)
+    PAYE_PAYABLE("PAYE Payable", "PAYE", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET),
+    NSSF_PAYABLE("NSSF Payable", "NSSF", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET),
+    SHIF_PAYABLE("SHIF Payable", "SHIF", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET),
+    PENSION_PAYABLE("Pension Payable", "PENSION", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET),
+    STAFF_LOAN_CONTROL("Staff Loan Control", "SLOAN", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET),
+    BANK_CONTROL("Bank Control Account", "BNKCTRL", NormalBalance.CREDIT, StatementCategory.BALANCE_SHEET);
 
     private final String displayName;
     private final String code;

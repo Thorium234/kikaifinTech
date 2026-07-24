@@ -13,7 +13,9 @@ public enum TransactionType {
     CREDIT_NOTE("Credit Note"),
     DEBIT_NOTE("Debit Note"),
     DEPRECIATION("Depreciation"),
-    CONTRA("Contra Entry");
+    CONTRA("Contra Entry"),
+    PAYROLL("Payroll"),
+    PAYROLL_REVERSAL("Payroll Reversal");
 
     private final String displayName;
 

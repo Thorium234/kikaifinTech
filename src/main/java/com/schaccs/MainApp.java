@@ -17,6 +17,8 @@ import com.schaccs.ui.settings.SettingsView;
 import com.schaccs.ui.sync.SyncStatusView;
 import com.schaccs.ui.students.StudentView;
 import com.schaccs.ui.vouchers.VoucherView;
+import com.schaccs.ui.payroll.EmployeeView;
+import com.schaccs.ui.payroll.PayrollView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
@@ -41,6 +43,8 @@ public class MainApp extends Application {
         layout.register(Sidebar.BANK_RECONCILIATION, Sidebar.BANK_RECONCILIATION, BankReconciliationView::new);
         layout.register(Sidebar.SYNC, Sidebar.SYNC, SyncStatusView::new);
         layout.register(Sidebar.FIXED_ASSETS, Sidebar.FIXED_ASSETS, FixedAssetView::new);
+        layout.register(Sidebar.EMPLOYEES, Sidebar.EMPLOYEES, EmployeeView::new);
+        layout.register(Sidebar.PAYROLL, Sidebar.PAYROLL, PayrollView::new);
         layout.register(Sidebar.SCHOOL_CUSTOM, Sidebar.SCHOOL_CUSTOM, SchoolCustomView::new);
         layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
 

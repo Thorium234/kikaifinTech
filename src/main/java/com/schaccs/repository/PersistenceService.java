@@ -24,6 +24,10 @@ import com.schaccs.model.finance.FinancialTransaction;
 import com.schaccs.model.finance.FiscalYear;
 import com.schaccs.model.finance.LedgerEntry;
 import com.schaccs.model.finance.Votehead;
+import com.schaccs.model.payroll.Employee;
+import com.schaccs.model.payroll.PayrollItem;
+import com.schaccs.model.payroll.PayrollRun;
+import com.schaccs.model.payroll.SalaryStructure;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
@@ -43,6 +47,8 @@ import com.schaccs.store.AuditStore;
 import com.schaccs.store.BankReconciliationStore;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.VoucherStore;
+import com.schaccs.store.EmployeeStore;
+import com.schaccs.store.PayrollStore;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -104,6 +110,10 @@ public final class PersistenceService {
             saveBankReconciliation(conn);
             saveSchoolCustom(conn);
             saveAccountStoreEntities(conn);
+            saveEmployees(conn);
+            saveSalaryStructures(conn);
+            savePayrollRuns(conn);
+            savePayrollItems(conn);
         });
     }
 
@@ -119,6 +129,8 @@ public final class PersistenceService {
             AuditStore.getInstance().clear();
             BankReconciliationStore.getInstance().clear();
             SchoolCustomStore.getInstance().clear();
+            EmployeeStore.getInstance().clear();
+            PayrollStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
             loadFeeStructures(conn);
@@ -135,6 +147,10 @@ public final class PersistenceService {
             loadBankReconciliation(conn);
             loadSchoolCustom(conn);
             loadAccountStoreEntities(conn);
+            loadEmployees(conn);
+            loadSalaryStructures(conn);
+            loadPayrollRuns(conn);
+            loadPayrollItems(conn);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load data: " + e.getMessage(), e);
         }
@@ -187,6 +203,10 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM budgets");
             st.executeUpdate("DELETE FROM fiscal_years");
             st.executeUpdate("DELETE FROM accounts");
+            st.executeUpdate("DELETE FROM payroll_items");
+            st.executeUpdate("DELETE FROM payroll_runs");
+            st.executeUpdate("DELETE FROM salary_structures");
+            st.executeUpdate("DELETE FROM employees");
         }
     }
 
@@ -1483,6 +1503,319 @@ public final class PersistenceService {
 
     private static LocalDateTime parseDateTime(String s) {
         return s == null || s.isBlank() ? null : LocalDateTime.parse(s);
+    }
+
+    private void saveEmployees(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO employees (id, employee_number, first_name, last_name, national_id,
+                    department, position, employment_date, employment_status, bank_name, bank_branch,
+                    bank_account_number, kra_pin, nssf_number, shif_number, phone, email, address)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET employee_number=excluded.employee_number,
+                    first_name=excluded.first_name, last_name=excluded.last_name, national_id=excluded.national_id,
+                    department=excluded.department, position=excluded.position,
+                    employment_date=excluded.employment_date, employment_status=excluded.employment_status,
+                    bank_name=excluded.bank_name, bank_branch=excluded.bank_branch,
+                    bank_account_number=excluded.bank_account_number, kra_pin=excluded.kra_pin,
+                    nssf_number=excluded.nssf_number, shif_number=excluded.shif_number,
+                    phone=excluded.phone, email=excluded.email, address=excluded.address
+                """)) {
+            for (Employee e : EmployeeStore.getInstance().getEmployees()) {
+                ps.setString(1, e.getId());
+                ps.setString(2, e.getEmployeeNumber());
+                ps.setString(3, e.getFirstName());
+                ps.setString(4, e.getLastName());
+                ps.setString(5, e.getNationalId());
+                ps.setString(6, e.getDepartment());
+                ps.setString(7, e.getPosition());
+                ps.setString(8, date(e.getEmploymentDate()));
+                ps.setString(9, enumName(e.getEmploymentStatus()));
+                ps.setString(10, e.getBankName());
+                ps.setString(11, e.getBankBranch());
+                ps.setString(12, e.getBankAccountNumber());
+                ps.setString(13, e.getKraPin());
+                ps.setString(14, e.getNssfNumber());
+                ps.setString(15, e.getShifNumber());
+                ps.setString(16, e.getPhone());
+                ps.setString(17, e.getEmail());
+                ps.setString(18, e.getAddress());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadEmployees(Connection conn) throws SQLException {
+        EmployeeStore store = EmployeeStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM employees ORDER BY employee_number")) {
+            while (rs.next()) {
+                Employee e = Employee.withId(rs.getString("id"));
+                e.setEmployeeNumber(rs.getString("employee_number"));
+                e.setFirstName(rs.getString("first_name"));
+                e.setLastName(rs.getString("last_name"));
+                e.setNationalId(rs.getString("national_id"));
+                e.setDepartment(rs.getString("department"));
+                e.setPosition(rs.getString("position"));
+                e.setEmploymentDate(parseDate(rs.getString("employment_date")));
+                String status = rs.getString("employment_status");
+                if (status != null) {
+                    e.setEmploymentStatus(Employee.EmploymentStatus.valueOf(status));
+                }
+                e.setBankName(rs.getString("bank_name"));
+                e.setBankBranch(rs.getString("bank_branch"));
+                e.setBankAccountNumber(rs.getString("bank_account_number"));
+                e.setKraPin(rs.getString("kra_pin"));
+                e.setNssfNumber(rs.getString("nssf_number"));
+                e.setShifNumber(rs.getString("shif_number"));
+                e.setPhone(rs.getString("phone"));
+                e.setEmail(rs.getString("email"));
+                e.setAddress(rs.getString("address"));
+                store.getEmployees().add(e);
+            }
+        }
+    }
+
+    private void saveSalaryStructures(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO salary_structures (id, employee_id, basic_salary, house_allowance,
+                    responsibility_allowance, transport_allowance, other_earnings,
+                    staff_loan_repayment, salary_advance_recovery, welfare_contribution,
+                    effective_date, active)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET employee_id=excluded.employee_id,
+                    basic_salary=excluded.basic_salary, house_allowance=excluded.house_allowance,
+                    responsibility_allowance=excluded.responsibility_allowance,
+                    transport_allowance=excluded.transport_allowance, other_earnings=excluded.other_earnings,
+                    staff_loan_repayment=excluded.staff_loan_repayment,
+                    salary_advance_recovery=excluded.salary_advance_recovery,
+                    welfare_contribution=excluded.welfare_contribution,
+                    effective_date=excluded.effective_date, active=excluded.active
+                """)) {
+            for (SalaryStructure s : EmployeeStore.getInstance().getSalaryStructures()) {
+                ps.setString(1, s.getId());
+                ps.setString(2, s.getEmployeeId());
+                ps.setString(3, money(s.getBasicSalary()));
+                ps.setString(4, money(s.getHouseAllowance()));
+                ps.setString(5, money(s.getResponsibilityAllowance()));
+                ps.setString(6, money(s.getTransportAllowance()));
+                ps.setString(7, money(s.getOtherEarnings()));
+                ps.setString(8, money(s.getStaffLoanRepayment()));
+                ps.setString(9, money(s.getSalaryAdvanceRecovery()));
+                ps.setString(10, money(s.getWelfareContribution()));
+                ps.setString(11, date(s.getEffectiveDate()));
+                ps.setInt(12, s.isActive() ? 1 : 0);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadSalaryStructures(Connection conn) throws SQLException {
+        EmployeeStore store = EmployeeStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM salary_structures")) {
+            while (rs.next()) {
+                SalaryStructure s = SalaryStructure.withId(rs.getString("id"));
+                s.setEmployeeId(rs.getString("employee_id"));
+                s.setBasicSalary(parseMoney(rs.getString("basic_salary")));
+                s.setHouseAllowance(parseMoney(rs.getString("house_allowance")));
+                s.setResponsibilityAllowance(parseMoney(rs.getString("responsibility_allowance")));
+                s.setTransportAllowance(parseMoney(rs.getString("transport_allowance")));
+                s.setOtherEarnings(parseMoney(rs.getString("other_earnings")));
+                s.setStaffLoanRepayment(parseMoney(rs.getString("staff_loan_repayment")));
+                s.setSalaryAdvanceRecovery(parseMoney(rs.getString("salary_advance_recovery")));
+                s.setWelfareContribution(parseMoney(rs.getString("welfare_contribution")));
+                s.setEffectiveDate(parseDate(rs.getString("effective_date")));
+                s.setActive(rs.getInt("active") == 1);
+                store.getSalaryStructures().add(s);
+            }
+        }
+    }
+
+    private void savePayrollRuns(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO payroll_runs (id, run_number, month, year, period_start, period_end,
+                    status, total_gross_pay, total_deductions, total_net_pay, total_paye, total_nssf,
+                    total_shif, total_pension, employee_count, prepared_by, approved_by, posted_by,
+                    prepared_at, approved_at, posted_at, journal_id, reversal_of_id, notes, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET run_number=excluded.run_number,
+                    month=excluded.month, year=excluded.year, period_start=excluded.period_start,
+                    period_end=excluded.period_end, status=excluded.status,
+                    total_gross_pay=excluded.total_gross_pay, total_deductions=excluded.total_deductions,
+                    total_net_pay=excluded.total_net_pay, total_paye=excluded.total_paye,
+                    total_nssf=excluded.total_nssf, total_shif=excluded.total_shif,
+                    total_pension=excluded.total_pension, employee_count=excluded.employee_count,
+                    prepared_by=excluded.prepared_by, approved_by=excluded.approved_by,
+                    posted_by=excluded.posted_by, prepared_at=excluded.prepared_at,
+                    approved_at=excluded.approved_at, posted_at=excluded.posted_at,
+                    journal_id=excluded.journal_id, reversal_of_id=excluded.reversal_of_id,
+                    notes=excluded.notes, created_at=excluded.created_at
+                """)) {
+            for (PayrollRun r : PayrollStore.getInstance().getPayrollRuns()) {
+                ps.setString(1, r.getId());
+                ps.setString(2, r.getRunNumber());
+                ps.setInt(3, r.getMonth());
+                ps.setInt(4, r.getYear());
+                ps.setString(5, date(r.getPeriodStart()));
+                ps.setString(6, date(r.getPeriodEnd()));
+                ps.setString(7, enumName(r.getStatus()));
+                ps.setString(8, money(r.getTotalGrossPay()));
+                ps.setString(9, money(r.getTotalDeductions()));
+                ps.setString(10, money(r.getTotalNetPay()));
+                ps.setString(11, money(r.getTotalPAYE()));
+                ps.setString(12, money(r.getTotalNSSF()));
+                ps.setString(13, money(r.getTotalSHIF()));
+                ps.setString(14, money(r.getTotalPension()));
+                ps.setInt(15, r.getEmployeeCount());
+                ps.setString(16, r.getPreparedBy());
+                ps.setString(17, r.getApprovedBy());
+                ps.setString(18, r.getPostedBy());
+                ps.setString(19, dateTime(r.getPreparedAt()));
+                ps.setString(20, dateTime(r.getApprovedAt()));
+                ps.setString(21, dateTime(r.getPostedAt()));
+                ps.setString(22, r.getJournalId());
+                ps.setString(23, r.getReversalOfId());
+                ps.setString(24, r.getNotes());
+                ps.setString(25, dateTime(r.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadPayrollRuns(Connection conn) throws SQLException {
+        PayrollStore store = PayrollStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM payroll_runs ORDER BY year DESC, month DESC")) {
+            while (rs.next()) {
+                PayrollRun r = PayrollRun.withId(rs.getString("id"));
+                r.setRunNumber(rs.getString("run_number"));
+                r.setMonth(rs.getInt("month"));
+                r.setYear(rs.getInt("year"));
+                r.setPeriodStart(parseDate(rs.getString("period_start")));
+                r.setPeriodEnd(parseDate(rs.getString("period_end")));
+                String status = rs.getString("status");
+                if (status != null) r.setStatus(PayrollRun.PayrollStatus.valueOf(status));
+                r.setTotalGrossPay(parseMoney(rs.getString("total_gross_pay")));
+                r.setTotalDeductions(parseMoney(rs.getString("total_deductions")));
+                r.setTotalNetPay(parseMoney(rs.getString("total_net_pay")));
+                r.setTotalPAYE(parseMoney(rs.getString("total_paye")));
+                r.setTotalNSSF(parseMoney(rs.getString("total_nssf")));
+                r.setTotalSHIF(parseMoney(rs.getString("total_shif")));
+                r.setTotalPension(parseMoney(rs.getString("total_pension")));
+                r.setEmployeeCount(rs.getInt("employee_count"));
+                r.setPreparedBy(rs.getString("prepared_by"));
+                r.setApprovedBy(rs.getString("approved_by"));
+                r.setPostedBy(rs.getString("posted_by"));
+                r.setPreparedAt(parseDateTime(rs.getString("prepared_at")));
+                r.setApprovedAt(parseDateTime(rs.getString("approved_at")));
+                r.setPostedAt(parseDateTime(rs.getString("posted_at")));
+                r.setJournalId(rs.getString("journal_id"));
+                r.setReversalOfId(rs.getString("reversal_of_id"));
+                r.setNotes(rs.getString("notes"));
+                r.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getPayrollRuns().add(r);
+            }
+        }
+    }
+
+    private void savePayrollItems(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO payroll_items (id, payroll_run_id, employee_id, employee_number,
+                    employee_name, department, basic_salary, house_allowance, responsibility_allowance,
+                    transport_allowance, overtime, bonus, other_earnings, gross_pay,
+                    paye, nssf, shif, pension, staff_loan_repayment, salary_advance_recovery,
+                    welfare_contribution, custom_deductions, custom_deduction_name,
+                    total_deductions, net_pay, employer_nssf, employer_pension)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET payroll_run_id=excluded.payroll_run_id,
+                    employee_id=excluded.employee_id, employee_number=excluded.employee_number,
+                    employee_name=excluded.employee_name, department=excluded.department,
+                    basic_salary=excluded.basic_salary, house_allowance=excluded.house_allowance,
+                    responsibility_allowance=excluded.responsibility_allowance,
+                    transport_allowance=excluded.transport_allowance, overtime=excluded.overtime,
+                    bonus=excluded.bonus, other_earnings=excluded.other_earnings,
+                    gross_pay=excluded.gross_pay, paye=excluded.paye, nssf=excluded.nssf,
+                    shif=excluded.shif, pension=excluded.pension,
+                    staff_loan_repayment=excluded.staff_loan_repayment,
+                    salary_advance_recovery=excluded.salary_advance_recovery,
+                    welfare_contribution=excluded.welfare_contribution,
+                    custom_deductions=excluded.custom_deductions,
+                    custom_deduction_name=excluded.custom_deduction_name,
+                    total_deductions=excluded.total_deductions, net_pay=excluded.net_pay,
+                    employer_nssf=excluded.employer_nssf, employer_pension=excluded.employer_pension
+                """)) {
+            for (PayrollItem item : PayrollStore.getInstance().getPayrollItems()) {
+                ps.setString(1, item.getId());
+                ps.setString(2, item.getPayrollRunId());
+                ps.setString(3, item.getEmployeeId());
+                ps.setString(4, item.getEmployeeNumber());
+                ps.setString(5, item.getEmployeeName());
+                ps.setString(6, item.getDepartment());
+                ps.setString(7, money(item.getBasicSalary()));
+                ps.setString(8, money(item.getHouseAllowance()));
+                ps.setString(9, money(item.getResponsibilityAllowance()));
+                ps.setString(10, money(item.getTransportAllowance()));
+                ps.setString(11, money(item.getOvertime()));
+                ps.setString(12, money(item.getBonus()));
+                ps.setString(13, money(item.getOtherEarnings()));
+                ps.setString(14, money(item.getGrossPay()));
+                ps.setString(15, money(item.getPaye()));
+                ps.setString(16, money(item.getNssf()));
+                ps.setString(17, money(item.getShif()));
+                ps.setString(18, money(item.getPension()));
+                ps.setString(19, money(item.getStaffLoanRepayment()));
+                ps.setString(20, money(item.getSalaryAdvanceRecovery()));
+                ps.setString(21, money(item.getWelfareContribution()));
+                ps.setString(22, money(item.getCustomDeductions()));
+                ps.setString(23, item.getCustomDeductionName());
+                ps.setString(24, money(item.getTotalDeductions()));
+                ps.setString(25, money(item.getNetPay()));
+                ps.setString(26, money(item.getEmployerNssf()));
+                ps.setString(27, money(item.getEmployerPension()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadPayrollItems(Connection conn) throws SQLException {
+        PayrollStore store = PayrollStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM payroll_items")) {
+            while (rs.next()) {
+                PayrollItem item = PayrollItem.withId(rs.getString("id"));
+                item.setPayrollRunId(rs.getString("payroll_run_id"));
+                item.setEmployeeId(rs.getString("employee_id"));
+                item.setEmployeeNumber(rs.getString("employee_number"));
+                item.setEmployeeName(rs.getString("employee_name"));
+                item.setDepartment(rs.getString("department"));
+                item.setBasicSalary(parseMoney(rs.getString("basic_salary")));
+                item.setHouseAllowance(parseMoney(rs.getString("house_allowance")));
+                item.setResponsibilityAllowance(parseMoney(rs.getString("responsibility_allowance")));
+                item.setTransportAllowance(parseMoney(rs.getString("transport_allowance")));
+                item.setOvertime(parseMoney(rs.getString("overtime")));
+                item.setBonus(parseMoney(rs.getString("bonus")));
+                item.setOtherEarnings(parseMoney(rs.getString("other_earnings")));
+                item.setGrossPay(parseMoney(rs.getString("gross_pay")));
+                item.setPaye(parseMoney(rs.getString("paye")));
+                item.setNssf(parseMoney(rs.getString("nssf")));
+                item.setShif(parseMoney(rs.getString("shif")));
+                item.setPension(parseMoney(rs.getString("pension")));
+                item.setStaffLoanRepayment(parseMoney(rs.getString("staff_loan_repayment")));
+                item.setSalaryAdvanceRecovery(parseMoney(rs.getString("salary_advance_recovery")));
+                item.setWelfareContribution(parseMoney(rs.getString("welfare_contribution")));
+                item.setCustomDeductions(parseMoney(rs.getString("custom_deductions")));
+                item.setCustomDeductionName(rs.getString("custom_deduction_name"));
+                item.setTotalDeductions(parseMoney(rs.getString("total_deductions")));
+                item.setNetPay(parseMoney(rs.getString("net_pay")));
+                item.setEmployerNssf(parseMoney(rs.getString("employer_nssf")));
+                item.setEmployerPension(parseMoney(rs.getString("employer_pension")));
+                store.getPayrollItems().add(item);
+            }
+        }
     }
 
     private static AccountType resolveAccountTypeByCode(String code) {
