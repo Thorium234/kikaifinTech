@@ -201,7 +201,8 @@ public final class Database {
                 new MigrationV11AccountingFoundation(),
                 new MigrationV12AddReceiptHash(),
                 new MigrationV13AddAuditTrail(),
-                new com.schaccs.repository.migration.MigrationV14PayrollModule()
+                new com.schaccs.repository.migration.MigrationV14PayrollModule(),
+                new com.schaccs.repository.migration.MigrationV15ReceiptLineOutstandingBefore()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {

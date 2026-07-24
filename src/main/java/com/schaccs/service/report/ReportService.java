@@ -57,7 +57,9 @@ public class ReportService {
                 continue;
             }
             StudentFeeLedger ledger = studentStore.getLedger(s.getId());
-            list.add(new StudentBalance(s, ledger.getTotalCharged(), ledger.getTotalPaid(), ledger.getArrears()));
+            BigDecimal balance = CurrencyConfig.money(
+                    ledger.getTotalCharged().add(ledger.getArrears()).subtract(ledger.getTotalPaid()).subtract(ledger.getAdvance()));
+            list.add(new StudentBalance(s, ledger.getTotalCharged(), ledger.getTotalPaid(), ledger.getArrears(), balance));
         }
         list.sort(Comparator.comparing(StudentBalance::getBalance).reversed());
         return list;

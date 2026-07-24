@@ -553,10 +553,10 @@ public final class PersistenceService {
                     reversed=excluded.reversed, verification_hash=excluded.verification_hash
                 """);
              PreparedStatement linePs = conn.prepareStatement(
-                     "INSERT INTO receipt_lines (id, receipt_id, votehead_code, votehead_name, amount) "
-                             + "VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET receipt_id=excluded.receipt_id, "
-                             + "votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name, "
-                             + "amount=excluded.amount")) {
+                      "INSERT INTO receipt_lines (id, receipt_id, votehead_code, votehead_name, amount, outstanding_before) "
+                              + "VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET receipt_id=excluded.receipt_id, "
+                              + "votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name, "
+                              + "amount=excluded.amount, outstanding_before=excluded.outstanding_before")) {
             for (Receipt r : ReceiptStore.getInstance().getReceipts()) {
                 ps.setString(1, r.getId());
                 ps.setLong(2, r.getReceiptNumber());
@@ -580,6 +580,7 @@ public final class PersistenceService {
                     linePs.setString(3, line.getVoteheadCode());
                     linePs.setString(4, line.getVoteheadName());
                     linePs.setString(5, money(line.getAmount()));
+                    linePs.setString(6, money(line.getOutstandingBefore()));
                     linePs.addBatch();
                 }
             }
@@ -626,10 +627,15 @@ public final class PersistenceService {
             ps.setString(1, r.getId());
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    r.addLine(new ReceiptLine(
+                    ReceiptLine line = new ReceiptLine(
                             rs.getString("votehead_code"),
                             rs.getString("votehead_name"),
-                            parseMoney(rs.getString("amount"))));
+                            parseMoney(rs.getString("amount")));
+                    String ob = rs.getString("outstanding_before");
+                    if (ob != null && !ob.isBlank()) {
+                        line.setOutstandingBefore(parseMoney(ob));
+                    }
+                    r.addLine(line);
                 }
             }
         }

@@ -11,6 +11,7 @@ public class ReceiptLine {
     private String voteheadCode;
     private String voteheadName;
     private BigDecimal amount = CurrencyConfig.zero();
+    private BigDecimal outstandingBefore = CurrencyConfig.zero();
 
     public ReceiptLine() {
         this.id = UUID.randomUUID().toString();
@@ -21,6 +22,11 @@ public class ReceiptLine {
         this.voteheadCode = voteheadCode;
         this.voteheadName = voteheadName;
         this.amount = CurrencyConfig.money(amount);
+    }
+
+    public ReceiptLine(String voteheadCode, String voteheadName, BigDecimal amount, BigDecimal outstandingBefore) {
+        this(voteheadCode, voteheadName, amount);
+        this.outstandingBefore = CurrencyConfig.money(outstandingBefore);
     }
 
     public String getId() {
@@ -49,5 +55,13 @@ public class ReceiptLine {
 
     public void setAmount(BigDecimal amount) {
         this.amount = CurrencyConfig.money(amount);
+    }
+
+    public BigDecimal getOutstandingBefore() {
+        return outstandingBefore;
+    }
+
+    public void setOutstandingBefore(BigDecimal outstandingBefore) {
+        this.outstandingBefore = CurrencyConfig.money(outstandingBefore);
     }
 }

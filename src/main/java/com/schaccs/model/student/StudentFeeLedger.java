@@ -146,4 +146,9 @@ public class StudentFeeLedger {
     public Map<String, BigDecimal> getPaidByVotehead() {
         return Collections.unmodifiableMap(paidByVotehead);
     }
+
+    public void restorePaidByVotehead(Map<String, BigDecimal> snapshot) {
+        paidByVotehead.clear();
+        paidByVotehead.putAll(snapshot);
+    }
 }

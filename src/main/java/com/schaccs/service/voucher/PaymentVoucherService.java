@@ -137,7 +137,7 @@ public class PaymentVoucherService {
                 journal.addLine(voucher.getAccountType(), voucher.getVoteheadCode(),
                         amount, CurrencyConfig.zero(),
                         "Expense — " + voucher.getVoteheadName());
-                journal.addLine(AccountType.SCHOOL_FUND, "CASH_BANK",
+                journal.addLine(AccountType.CASH_AT_BANK, "CASH",
                         CurrencyConfig.zero(), amount,
                         "Bank payment — " + voucher.getCreditorName());
                 accountingEngine.postTransaction(journal, TransactionType.PAYMENT_VOUCHER,

@@ -110,7 +110,8 @@ public class ReceiptService {
             if (alloc.getAllocated().compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            ReceiptLine line = new ReceiptLine(alloc.getVoteheadCode(), alloc.getVoteheadName(), alloc.getAllocated());
+            ReceiptLine line = new ReceiptLine(alloc.getVoteheadCode(), alloc.getVoteheadName(), alloc.getAllocated(),
+                    alloc.getOutstandingBefore());
             receipt.addLine(line);
             createdLines.add(line);
 
@@ -157,7 +158,11 @@ public class ReceiptService {
         } catch (Exception e) {
             for (ReceiptLine line : createdLines) {
                 if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
-                    ledger.reduceAdvance(line.getAmount());
+                    if (line.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
+                        ledger.addAdvance(line.getAmount());
+                    } else {
+                        ledger.reduceAdvance(line.getAmount());
+                    }
                 } else if ("ARREARS".equals(line.getVoteheadCode())) {
                     ledger.setArrears(ledger.getArrears().add(line.getAmount()));
                 } else {
@@ -239,12 +244,21 @@ public class ReceiptService {
         if (student == null) {
             return Result.failure(List.of("Linked student not found; cannot reverse."));
         }
+        StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+        BigDecimal savedArrears = ledger.getArrears();
+        BigDecimal savedAdvance = ledger.getAdvance();
+        java.util.Map<String, BigDecimal> savedPaid = new java.util.LinkedHashMap<>(ledger.getPaidByVotehead());
+        boolean savedReversed = receipt.isReversed();
+        String savedNotes = receipt.getNotes();
         try {
-            StudentFeeLedger ledger = studentStore.getLedger(student.getId());
             String ref = "RCPT-RV-" + receipt.getReceiptNumber();
             for (ReceiptLine line : receipt.getLines()) {
                 if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
-                    ledger.reduceAdvance(line.getAmount());
+                    if (line.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
+                        ledger.addAdvance(line.getAmount());
+                    } else {
+                        ledger.reduceAdvance(line.getAmount());
+                    }
                     continue;
                 }
                 if ("ARREARS".equals(line.getVoteheadCode())) {
@@ -276,6 +290,12 @@ public class ReceiptService {
             persistenceAction.run();
             return Result.success(receipt, List.of());
         } catch (Exception e) {
+            ledger.setArrears(savedArrears);
+            ledger.setAdvance(savedAdvance);
+            ledger.restorePaidByVotehead(savedPaid);
+            receipt.setReversed(savedReversed);
+            receipt.setNotes(savedNotes);
+            LedgerStore.getInstance().removeByReceiptId(receipt.getId());
             return Result.failure(List.of("Failed to reverse receipt: " + e.getMessage()));
         }
     }

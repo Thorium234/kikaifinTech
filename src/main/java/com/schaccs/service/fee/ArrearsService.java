@@ -31,6 +31,7 @@ public class ArrearsService {
     /**
      * Move each active student's current outstanding balance into arrears
      * (e.g. at term close). Already-reversed/paid amounts are untouched.
+     * Advance credits are preserved and netted against outstanding.
      */
     public void rolloverAll() {
         for (Student s : studentStore.getStudents()) {
@@ -38,12 +39,12 @@ public class ArrearsService {
                 continue;
             }
             StudentFeeLedger ledger = studentStore.getLedger(s.getId());
-            BigDecimal currentOutstanding = ledger.getTotalCharged().subtract(ledger.getTotalPaid())
-                    .max(CurrencyConfig.zero());
-            if (currentOutstanding.compareTo(CurrencyConfig.zero()) > 0) {
-                ledger.setArrears(CurrencyConfig.money(ledger.getArrears().add(currentOutstanding)));
-                ledger.clearCurrentCycle();
+            BigDecimal totalOutstanding = ledger.getTotalCharged().subtract(ledger.getTotalPaid());
+            BigDecimal netOutstanding = totalOutstanding.subtract(ledger.getAdvance()).max(CurrencyConfig.zero());
+            if (netOutstanding.compareTo(CurrencyConfig.zero()) > 0) {
+                ledger.setArrears(CurrencyConfig.money(ledger.getArrears().add(netOutstanding)));
             }
+            ledger.clearCurrentCycle();
         }
     }
 
