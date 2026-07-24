@@ -38,16 +38,25 @@ public class ReceiptService {
     private final ReceiptAllocationEngine allocationEngine;
     private final AccountingEngine accountingEngine;
     private final ReceiptNumberService numberService;
+    private final Runnable persistenceAction;
 
     public ReceiptService() {
         this(ReceiptStore.getInstance(), StudentStore.getInstance(), FeeStructureStore.getInstance(),
                 new ReceiptValidator(), new ReceiptAllocationEngine(), new AccountingEngine(),
-                new ReceiptNumberService());
+                new ReceiptNumberService(), PersistenceService.getInstance()::saveAll);
     }
 
     public ReceiptService(ReceiptStore receiptStore, StudentStore studentStore, FeeStructureStore feeStore,
                           ReceiptValidator validator, ReceiptAllocationEngine allocationEngine,
                           AccountingEngine accountingEngine, ReceiptNumberService numberService) {
+        this(receiptStore, studentStore, feeStore, validator, allocationEngine,
+                accountingEngine, numberService, PersistenceService.getInstance()::saveAll);
+    }
+
+    public ReceiptService(ReceiptStore receiptStore, StudentStore studentStore, FeeStructureStore feeStore,
+                          ReceiptValidator validator, ReceiptAllocationEngine allocationEngine,
+                          AccountingEngine accountingEngine, ReceiptNumberService numberService,
+                          Runnable persistenceAction) {
         this.receiptStore = receiptStore;
         this.studentStore = studentStore;
         this.feeStore = feeStore;
@@ -55,6 +64,7 @@ public class ReceiptService {
         this.allocationEngine = allocationEngine;
         this.accountingEngine = accountingEngine;
         this.numberService = numberService;
+        this.persistenceAction = persistenceAction;
     }
 
     public List<FeeAllocation> previewAllocation(Student student, BigDecimal amount) {
@@ -142,7 +152,7 @@ public class ReceiptService {
 
         try {
             receiptStore.add(receipt);
-            PersistenceService.getInstance().saveAll();
+            persistenceAction.run();
             return Result.success(receipt, allocations);
         } catch (Exception e) {
             for (ReceiptLine line : createdLines) {
@@ -263,7 +273,7 @@ public class ReceiptService {
             } else {
                 receipt.setNotes(receipt.getNotes() + " | REVERSED" + (reason != null ? ": " + reason : ""));
             }
-            PersistenceService.getInstance().saveAll();
+            persistenceAction.run();
             return Result.success(receipt, List.of());
         } catch (Exception e) {
             return Result.failure(List.of("Failed to reverse receipt: " + e.getMessage()));

@@ -1,5 +1,6 @@
 package com.schaccs.service;
 
+import com.schaccs.accounting.AccountingEngine;
 import com.schaccs.accounting.ReceiptAllocationEngine;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
@@ -15,6 +16,7 @@ import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.service.receipt.ReceiptNumberService;
 import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
@@ -42,6 +44,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * - Double-entry balance
  */
 class ReceiptSystemAuditTest {
+
+    private static ReceiptService createTestReceiptService() {
+        return new ReceiptService(
+                ReceiptStore.getInstance(), StudentStore.getInstance(), FeeStructureStore.getInstance(),
+                new ReceiptValidator(), new ReceiptAllocationEngine(), new AccountingEngine(),
+                new ReceiptNumberService(), () -> {});
+    }
 
     @BeforeEach
     void setUp() {
@@ -96,7 +105,7 @@ class ReceiptSystemAuditTest {
         ledger.charge("ACT", CurrencyConfig.money("5000"));
         ledger.charge("TUITION", CurrencyConfig.money("15000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         ReceiptService.Result result = service.receivePayment(student, CurrencyConfig.money("25000"),
                 PaymentMode.MPESA, "MPESA-REF-001", LocalDate.now(), "Full payment test");
 
@@ -127,7 +136,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("20000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         service.receivePayment(student, CurrencyConfig.money("10000"),
                 PaymentMode.BANK_SLIP, "SLIP-001", LocalDate.now(), null);
 
@@ -149,7 +158,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("20000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         ReceiptService.Result created = service.receivePayment(student, CurrencyConfig.money("15000"),
                 PaymentMode.BANK_SLIP, "SLIP-002", LocalDate.now(), null);
         assertTrue(created.isSuccess());
@@ -173,7 +182,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("20000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         ReceiptService.Result created = service.receivePayment(student, CurrencyConfig.money("20000"),
                 PaymentMode.MPESA, "MPESA-004", LocalDate.now(), null);
 
@@ -204,7 +213,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("20000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         ReceiptService.Result created = service.receivePayment(student, CurrencyConfig.money("5000"),
                 PaymentMode.BANK_SLIP, "SLIP-005", LocalDate.now(), null);
         ReceiptService.Result reversed = service.reverseReceipt(created.getReceipt(), "First");
@@ -217,7 +226,7 @@ class ReceiptSystemAuditTest {
 
     @Test
     void reversalRejectsNullReceipt() {
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         ReceiptService.Result result = service.reverseReceipt(null, "reason");
         assertFalse(result.isSuccess());
         assertTrue(result.getErrors().getFirst().contains("No receipt selected"));
@@ -379,7 +388,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("10000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         ReceiptService.Result created = service.receivePayment(student, CurrencyConfig.money("10000"),
                 PaymentMode.BANK_SLIP, "LED1-REF", LocalDate.now(), null);
         assertTrue(created.isSuccess());
@@ -408,7 +417,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("5000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         service.receivePayment(student, CurrencyConfig.money("5000"),
                 PaymentMode.MPESA, "LED2-REF", LocalDate.now(), null);
 
@@ -465,7 +474,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("20000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
 
         // 1. Create receipt
         ReceiptService.Result created = service.receivePayment(student, CurrencyConfig.money("10000"),
@@ -503,7 +512,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("30000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
 
         // Receipt 1: 10000
         ReceiptService.Result r1 = service.receivePayment(student, CurrencyConfig.money("10000"),
@@ -543,7 +552,7 @@ class ReceiptSystemAuditTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
         ledger.charge("BOARD", CurrencyConfig.money("50000"));
 
-        ReceiptService service = new ReceiptService();
+        ReceiptService service = createTestReceiptService();
         ReceiptService.Result r1 = service.receivePayment(student, CurrencyConfig.money("10000"),
                 PaymentMode.MPESA, "SEQ-1", LocalDate.now(), null);
         ReceiptService.Result r2 = service.receivePayment(student, CurrencyConfig.money("10000"),
