@@ -11,6 +11,8 @@ import com.schaccs.enums.VoucherStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.finance.Votehead;
+import com.schaccs.model.payroll.Employee;
+import com.schaccs.model.payroll.SalaryStructure;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.school.SchoolFormClass;
@@ -23,6 +25,7 @@ import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.store.AuditStore;
 import com.schaccs.store.BankReconciliationStore;
+import com.schaccs.store.EmployeeStore;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
@@ -56,6 +59,7 @@ public final class DemoDataSeeder {
         AuditStore auditStore = AuditStore.getInstance();
         BankReconciliationStore bankRecStore = BankReconciliationStore.getInstance();
         SchoolCustomStore schoolCustomStore = SchoolCustomStore.getInstance();
+        EmployeeStore employeeStore = EmployeeStore.getInstance();
         FeeCalculationService feeCalc = new FeeCalculationService(feeStore, studentStore);
         AccountingEngine accounting = new AccountingEngine();
 
@@ -71,6 +75,7 @@ public final class DemoDataSeeder {
             auditStore.clear();
             bankRecStore.clear();
             schoolCustomStore.clear();
+            employeeStore.clear();
 
             psvc.transactional(conn -> {
                 try (Statement st = conn.createStatement()) {
@@ -93,6 +98,8 @@ public final class DemoDataSeeder {
                     st.execute("DELETE FROM audit_log");
                     st.execute("DELETE FROM bank_reconciliation_items");
                     st.execute("DELETE FROM bank_reconciliation");
+                    st.execute("DELETE FROM salary_structures");
+                    st.execute("DELETE FROM employees");
                     st.execute("DELETE FROM school_form_classes");
                     st.execute("DELETE FROM school_streams");
                 }
@@ -149,6 +156,7 @@ public final class DemoDataSeeder {
             }
 
             createSampleVouchers(voucherStore, accounting);
+            createEmployees(employeeStore);
 
             psvc.saveAll();
 
@@ -433,6 +441,57 @@ public final class DemoDataSeeder {
                 AccountType.FSE_OPERATIONS, "DEV",
                 CurrencyConfig.money("120000.00").negate(),
                 null, null, v2.getId(), LocalDate.of(2026, 6, 20));
+    }
+
+    private static void createEmployees(EmployeeStore store) {
+        String[][] data = {
+                // empNo, firstName, lastName, nationalId, department, position, phone, kraPin, nssf, shif, bank, branch, acc, basic, house, resp, transport, loan, advance
+                {"EMP001", "John", "Odhiambo", "12345678", "Teaching", "Principal", "0722-100-001", "A001234567B", "NSSF001", "SHIF001", "KCB", "Kikai", "1012345678", "150000", "25000", "20000", "8000", "0", "0"},
+                {"EMP002", "Mary", "Wanjiku", "23456789", "Teaching", "Deputy Principal", "0722-100-002", "B002345678C", "NSSF002", "SHIF002", "Equity", "Kikai", "1023456789", "120000", "20000", "15000", "7000", "0", "0"},
+                {"EMP003", "Peter", "Kiprop", "34567890", "Teaching", "HOD Sciences", "0722-100-003", "C003456789D", "NSSF003", "SHIF003", "KCB", "Chwele", "1034567890", "95000", "18000", "12000", "6000", "0", "0"},
+                {"EMP004", "Grace", "Nekesa", "45678901", "Teaching", "HOD Humanities", "0722-100-004", "D004567890E", "NSSF004", "SHIF004", "Co-op", "Kikai", "1045678901", "90000", "18000", "12000", "6000", "0", "0"},
+                {"EMP005", "Samuel", "Wekesa", "56789012", "Teaching", "Teacher", "0722-100-005", "E005678901F", "NSSF005", "SHIF005", "KCB", "Kikai", "1056789012", "72000", "15000", "0", "5000", "0", "0"},
+                {"EMP006", "Janet", "Chebet", "67890123", "Teaching", "Teacher", "0722-100-006", "F006789012G", "NSSF006", "SHIF006", "Equity", "Chwele", "1067890123", "70000", "15000", "0", "5000", "0", "0"},
+                {"EMP007", "David", "Barasa", "78901234", "Teaching", "Teacher", "0722-100-007", "G007890123H", "NSSF007", "SHIF007", "KCB", "Kikai", "1078901234", "68000", "14000", "0", "5000", "0", "0"},
+                {"EMP008", "Agnes", "Mukhwana", "89012345", "Teaching", "Teacher", "0722-100-008", "H008901234I", "NSSF008", "SHIF008", "Co-op", "Kikai", "1089012345", "65000", "14000", "0", "5000", "0", "0"},
+                {"EMP009", "Robert", "Simiyu", "90123456", "Administration", "Bursar", "0722-100-009", "I009012345J", "NSSF009", "SHIF009", "KCB", "Kikai", "1090123456", "80000", "18000", "10000", "6000", "5000", "0"},
+                {"EMP010", "Florence", "Naliaka", "01234567", "Administration", "Secretary", "0722-100-010", "J001234567K", "NSSF010", "SHIF010", "Equity", "Kikai", "1001234567", "45000", "10000", "0", "4000", "0", "0"},
+                {"EMP011", "Joseph", "Masese", "11223344", "Support", "Laboratory Technician", "0722-100-011", "K011223344L", "NSSF011", "SHIF011", "KCB", "Chwele", "1112233445", "42000", "8000", "0", "3500", "0", "0"},
+                {"EMP012", "Eunice", "Wafula", "22334455", "Support", "Librarian", "0722-100-012", "L022334455M", "NSSF012", "SHIF012", "Co-op", "Kikai", "1223344556", "40000", "8000", "0", "3500", "0", "0"},
+                {"EMP013", "Patrick", "Onyango", "33445566", "Support", "Cook", "0722-100-013", "M033445566N", "NSSF013", "SHIF013", "KCB", "Kikai", "1334455667", "28000", "5000", "0", "2000", "0", "0"},
+                {"EMP014", "Catherine", "Langat", "44556677", "Support", "Driver", "0722-100-014", "N044556677O", "NSSF014", "SHIF014", "Equity", "Kikai", "1445566778", "30000", "5000", "0", "3000", "0", "0"},
+                {"EMP015", "Michael", "Omondi", "55667788", "Support", "Groundsman", "0722-100-015", "O055667788P", "NSSF015", "SHIF015", "KCB", "Chwele", "1556677889", "25000", "4000", "0", "2000", "0", "0"},
+        };
+
+        for (String[] row : data) {
+            Employee e = new Employee();
+            e.setEmployeeNumber(row[0]);
+            e.setFirstName(row[1]);
+            e.setLastName(row[2]);
+            e.setNationalId(row[3]);
+            e.setDepartment(row[4]);
+            e.setPosition(row[5]);
+            e.setPhone(row[6]);
+            e.setKraPin(row[7]);
+            e.setNssfNumber(row[8]);
+            e.setShifNumber(row[9]);
+            e.setBankName(row[10]);
+            e.setBankBranch(row[11]);
+            e.setBankAccountNumber(row[12]);
+            e.setEmploymentDate(LocalDate.of(2018 + RANDOM.nextInt(7), 1 + RANDOM.nextInt(12), 1 + RANDOM.nextInt(28)));
+            store.getEmployees().add(e);
+
+            SalaryStructure ss = new SalaryStructure();
+            ss.setEmployeeId(e.getId());
+            ss.setBasicSalary(CurrencyConfig.money(row[13]));
+            ss.setHouseAllowance(CurrencyConfig.money(row[14]));
+            ss.setResponsibilityAllowance(CurrencyConfig.money(row[15]));
+            ss.setTransportAllowance(CurrencyConfig.money(row[16]));
+            if (!"0".equals(row[17])) ss.setStaffLoanRepayment(CurrencyConfig.money(row[17]));
+            if (!"0".equals(row[18])) ss.setSalaryAdvanceRecovery(CurrencyConfig.money(row[18]));
+            ss.setEffectiveDate(LocalDate.of(2024, 1, 1));
+            store.getSalaryStructures().add(ss);
+        }
     }
 
     private static PaymentMode pickPaymentMode() {
