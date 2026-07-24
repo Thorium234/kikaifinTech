@@ -15,6 +15,7 @@ import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
+import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,10 +30,7 @@ class ReceiptCoreTest {
 
     @BeforeEach
     void setUp() {
-        StudentStore.getInstance().clear();
-        ReceiptStore.getInstance().clear();
-        LedgerStore.getInstance().clear();
-        FeeStructureStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
         FeeStructureStore.getInstance().addVotehead(new Votehead("BOARD", "Boarding", AccountType.SCHOOL_FUND, 1));
         FeeStructureStore.getInstance().addVotehead(new Votehead("ACT", "Activity", AccountType.FSE_OPERATIONS, 2));
         AppConfig.getInstance().getSchoolProfile().setNextReceiptNumber(1000);
@@ -40,10 +38,7 @@ class ReceiptCoreTest {
 
     @AfterEach
     void tearDown() {
-        StudentStore.getInstance().clear();
-        ReceiptStore.getInstance().clear();
-        LedgerStore.getInstance().clear();
-        FeeStructureStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
     }
 
     @Test

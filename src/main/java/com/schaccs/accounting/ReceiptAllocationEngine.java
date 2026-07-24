@@ -96,7 +96,7 @@ public class ReceiptAllocationEngine {
         while (!outstanding.isEmpty() && remaining.compareTo(BigDecimal.ZERO) > 0) {
             if (++iterations > maxIterations) break;
             int count = outstanding.size();
-            BigDecimal equalShare = remaining.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_DOWN);
+            BigDecimal equalShare = remaining.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
             BigDecimal expectedTotal = equalShare.multiply(BigDecimal.valueOf(count));
             BigDecimal remainderCents = remaining.subtract(expectedTotal);
 

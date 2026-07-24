@@ -61,6 +61,9 @@ public class PayrollAccountingIntegration {
                 .map(PayrollItem::getCustomDeductions)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalNet = run.getTotalNetPay();
+        BigDecimal totalEmployerNssf = items.stream()
+                .map(PayrollItem::getEmployerNssf)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Build the journal entry
         JournalEntry journal = new JournalEntry();
@@ -69,9 +72,10 @@ public class PayrollAccountingIntegration {
         journal.setNarration("Payroll posting for " + run.getPeriodLabel()
                 + " (" + run.getEmployeeCount() + " employees)");
 
-        // DEBIT: Salaries Expense (total gross pay)
+        // DEBIT: Salaries Expense (gross pay + employer NSSF as employment cost)
+        BigDecimal totalSalariesExpense = totalGross.add(totalEmployerNssf);
         journal.addLine(AccountType.SALARIES, "SALARY",
-                totalGross, BigDecimal.ZERO,
+                totalSalariesExpense, BigDecimal.ZERO,
                 "Salaries & Wages — " + run.getPeriodLabel());
 
         // CREDIT: PAYE Payable
@@ -81,11 +85,12 @@ public class PayrollAccountingIntegration {
                     "PAYE deduction — " + run.getPeriodLabel());
         }
 
-        // CREDIT: NSSF Payable (employee share)
-        if (totalNssf.compareTo(BigDecimal.ZERO) > 0) {
+        // CREDIT: NSSF Payable (employee + employer share)
+        BigDecimal totalNssfAll = totalNssf.add(totalEmployerNssf);
+        if (totalNssfAll.compareTo(BigDecimal.ZERO) > 0) {
             journal.addLine(AccountType.NSSF_PAYABLE, "NSSF",
-                    BigDecimal.ZERO, totalNssf,
-                    "NSSF employee contribution — " + run.getPeriodLabel());
+                    BigDecimal.ZERO, totalNssfAll,
+                    "NSSF contribution (employee + employer) — " + run.getPeriodLabel());
         }
 
         // CREDIT: SHIF Payable
@@ -153,6 +158,9 @@ public class PayrollAccountingIntegration {
                 .map(PayrollItem::getCustomDeductions)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalNet = originalRun.getTotalNetPay();
+        BigDecimal totalEmployerNssf = items.stream()
+                .map(PayrollItem::getEmployerNssf)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Reverse journal: swap debits and credits
         JournalEntry journal = new JournalEntry();
@@ -160,9 +168,9 @@ public class PayrollAccountingIntegration {
         journal.setReference("PAYROLL-REV-" + originalRun.getRunNumber());
         journal.setNarration("Payroll reversal for " + originalRun.getPeriodLabel());
 
-        // CREDIT: Salaries Expense (reversal)
+        // CREDIT: Salaries Expense (reversal — includes employer NSSF)
         journal.addLine(AccountType.SALARIES, "SALARY",
-                BigDecimal.ZERO, totalGross,
+                BigDecimal.ZERO, totalGross.add(totalEmployerNssf),
                 "Reversal — Salaries & Wages — " + originalRun.getPeriodLabel());
 
         // DEBIT: PAYE Payable (reversal)
@@ -172,11 +180,12 @@ public class PayrollAccountingIntegration {
                     "Reversal — PAYE — " + originalRun.getPeriodLabel());
         }
 
-        // DEBIT: NSSF Payable
-        if (totalNssf.compareTo(BigDecimal.ZERO) > 0) {
+        // DEBIT: NSSF Payable (employee + employer)
+        BigDecimal totalNssfAll = totalNssf.add(totalEmployerNssf);
+        if (totalNssfAll.compareTo(BigDecimal.ZERO) > 0) {
             journal.addLine(AccountType.NSSF_PAYABLE, "NSSF",
-                    totalNssf, BigDecimal.ZERO,
-                    "Reversal — NSSF — " + originalRun.getPeriodLabel());
+                    totalNssfAll, BigDecimal.ZERO,
+                    "Reversal — NSSF (employee + employer) — " + originalRun.getPeriodLabel());
         }
 
         // DEBIT: SHIF Payable

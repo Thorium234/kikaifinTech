@@ -33,7 +33,6 @@ public class PayrollItem {
     private BigDecimal salaryAdvanceRecovery = CurrencyConfig.zero();
     private BigDecimal welfareContribution = CurrencyConfig.zero();
     private BigDecimal customDeductions = CurrencyConfig.zero();
-    private BigDecimal customDeductionDescription = CurrencyConfig.zero();
     private BigDecimal totalDeductions = CurrencyConfig.zero();
 
     // Net Pay

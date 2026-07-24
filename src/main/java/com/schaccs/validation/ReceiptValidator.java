@@ -20,8 +20,8 @@ public class ReceiptValidator {
         if (mode == null) {
             errors.add("Payment mode is required.");
         } else if (!mode.isAllowed()) {
-            errors.add("Cash is not accepted. " + mode.getDisplayName()
-                    + " is against school policy (bank pay-in slip only).");
+            errors.add(mode.getDisplayName() + " is not accepted. "
+                    + "Please use bank pay-in slip only.");
         }
         if (mode == PaymentMode.BANK_SLIP || mode == PaymentMode.MPESA || mode == PaymentMode.CHEQUE) {
             if (bankRef == null || bankRef.isBlank()) {

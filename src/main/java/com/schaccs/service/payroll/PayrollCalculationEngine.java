@@ -18,27 +18,27 @@ import java.math.RoundingMode;
  */
 public final class PayrollCalculationEngine {
 
-    // PAYE Tax bands (monthly)
+    // PAYE Tax bands (monthly) — rates stored as-is (not via CurrencyConfig.money which rounds to 2dp)
     private static final BigDecimal[][] PAYE_BANDS = {
-            {CurrencyConfig.money(24000), CurrencyConfig.money(0.10)},
-            {CurrencyConfig.money(8333), CurrencyConfig.money(0.25)},
-            {CurrencyConfig.money(467667), CurrencyConfig.money(0.30)},
-            {CurrencyConfig.money(300000), CurrencyConfig.money(0.325)},
+            {CurrencyConfig.money(24000), new BigDecimal("0.10")},
+            {CurrencyConfig.money(8333), new BigDecimal("0.25")},
+            {CurrencyConfig.money(467667), new BigDecimal("0.30")},
+            {CurrencyConfig.money(300000), new BigDecimal("0.325")},
             // Above 800,000 at 35%
     };
-    private static final BigDecimal PAYE_TOP_RATE = CurrencyConfig.money(0.35);
+    private static final BigDecimal PAYE_TOP_RATE = new BigDecimal("0.35");
     private static final BigDecimal PERSONAL_RELIEF = CurrencyConfig.money(2400);
     private static final BigDecimal INSURANCE_RELIEF = CurrencyConfig.money(500);
 
     // NSSF
     private static final BigDecimal NSSF_LOWER_LIMIT = CurrencyConfig.money(7000);
     private static final BigDecimal NSSF_UPPER_LIMIT = CurrencyConfig.money(36000);
-    private static final BigDecimal NSSF_RATE = CurrencyConfig.money(0.06);
+    private static final BigDecimal NSSF_RATE = new BigDecimal("0.06");
     private static final BigDecimal NSSF_MAX_CONTRIBUTION = CurrencyConfig.money(2160);
-    private static final BigDecimal NSSF_EMPLOYER_RATE = CurrencyConfig.money(0.06);
+    private static final BigDecimal NSSF_EMPLOYER_RATE = new BigDecimal("0.06");
 
     // SHIF (Social Health Insurance Fund)
-    private static final BigDecimal SHIF_RATE = CurrencyConfig.money(0.0275);
+    private static final BigDecimal SHIF_RATE = new BigDecimal("0.0275");
     private static final BigDecimal SHIF_MIN = CurrencyConfig.money(300);
     private static final BigDecimal SHIF_MAX = CurrencyConfig.money(5000);
 
@@ -54,6 +54,7 @@ public final class PayrollCalculationEngine {
         item.setHouseAllowance(structure.getHouseAllowance());
         item.setResponsibilityAllowance(structure.getResponsibilityAllowance());
         item.setTransportAllowance(structure.getTransportAllowance());
+        item.setOtherEarnings(structure.getOtherEarnings());
         item.setStaffLoanRepayment(structure.getStaffLoanRepayment());
         item.setSalaryAdvanceRecovery(structure.getSalaryAdvanceRecovery());
         item.setWelfareContribution(structure.getWelfareContribution());

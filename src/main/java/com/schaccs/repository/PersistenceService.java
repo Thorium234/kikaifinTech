@@ -108,6 +108,24 @@ public final class PersistenceService {
         }
     }
 
+    public synchronized void clearAll() {
+        transactional(conn -> {
+            clearTables(conn);
+        });
+        AccountStore.getInstance().clear();
+        StudentStore.getInstance().clear();
+        FeeStructureStore.getInstance().clear();
+        ReceiptStore.getInstance().clear();
+        LedgerStore.getInstance().clear();
+        VoucherStore.getInstance().clear();
+        AuditStore.getInstance().clear();
+        BankReconciliationStore.getInstance().clear();
+        SchoolCustomStore.getInstance().clear();
+        EmployeeStore.getInstance().clear();
+        PayrollStore.getInstance().clear();
+        ProcurementStore.getInstance().clear();
+    }
+
     public synchronized void saveAll() {
         transactional(conn -> {
             saveSettings(conn);
@@ -243,6 +261,15 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM payroll_runs");
             st.executeUpdate("DELETE FROM salary_structures");
             st.executeUpdate("DELETE FROM employees");
+            st.executeUpdate("DELETE FROM procurement_approvals");
+            st.executeUpdate("DELETE FROM contract_milestones");
+            st.executeUpdate("DELETE FROM contracts");
+            st.executeUpdate("DELETE FROM tender_awards");
+            st.executeUpdate("DELETE FROM tender_evaluations");
+            st.executeUpdate("DELETE FROM tender_bids");
+            st.executeUpdate("DELETE FROM tenders");
+            st.executeUpdate("DELETE FROM procurement_requests");
+            st.executeUpdate("DELETE FROM suppliers");
         }
     }
 

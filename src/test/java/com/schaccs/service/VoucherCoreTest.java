@@ -11,6 +11,7 @@ import com.schaccs.model.voucher.Lpo;
 import com.schaccs.service.voucher.PaymentVoucherService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.VoucherStore;
+import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,15 +24,13 @@ class VoucherCoreTest {
 
     @BeforeEach
     void setUp() {
-        VoucherStore.getInstance().clear();
-        FeeStructureStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
         FeeStructureStore.getInstance().addVotehead(new Votehead("BOARD", "Boarding", AccountType.SCHOOL_FUND, 1));
     }
 
     @AfterEach
     void tearDown() {
-        VoucherStore.getInstance().clear();
-        FeeStructureStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
     }
 
     @Test

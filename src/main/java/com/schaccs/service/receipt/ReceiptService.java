@@ -132,6 +132,7 @@ public class ReceiptService {
                 if (alloc.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
                     // Applying existing carry-forward credit to this payment
                     ledger.consumeAdvance(alloc.getAllocated());
+                    ledger.pay(StudentFeeLedger.ADVANCE_CODE, alloc.getAllocated());
                 } else {
                     // New overpayment recorded as carry-forward credit
                     ledger.addAdvance(alloc.getAllocated());
@@ -179,6 +180,7 @@ public class ReceiptService {
                 if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
                     if (line.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
                         ledger.addAdvance(line.getAmount());
+                        ledger.reversePayment(StudentFeeLedger.ADVANCE_CODE, line.getAmount());
                     } else {
                         ledger.reduceAdvance(line.getAmount());
                     }
@@ -275,6 +277,7 @@ public class ReceiptService {
                 if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
                     if (line.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
                         ledger.addAdvance(line.getAmount());
+                        ledger.reversePayment(StudentFeeLedger.ADVANCE_CODE, line.getAmount());
                     } else {
                         ledger.reduceAdvance(line.getAmount());
                     }

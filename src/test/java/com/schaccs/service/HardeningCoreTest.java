@@ -12,6 +12,7 @@ import com.schaccs.repository.Database;
 import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.validation.StudentValidator;
 import com.schaccs.store.FeeStructureStore;
+import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +31,7 @@ class HardeningCoreTest {
 
     @AfterEach
     void tearDown() {
-        FeeStructureStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
         Database.getInstance().close();
     }
 

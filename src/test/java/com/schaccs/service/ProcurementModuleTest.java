@@ -10,6 +10,7 @@ import com.schaccs.service.procurement.*;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ProcurementStore;
 import com.schaccs.repository.Database;
+import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,18 +36,8 @@ class ProcurementModuleTest {
 
     @BeforeEach
     void setUp() {
+        PersistenceService.getInstance().clearAll();
         store = ProcurementStore.getInstance();
-        store.clear();
-        LedgerStore.getInstance().clear();
-        try (Connection conn = Database.getInstance().getConnection();
-             Statement st = conn.createStatement()) {
-            for (String table : List.of("procurement_approvals", "contract_milestones", "contracts",
-                    "tender_awards", "tender_evaluations", "tender_bids", "tenders",
-                    "procurement_requests", "suppliers", "transactions", "ledger_entries")) {
-                st.executeUpdate("DELETE FROM " + table);
-            }
-        } catch (Exception ignored) {
-        }
         audit = new AuditService();
         supplierService = new SupplierService(store, audit);
         procurementService = new ProcurementService(store, audit);
@@ -62,8 +53,7 @@ class ProcurementModuleTest {
 
     @AfterEach
     void tearDown() {
-        store.clear();
-        LedgerStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
     }
 
     // ── Supplier Tests ────────────────────────────────────────────────

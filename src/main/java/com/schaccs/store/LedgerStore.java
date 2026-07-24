@@ -113,6 +113,7 @@ public final class LedgerStore {
                 next = current.add(entry.getCredit()).subtract(entry.getDebit());
             }
             accountBalances.put(type, CurrencyConfig.money(next));
+            entry.setBalance(accountBalances.get(type));
         }
     }
 

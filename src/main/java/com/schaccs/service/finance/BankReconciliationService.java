@@ -88,6 +88,10 @@ public class BankReconciliationService {
 
     public void finalizeReconciliation(BankReconciliation rec) {
         rec.calculate();
+        if (rec.getDifference() != null && rec.getDifference().compareTo(BigDecimal.ZERO) != 0) {
+            throw new IllegalStateException("Cannot finalize reconciliation: difference must be zero (current: "
+                    + rec.getDifference() + ")");
+        }
         rec.setStatus("RECONCILED");
         rec.setReconciledAt(LocalDateTime.now());
         PersistenceService.getInstance().saveAll();

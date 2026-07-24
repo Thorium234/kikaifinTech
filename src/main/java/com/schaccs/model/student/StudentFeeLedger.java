@@ -97,7 +97,7 @@ public class StudentFeeLedger {
     public void clearCurrentCycle() {
         chargedByVotehead.clear();
         paidByVotehead.clear();
-        advance = CurrencyConfig.zero();
+        // advance is preserved — it carries forward to the next cycle
     }
 
     public BigDecimal getCharged(String voteheadCode) {

@@ -47,7 +47,9 @@ public class ArrearsService {
             }
             StudentFeeLedger ledger = studentStore.getLedger(s.getId());
             BigDecimal totalOutstanding = ledger.getTotalCharged().subtract(ledger.getTotalPaid());
-            BigDecimal netOutstanding = totalOutstanding.subtract(ledger.getAdvance()).max(CurrencyConfig.zero());
+            BigDecimal advanceConsumed = totalOutstanding.min(ledger.getAdvance()).max(CurrencyConfig.zero());
+            ledger.setAdvance(CurrencyConfig.money(ledger.getAdvance().subtract(advanceConsumed)));
+            BigDecimal netOutstanding = totalOutstanding.subtract(advanceConsumed).max(CurrencyConfig.zero());
             if (netOutstanding.compareTo(CurrencyConfig.zero()) > 0) {
                 ledger.setArrears(CurrencyConfig.money(ledger.getArrears().add(netOutstanding)));
             }

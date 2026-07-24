@@ -50,16 +50,20 @@ public class BudgetService {
     }
 
     public void recordSpend(String voteheadCode, BigDecimal amount) {
-        for (BudgetLine line : accountStore.findBudgetLinesByVoteheadCode(voteheadCode)) {
+        List<BudgetLine> lines = accountStore.findBudgetLinesByVoteheadCode(voteheadCode);
+        for (BudgetLine line : lines) {
             BigDecimal current = line.getSpentAmount();
             line.setSpentAmount(current.add(amount));
+            return; // only record against the first matching budget line
         }
     }
 
     public void recordCommitment(String voteheadCode, BigDecimal amount) {
-        for (BudgetLine line : accountStore.findBudgetLinesByVoteheadCode(voteheadCode)) {
+        List<BudgetLine> lines = accountStore.findBudgetLinesByVoteheadCode(voteheadCode);
+        for (BudgetLine line : lines) {
             BigDecimal current = line.getCommittedAmount();
             line.setCommittedAmount(current.add(amount));
+            return; // only record against the first matching budget line
         }
     }
 

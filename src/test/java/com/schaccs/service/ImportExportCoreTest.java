@@ -5,6 +5,7 @@ import com.schaccs.service.export.StudentTemplateService;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.store.StudentStore;
+import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +22,7 @@ class ImportExportCoreTest {
 
     @AfterEach
     void tearDown() {
-        StudentStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
     }
 
     @Test

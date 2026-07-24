@@ -31,6 +31,7 @@ import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.store.VoucherStore;
+import com.schaccs.repository.PersistenceService;
 import com.schaccs.validation.ReceiptValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,11 +63,7 @@ class BugFixRegressionTest {
 
     @BeforeEach
     void setUp() {
-        StudentStore.getInstance().clear();
-        ReceiptStore.getInstance().clear();
-        LedgerStore.getInstance().clear();
-        FeeStructureStore.getInstance().clear();
-        VoucherStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
         FeeStructureStore.getInstance().addVotehead(new Votehead("BOARD", "Boarding", AccountType.SCHOOL_FUND, 1));
         FeeStructureStore.getInstance().addVotehead(new Votehead("ACT", "Activity", AccountType.FSE_OPERATIONS, 2));
         FeeStructureStore.getInstance().addVotehead(new Votehead("TUITION", "Tuition", AccountType.TUITION_FEES, 3));
@@ -75,11 +72,7 @@ class BugFixRegressionTest {
 
     @AfterEach
     void tearDown() {
-        StudentStore.getInstance().clear();
-        ReceiptStore.getInstance().clear();
-        LedgerStore.getInstance().clear();
-        FeeStructureStore.getInstance().clear();
-        VoucherStore.getInstance().clear();
+        PersistenceService.getInstance().clearAll();
     }
 
     private Student createTestStudent(String adm) {
@@ -165,8 +158,8 @@ class BugFixRegressionTest {
         BigDecimal arrears = arrearsService.getArrears(student);
         assertEquals(0, arrears.compareTo(BigDecimal.ZERO),
                 "Rollover should net advance (8000) against outstanding (5000), producing 0 arrears, but got " + arrears);
-        assertEquals(0, ledger.getAdvance().compareTo(BigDecimal.ZERO),
-                "Advance should be cleared after rollover");
+        assertEquals(0, ledger.getAdvance().compareTo(CurrencyConfig.money("3000")),
+                "Advance should be 3000 after rollover (8000 - 5000 consumed against outstanding)");
     }
 
     @Test
