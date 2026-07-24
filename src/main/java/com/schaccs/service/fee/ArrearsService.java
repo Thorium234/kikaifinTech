@@ -3,6 +3,7 @@ package com.schaccs.service.fee;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.service.audit.AuditService;
 import com.schaccs.store.StudentStore;
 
 import java.math.BigDecimal;
@@ -10,13 +11,19 @@ import java.math.BigDecimal;
 public class ArrearsService {
 
     private final StudentStore studentStore;
+    private final AuditService auditService;
 
     public ArrearsService() {
-        this(StudentStore.getInstance());
+        this(StudentStore.getInstance(), new AuditService());
     }
 
     public ArrearsService(StudentStore studentStore) {
+        this(studentStore, new AuditService());
+    }
+
+    public ArrearsService(StudentStore studentStore, AuditService auditService) {
         this.studentStore = studentStore;
+        this.auditService = auditService;
     }
 
     public void setArrears(Student student, BigDecimal amount) {
@@ -46,6 +53,9 @@ public class ArrearsService {
             }
             ledger.clearCurrentCycle();
         }
+        auditService.log("ARREARS_ROLLOVER", "System", "ALL",
+                "{\"activeStudents\":" + studentStore.getStudents().stream()
+                        .filter(s -> s.getStatus() == com.schaccs.enums.StudentStatus.ACTIVE).count() + "}");
     }
 
 }

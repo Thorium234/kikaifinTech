@@ -19,6 +19,7 @@ import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
+import com.schaccs.service.audit.AuditService;
 import com.schaccs.validation.ReceiptValidator;
 
 import java.math.BigDecimal;
@@ -39,24 +40,35 @@ public class ReceiptService {
     private final AccountingEngine accountingEngine;
     private final ReceiptNumberService numberService;
     private final Runnable persistenceAction;
+    private final AuditService auditService;
 
     public ReceiptService() {
         this(ReceiptStore.getInstance(), StudentStore.getInstance(), FeeStructureStore.getInstance(),
                 new ReceiptValidator(), new ReceiptAllocationEngine(), new AccountingEngine(),
-                new ReceiptNumberService(), PersistenceService.getInstance()::saveAll);
+                new ReceiptNumberService(), PersistenceService.getInstance()::saveAll,
+                new AuditService());
     }
 
     public ReceiptService(ReceiptStore receiptStore, StudentStore studentStore, FeeStructureStore feeStore,
                           ReceiptValidator validator, ReceiptAllocationEngine allocationEngine,
                           AccountingEngine accountingEngine, ReceiptNumberService numberService) {
         this(receiptStore, studentStore, feeStore, validator, allocationEngine,
-                accountingEngine, numberService, PersistenceService.getInstance()::saveAll);
+                accountingEngine, numberService, PersistenceService.getInstance()::saveAll,
+                new AuditService());
     }
 
     public ReceiptService(ReceiptStore receiptStore, StudentStore studentStore, FeeStructureStore feeStore,
                           ReceiptValidator validator, ReceiptAllocationEngine allocationEngine,
                           AccountingEngine accountingEngine, ReceiptNumberService numberService,
                           Runnable persistenceAction) {
+        this(receiptStore, studentStore, feeStore, validator, allocationEngine,
+                accountingEngine, numberService, persistenceAction, new AuditService());
+    }
+
+    public ReceiptService(ReceiptStore receiptStore, StudentStore studentStore, FeeStructureStore feeStore,
+                          ReceiptValidator validator, ReceiptAllocationEngine allocationEngine,
+                          AccountingEngine accountingEngine, ReceiptNumberService numberService,
+                          Runnable persistenceAction, AuditService auditService) {
         this.receiptStore = receiptStore;
         this.studentStore = studentStore;
         this.feeStore = feeStore;
@@ -65,6 +77,7 @@ public class ReceiptService {
         this.accountingEngine = accountingEngine;
         this.numberService = numberService;
         this.persistenceAction = persistenceAction;
+        this.auditService = auditService;
     }
 
     public List<FeeAllocation> previewAllocation(Student student, BigDecimal amount) {
@@ -154,6 +167,12 @@ public class ReceiptService {
         try {
             receiptStore.add(receipt);
             persistenceAction.run();
+            auditService.log("RECEIPT_CREATED", "Receipt", receipt.getId(),
+                    "{\"receiptNumber\":" + receipt.getReceiptNumber()
+                            + ",\"studentId\":\"" + student.getId()
+                            + "\",\"admissionNumber\":\"" + student.getAdmissionNumber()
+                            + "\",\"amount\":" + amount
+                            + ",\"paymentMode\":\"" + mode + "\"}");
             return Result.success(receipt, allocations);
         } catch (Exception e) {
             for (ReceiptLine line : createdLines) {
@@ -288,6 +307,10 @@ public class ReceiptService {
                 receipt.setNotes(receipt.getNotes() + " | REVERSED" + (reason != null ? ": " + reason : ""));
             }
             persistenceAction.run();
+            auditService.log("RECEIPT_REVERSED", "Receipt", receipt.getId(),
+                    "{\"receiptNumber\":" + receipt.getReceiptNumber()
+                            + ",\"amount\":" + receipt.getAmount()
+                            + (reason != null ? ",\"reason\":\"" + reason.replace("\"", "'") + "\"" : "") + "}");
             return Result.success(receipt, List.of());
         } catch (Exception e) {
             ledger.setArrears(savedArrears);

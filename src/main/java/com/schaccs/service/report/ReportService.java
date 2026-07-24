@@ -304,11 +304,17 @@ public class ReportService {
         List<com.schaccs.model.report.BalanceSheetRow> rows = new java.util.ArrayList<>();
         Map<AccountType, BigDecimal> balances = ledgerStore.getAccountBalances();
         for (Map.Entry<AccountType, BigDecimal> e : balances.entrySet()) {
-            String section = "Assets";
-            if (e.getKey() == AccountType.SCHOOL_FUND) {
+            AccountType at = e.getKey();
+            String section;
+            if (at == AccountType.SCHOOL_FUND) {
                 section = "Fund Balance";
-            } else if (e.getKey().name().startsWith("FSE")) {
+            } else if (at.name().startsWith("FSE")) {
                 section = "Restricted Funds";
+            } else if (at.getNormalBalance() == com.schaccs.enums.NormalBalance.CREDIT
+                    && at.getStatementCategory() == com.schaccs.enums.StatementCategory.BALANCE_SHEET) {
+                section = "Liabilities";
+            } else {
+                section = "Assets";
             }
             rows.add(new com.schaccs.model.report.BalanceSheetRow(section,
                     e.getKey().getDisplayName(), e.getValue()));

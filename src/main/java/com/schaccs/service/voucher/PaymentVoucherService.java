@@ -16,6 +16,8 @@ import com.schaccs.model.voucher.Lpo;
 import com.schaccs.model.voucher.PaymentVoucher;
 import com.schaccs.accounting.AccountingEngine;
 import com.schaccs.repository.PersistenceService;
+import com.schaccs.service.audit.AuditService;
+import com.schaccs.store.LedgerStore;
 import com.schaccs.store.VoucherStore;
 
 import java.math.BigDecimal;
@@ -30,14 +32,20 @@ public class PaymentVoucherService {
 
     private final VoucherStore store;
     private final AccountingEngine accountingEngine;
+    private final AuditService auditService;
 
     public PaymentVoucherService() {
-        this(VoucherStore.getInstance(), new AccountingEngine());
+        this(VoucherStore.getInstance(), new AccountingEngine(), new AuditService());
     }
 
     public PaymentVoucherService(VoucherStore store, AccountingEngine accountingEngine) {
+        this(store, accountingEngine, new AuditService());
+    }
+
+    public PaymentVoucherService(VoucherStore store, AccountingEngine accountingEngine, AuditService auditService) {
         this.store = store;
         this.accountingEngine = accountingEngine;
+        this.auditService = auditService;
     }
 
     public Creditor addCreditor(String name, String phone, String description) {
@@ -146,9 +154,15 @@ public class PaymentVoucherService {
             });
             store.addVoucher(voucher);
             PersistenceService.getInstance().saveAll();
+            auditService.log("VOUCHER_PAID", "PaymentVoucher", voucher.getId(),
+                    "{\"voucherNumber\":" + voucher.getVoucherNumber()
+                            + ",\"creditorName\":\"" + voucher.getCreditorName().replace("\"", "'")
+                            + "\",\"amount\":" + amount
+                            + ",\"voteheadCode\":\"" + voucher.getVoteheadCode() + "\"}");
             return errors;
         } catch (Exception e) {
             commitment.setAmountPaid(prevAmountPaid);
+            LedgerStore.getInstance().removeByReceiptId(voucher.getId());
             errors.add("Failed to post payment voucher: " + e.getMessage());
             return errors;
         }

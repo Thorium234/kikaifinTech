@@ -6,6 +6,7 @@ import com.schaccs.enums.TransactionType;
 import com.schaccs.model.finance.JournalEntry;
 import com.schaccs.model.procurement.Contract;
 import com.schaccs.model.procurement.ContractMilestone;
+import com.schaccs.service.audit.AuditService;
 
 import java.math.BigDecimal;
 
@@ -16,9 +17,9 @@ import java.math.BigDecimal;
  *   DEBIT  Expense/Asset Account (goods value)
  *   CREDIT ACCOUNTS_PAYABLE (goods value)
  *
- * When a supplier invoice is booked:
- *   DEBIT  ACCOUNTS_PAYABLE (invoice value)
- *   CREDIT CASH_AT_BANK (invoice value)
+ * When a supplier invoice is received:
+ *   No journal entry — the liability was already recognized at goods-received
+ *   time. The invoice is tracked for documentary/audit purposes only.
  *
  * When a supplier is paid:
  *   DEBIT  ACCOUNTS_PAYABLE (payment value)
@@ -30,13 +31,19 @@ import java.math.BigDecimal;
 public class ProcurementAccountingIntegration {
 
     private final AccountingEngine accountingEngine;
+    private final AuditService auditService;
 
     public ProcurementAccountingIntegration() {
-        this(new AccountingEngine());
+        this(new AccountingEngine(), new AuditService());
     }
 
     public ProcurementAccountingIntegration(AccountingEngine accountingEngine) {
+        this(accountingEngine, new AuditService());
+    }
+
+    public ProcurementAccountingIntegration(AccountingEngine accountingEngine, AuditService auditService) {
         this.accountingEngine = accountingEngine;
+        this.auditService = auditService;
     }
 
     /**
@@ -66,32 +73,20 @@ public class ProcurementAccountingIntegration {
 
         accountingEngine.postTransaction(journal, TransactionType.PROCUREMENT_GOODS_RECEIVED,
                 null, null, contractId);
+        auditService.log("PROCUREMENT_GOODS_RECEIVED", "Contract", contractId,
+                "{\"supplierName\":\"" + supplierName.replace("\"", "'")
+                        + "\",\"amount\":" + amount
+                        + ",\"description\":\"" + description.replace("\"", "'") + "\"}");
     }
 
     /**
-     * Post a journal entry for a supplier invoice received.
-     * DEBIT: ACCOUNTS_PAYABLE
-     * CREDIT: CASH_AT_BANK
+     * Record a supplier invoice. No journal entry is posted because the liability
+     * was already recognized when goods were received (postGoodsReceived). This
+     * method exists for documentary/audit-trail purposes only.
      */
     public void postSupplierInvoice(String contractId, String supplierName,
                                     BigDecimal amount, String voteheadCode) {
-        JournalEntry journal = new JournalEntry();
-        journal.setDate(java.time.LocalDate.now());
-        journal.setReference("INV-SUP-" + contractId.substring(0, Math.min(8, contractId.length())));
-        journal.setNarration("Supplier invoice \u2014 " + supplierName);
-
-        // DEBIT: Accounts Payable
-        journal.addLine(AccountType.ACCOUNTS_PAYABLE, "AP",
-                amount, BigDecimal.ZERO,
-                "Supplier invoice \u2014 " + supplierName);
-
-        // CREDIT: Cash at Bank
-        journal.addLine(AccountType.CASH_AT_BANK, voteheadCode,
-                BigDecimal.ZERO, amount,
-                "Supplier invoice payment \u2014 " + supplierName);
-
-        accountingEngine.postTransaction(journal, TransactionType.PROCUREMENT_INVOICE,
-                null, null, contractId);
+        // Liability already recognized at GRN time — no double-counting.
     }
 
     /**
@@ -118,6 +113,9 @@ public class ProcurementAccountingIntegration {
 
         accountingEngine.postTransaction(journal, TransactionType.PROCUREMENT_PAYMENT,
                 null, null, contractId);
+        auditService.log("PROCUREMENT_PAYMENT", "Contract", contractId,
+                "{\"supplierName\":\"" + supplierName.replace("\"", "'")
+                        + "\",\"amount\":" + amount + "}");
     }
 
     /**
