@@ -1,7 +1,6 @@
 package com.schaccs.ui.layout;
 
 import javafx.scene.Node;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -52,26 +51,11 @@ public class MainLayout extends BorderPane {
     }
 
     private Node wrapForResponsiveLayout(Node view) {
-        if (view instanceof ScrollPane) {
-            VBox container = new VBox(view);
-            container.setFillWidth(true);
-            VBox.setVgrow(view, javafx.scene.layout.Priority.ALWAYS);
-            return container;
-        }
-        ScrollPane scrollPane = new ScrollPane(view);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(false);
-        scrollPane.setPannable(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.getStyleClass().add("content-scroll");
         if (view instanceof Region region) {
             region.setMaxWidth(Double.MAX_VALUE);
+            region.setMaxHeight(Double.MAX_VALUE);
         }
-        VBox container = new VBox(scrollPane);
-        container.setFillWidth(true);
-        VBox.setVgrow(scrollPane, javafx.scene.layout.Priority.ALWAYS);
-        return container;
+        return view;
     }
 
     public Sidebar getSidebar() {

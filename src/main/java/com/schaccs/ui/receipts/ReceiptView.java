@@ -25,6 +25,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -170,7 +171,14 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
         VBox headerCard = new VBox(8, badge, heading, subHeading, policy);
         headerCard.getStyleClass().addAll("card", "receipt-header-card");
-        getChildren().addAll(headerCard, searchCard, lower);
+        VBox content = new VBox(12, headerCard, searchCard, lower);
+        content.setPadding(new Insets(4));
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPannable(true);
+        scrollPane.getStyleClass().add("content-scroll");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        getChildren().add(scrollPane);
         updateReceiptMode();
         filterStudents("");
     }

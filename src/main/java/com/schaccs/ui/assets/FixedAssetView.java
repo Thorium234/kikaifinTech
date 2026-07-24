@@ -22,6 +22,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -63,8 +64,8 @@ public class FixedAssetView extends VBox implements MainLayout.Refreshable {
     private Asset selectedAsset;
 
     public FixedAssetView() {
-        setSpacing(12);
-        setPadding(new Insets(4));
+        setSpacing(0);
+        setPadding(new Insets(0));
 
         categoryCombo.setItems(store.getAssetCategories());
         categoryCombo.setPrefWidth(200);
@@ -74,14 +75,23 @@ public class FixedAssetView extends VBox implements MainLayout.Refreshable {
         depMethodCombo.setItems(FXCollections.observableArrayList(AssetCategory.DepreciationMethod.values()));
         depMethodCombo.setValue(AssetCategory.DepreciationMethod.STRAIGHT_LINE);
 
-        buildAssetsSection();
-        buildCategoriesSection();
-        buildScheduleSection();
+        VBox content = new VBox(12,
+                buildAssetsSection(),
+                buildCategoriesSection(),
+                buildScheduleSection());
+        content.setPadding(new Insets(8));
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPannable(true);
+        scrollPane.getStyleClass().add("content-scroll");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        getChildren().add(scrollPane);
 
         refresh();
     }
 
-    private void buildAssetsSection() {
+    private VBox buildAssetsSection() {
         Label heading = new Label("Fixed Assets");
         heading.getStyleClass().add("section-title");
         Label sub = new Label("Manage fixed assets, track depreciation, and record disposals.");
@@ -177,10 +187,10 @@ public class FixedAssetView extends VBox implements MainLayout.Refreshable {
                 new HBox(10, addBtn, disposeBtn, scheduleBtn, runDepBtn),
                 assetTable, form);
         card.getStyleClass().add("card");
-        getChildren().add(card);
+        return card;
     }
 
-    private void buildCategoriesSection() {
+    private VBox buildCategoriesSection() {
         Label catHeading = new Label("Asset Categories");
         catHeading.getStyleClass().add("section-title");
 
@@ -227,10 +237,10 @@ public class FixedAssetView extends VBox implements MainLayout.Refreshable {
 
         VBox card = new VBox(10, catHeading, addCatBtn, categoryTable, catForm);
         card.getStyleClass().add("card");
-        getChildren().add(card);
+        return card;
     }
 
-    private void buildScheduleSection() {
+    private VBox buildScheduleSection() {
         Label schedHeading = new Label("Depreciation Schedule");
         schedHeading.getStyleClass().add("section-title");
 
@@ -256,7 +266,7 @@ public class FixedAssetView extends VBox implements MainLayout.Refreshable {
 
         VBox card = new VBox(10, schedHeading, scheduleTable);
         card.getStyleClass().add("card");
-        getChildren().add(card);
+        return card;
     }
 
     private void addAsset() {

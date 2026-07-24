@@ -170,7 +170,14 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         voucherModeBadge.getStyleClass().addAll("voucher-mode-badge", "voucher-mode-ready");
         voucherModeBadge.setText("Ready for Commitment and Voucher Processing");
 
-        getChildren().addAll(headerCard, voucherModeBadge, top, lowerScroll, extraTabs);
+        VBox content = new VBox(12, headerCard, voucherModeBadge, top, lowerScroll, extraTabs);
+        content.setPadding(new Insets(4));
+        ScrollPane mainScroll = new ScrollPane(content);
+        mainScroll.setFitToWidth(true);
+        mainScroll.setPannable(true);
+        mainScroll.getStyleClass().add("content-scroll");
+        VBox.setVgrow(mainScroll, Priority.ALWAYS);
+        getChildren().add(mainScroll);
         refresh();
     }
 
