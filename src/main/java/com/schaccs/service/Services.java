@@ -18,6 +18,10 @@ import com.schaccs.service.sync.SyncReportService;
 import com.schaccs.service.voucher.PaymentVoucherService;
 import com.schaccs.service.payroll.EmployeeService;
 import com.schaccs.service.payroll.PayrollService;
+import com.schaccs.service.procurement.SupplierService;
+import com.schaccs.service.procurement.ProcurementService;
+import com.schaccs.service.procurement.TenderService;
+import com.schaccs.service.procurement.ContractService;
 
 /**
  * Central locator for application services.
@@ -47,6 +51,10 @@ public final class Services {
     private final SyncReportService syncReportService = SyncReportService.getInstance();
     private final EmployeeService employeeService = new EmployeeService();
     private final PayrollService payrollService = new PayrollService();
+    private final SupplierService supplierService = new SupplierService();
+    private final ProcurementService procurementService = new ProcurementService();
+    private final TenderService tenderService = new TenderService();
+    private final ContractService contractService = new ContractService();
 
     private Services() {
     }
@@ -125,5 +133,21 @@ public final class Services {
 
     public PayrollService payroll() {
         return payrollService;
+    }
+
+    public SupplierService supplier() {
+        return supplierService;
+    }
+
+    public ProcurementService procurement() {
+        return procurementService;
+    }
+
+    public TenderService tender() {
+        return tenderService;
+    }
+
+    public ContractService contract() {
+        return contractService;
     }
 }

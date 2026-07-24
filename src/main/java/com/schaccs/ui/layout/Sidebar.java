@@ -28,6 +28,10 @@ public class Sidebar extends VBox {
     public static final String EMPLOYEES = "Employees";
     public static final String PAYROLL = "Payroll";
     public static final String SCHOOL_CUSTOM = "School Custom";
+    public static final String PROCUREMENT = "Procurement";
+    public static final String TENDERS = "Tenders";
+    public static final String SUPPLIERS = "Suppliers";
+    public static final String CONTRACTS = "Contracts";
     public static final String SETTINGS = "Settings";
 
     private final Map<String, Button> buttons = new LinkedHashMap<>();
@@ -61,6 +65,10 @@ public class Sidebar extends VBox {
         addNav(navContent, FIXED_ASSETS, "Fixed Assets");
         addNav(navContent, EMPLOYEES, "Employees");
         addNav(navContent, PAYROLL, "Payroll");
+        addNav(navContent, PROCUREMENT, "Procurement");
+        addNav(navContent, TENDERS, "Tenders");
+        addNav(navContent, SUPPLIERS, "Suppliers");
+        addNav(navContent, CONTRACTS, "Contracts");
         addNav(navContent, SCHOOL_CUSTOM, "School Custom");
         addNav(navContent, SETTINGS, "Settings");
 

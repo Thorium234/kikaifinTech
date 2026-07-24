@@ -12,6 +12,13 @@ import com.schaccs.enums.PaymentMode;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.enums.TransactionType;
 import com.schaccs.enums.VoucherStatus;
+import com.schaccs.enums.ApprovalAction;
+import com.schaccs.enums.BidStatus;
+import com.schaccs.enums.ContractStatus;
+import com.schaccs.enums.ProcurementCategory;
+import com.schaccs.enums.ProcurementRequestStatus;
+import com.schaccs.enums.TenderStatus;
+import com.schaccs.enums.TenderType;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.finance.Account;
@@ -38,6 +45,15 @@ import com.schaccs.model.voucher.PaymentVoucher;
 import com.schaccs.model.voucher.Lpo;
 import com.schaccs.model.voucher.Invoice;
 import com.schaccs.model.voucher.Imprest;
+import com.schaccs.model.procurement.Supplier;
+import com.schaccs.model.procurement.ProcurementRequest;
+import com.schaccs.model.procurement.Tender;
+import com.schaccs.model.procurement.TenderBid;
+import com.schaccs.model.procurement.TenderEvaluation;
+import com.schaccs.model.procurement.TenderAward;
+import com.schaccs.model.procurement.Contract;
+import com.schaccs.model.procurement.ContractMilestone;
+import com.schaccs.model.procurement.ProcurementApproval;
 import com.schaccs.store.AccountStore;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
@@ -49,6 +65,7 @@ import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.VoucherStore;
 import com.schaccs.store.EmployeeStore;
 import com.schaccs.store.PayrollStore;
+import com.schaccs.store.ProcurementStore;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -114,6 +131,15 @@ public final class PersistenceService {
             saveSalaryStructures(conn);
             savePayrollRuns(conn);
             savePayrollItems(conn);
+            saveSuppliers(conn);
+            saveProcurementRequests(conn);
+            saveTenders(conn);
+            saveTenderBids(conn);
+            saveTenderEvaluations(conn);
+            saveTenderAwards(conn);
+            saveContracts(conn);
+            saveContractMilestones(conn);
+            saveProcurementApprovals(conn);
         });
     }
 
@@ -131,6 +157,7 @@ public final class PersistenceService {
             SchoolCustomStore.getInstance().clear();
             EmployeeStore.getInstance().clear();
             PayrollStore.getInstance().clear();
+            ProcurementStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
             loadFeeStructures(conn);
@@ -151,6 +178,15 @@ public final class PersistenceService {
             loadSalaryStructures(conn);
             loadPayrollRuns(conn);
             loadPayrollItems(conn);
+            loadSuppliers(conn);
+            loadProcurementRequests(conn);
+            loadTenders(conn);
+            loadTenderBids(conn);
+            loadTenderEvaluations(conn);
+            loadTenderAwards(conn);
+            loadContracts(conn);
+            loadContractMilestones(conn);
+            loadProcurementApprovals(conn);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load data: " + e.getMessage(), e);
         }
@@ -1857,5 +1893,512 @@ public final class PersistenceService {
 
     private static String dateTime(LocalDateTime d) {
         return d == null ? null : d.toString();
+    }
+
+    private static int boolInt(boolean b) {
+        return b ? 1 : 0;
+    }
+
+    private static boolean parseBool(int i) {
+        return i == 1;
+    }
+
+    // ==================== Procurement ====================
+
+    private void saveSuppliers(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO suppliers (id, supplier_number, business_name, contact_person, email, phone,
+                    kra_pin, registration_number, address, category, active, blacklisted,
+                    blacklist_reason, notes, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET supplier_number=excluded.supplier_number,
+                    business_name=excluded.business_name, contact_person=excluded.contact_person,
+                    email=excluded.email, phone=excluded.phone, kra_pin=excluded.kra_pin,
+                    registration_number=excluded.registration_number, address=excluded.address,
+                    category=excluded.category, active=excluded.active, blacklisted=excluded.blacklisted,
+                    blacklist_reason=excluded.blacklist_reason, notes=excluded.notes,
+                    created_at=excluded.created_at
+                """)) {
+            for (Supplier s : ProcurementStore.getInstance().getSuppliers()) {
+                ps.setString(1, s.getId());
+                ps.setString(2, s.getSupplierNumber());
+                ps.setString(3, s.getBusinessName());
+                ps.setString(4, s.getContactPerson());
+                ps.setString(5, s.getEmail());
+                ps.setString(6, s.getPhone());
+                ps.setString(7, s.getKraPin());
+                ps.setString(8, s.getRegistrationNumber());
+                ps.setString(9, s.getAddress());
+                ps.setString(10, s.getCategory());
+                ps.setInt(11, boolInt(s.isActive()));
+                ps.setInt(12, boolInt(s.isBlacklisted()));
+                ps.setString(13, s.getBlacklistReason());
+                ps.setString(14, s.getNotes());
+                ps.setString(15, dateTime(s.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadSuppliers(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM suppliers ORDER BY supplier_number")) {
+            while (rs.next()) {
+                Supplier s = Supplier.withId(rs.getString("id"));
+                s.setSupplierNumber(rs.getString("supplier_number"));
+                s.setBusinessName(rs.getString("business_name"));
+                s.setContactPerson(rs.getString("contact_person"));
+                s.setEmail(rs.getString("email"));
+                s.setPhone(rs.getString("phone"));
+                s.setKraPin(rs.getString("kra_pin"));
+                s.setRegistrationNumber(rs.getString("registration_number"));
+                s.setAddress(rs.getString("address"));
+                s.setCategory(rs.getString("category"));
+                s.setActive(parseBool(rs.getInt("active")));
+                s.setBlacklisted(parseBool(rs.getInt("blacklisted")));
+                s.setBlacklistReason(rs.getString("blacklist_reason"));
+                s.setNotes(rs.getString("notes"));
+                s.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getSuppliers().add(s);
+            }
+        }
+    }
+
+    private void saveProcurementRequests(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO procurement_requests (id, request_number, request_date, department, requested_by,
+                    item_description, quantity, estimated_cost, justification, required_date, budget_account,
+                    status, tender_id, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET request_number=excluded.request_number,
+                    request_date=excluded.request_date, department=excluded.department,
+                    requested_by=excluded.requested_by, item_description=excluded.item_description,
+                    quantity=excluded.quantity, estimated_cost=excluded.estimated_cost,
+                    justification=excluded.justification, required_date=excluded.required_date,
+                    budget_account=excluded.budget_account, status=excluded.status,
+                    tender_id=excluded.tender_id, created_at=excluded.created_at
+                """)) {
+            for (ProcurementRequest r : ProcurementStore.getInstance().getProcurementRequests()) {
+                ps.setString(1, r.getId());
+                ps.setString(2, r.getRequestNumber());
+                ps.setString(3, date(r.getRequestDate()));
+                ps.setString(4, r.getDepartment());
+                ps.setString(5, r.getRequestedBy());
+                ps.setString(6, r.getItemDescription());
+                ps.setInt(7, r.getQuantity());
+                ps.setString(8, money(r.getEstimatedCost()));
+                ps.setString(9, r.getJustification());
+                ps.setString(10, date(r.getRequiredDate()));
+                ps.setString(11, r.getBudgetAccount());
+                ps.setString(12, enumName(r.getStatus()));
+                ps.setString(13, r.getTenderId());
+                ps.setString(14, dateTime(r.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadProcurementRequests(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM procurement_requests ORDER BY request_number")) {
+            while (rs.next()) {
+                ProcurementRequest r = ProcurementRequest.withId(rs.getString("id"));
+                r.setRequestNumber(rs.getString("request_number"));
+                r.setRequestDate(parseDate(rs.getString("request_date")));
+                r.setDepartment(rs.getString("department"));
+                r.setRequestedBy(rs.getString("requested_by"));
+                r.setItemDescription(rs.getString("item_description"));
+                r.setQuantity(rs.getInt("quantity"));
+                r.setEstimatedCost(parseMoney(rs.getString("estimated_cost")));
+                r.setJustification(rs.getString("justification"));
+                r.setRequiredDate(parseDate(rs.getString("required_date")));
+                r.setBudgetAccount(rs.getString("budget_account"));
+                String status = rs.getString("status");
+                if (status != null) {
+                    r.setStatus(ProcurementRequestStatus.valueOf(status));
+                }
+                r.setTenderId(rs.getString("tender_id"));
+                r.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getProcurementRequests().add(r);
+            }
+        }
+    }
+
+    private void saveTenders(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO tenders (id, tender_number, title, description, opening_date, closing_date,
+                    tender_type, category, estimated_budget, evaluation_criteria, status,
+                    procurement_request_id, awarded_supplier_id, awarded_amount, award_date,
+                    award_reason, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET tender_number=excluded.tender_number, title=excluded.title,
+                    description=excluded.description, opening_date=excluded.opening_date,
+                    closing_date=excluded.closing_date, tender_type=excluded.tender_type,
+                    category=excluded.category, estimated_budget=excluded.estimated_budget,
+                    evaluation_criteria=excluded.evaluation_criteria, status=excluded.status,
+                    procurement_request_id=excluded.procurement_request_id,
+                    awarded_supplier_id=excluded.awarded_supplier_id,
+                    awarded_amount=excluded.awarded_amount, award_date=excluded.award_date,
+                    award_reason=excluded.award_reason, created_at=excluded.created_at
+                """)) {
+            for (Tender t : ProcurementStore.getInstance().getTenders()) {
+                ps.setString(1, t.getId());
+                ps.setString(2, t.getTenderNumber());
+                ps.setString(3, t.getTitle());
+                ps.setString(4, t.getDescription());
+                ps.setString(5, date(t.getOpeningDate()));
+                ps.setString(6, date(t.getClosingDate()));
+                ps.setString(7, enumName(t.getTenderType()));
+                ps.setString(8, enumName(t.getCategory()));
+                ps.setString(9, money(t.getEstimatedBudget()));
+                ps.setString(10, t.getEvaluationCriteria());
+                ps.setString(11, enumName(t.getStatus()));
+                ps.setString(12, t.getProcurementRequestId());
+                ps.setString(13, t.getAwardedSupplierId());
+                ps.setString(14, money(t.getAwardedAmount()));
+                ps.setString(15, date(t.getAwardDate()));
+                ps.setString(16, t.getAwardReason());
+                ps.setString(17, dateTime(t.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadTenders(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM tenders ORDER BY tender_number")) {
+            while (rs.next()) {
+                Tender t = Tender.withId(rs.getString("id"));
+                t.setTenderNumber(rs.getString("tender_number"));
+                t.setTitle(rs.getString("title"));
+                t.setDescription(rs.getString("description"));
+                t.setOpeningDate(parseDate(rs.getString("opening_date")));
+                t.setClosingDate(parseDate(rs.getString("closing_date")));
+                String tt = rs.getString("tender_type");
+                if (tt != null) {
+                    t.setTenderType(TenderType.valueOf(tt));
+                }
+                String cat = rs.getString("category");
+                if (cat != null) {
+                    t.setCategory(ProcurementCategory.valueOf(cat));
+                }
+                t.setEstimatedBudget(parseMoney(rs.getString("estimated_budget")));
+                t.setEvaluationCriteria(rs.getString("evaluation_criteria"));
+                String status = rs.getString("status");
+                if (status != null) {
+                    t.setStatus(TenderStatus.valueOf(status));
+                }
+                t.setProcurementRequestId(rs.getString("procurement_request_id"));
+                t.setAwardedSupplierId(rs.getString("awarded_supplier_id"));
+                t.setAwardedAmount(parseMoney(rs.getString("awarded_amount")));
+                t.setAwardDate(parseDate(rs.getString("award_date")));
+                t.setAwardReason(rs.getString("award_reason"));
+                t.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getTenders().add(t);
+            }
+        }
+    }
+
+    private void saveTenderBids(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO tender_bids (id, tender_id, supplier_id, submission_date, bid_amount,
+                    technical_score, financial_score, weighted_score, documents, remarks, status,
+                    rank, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET tender_id=excluded.tender_id, supplier_id=excluded.supplier_id,
+                    submission_date=excluded.submission_date, bid_amount=excluded.bid_amount,
+                    technical_score=excluded.technical_score, financial_score=excluded.financial_score,
+                    weighted_score=excluded.weighted_score, documents=excluded.documents,
+                    remarks=excluded.remarks, status=excluded.status, rank=excluded.rank,
+                    created_at=excluded.created_at
+                """)) {
+            for (TenderBid b : ProcurementStore.getInstance().getBids()) {
+                ps.setString(1, b.getId());
+                ps.setString(2, b.getTenderId());
+                ps.setString(3, b.getSupplierId());
+                ps.setString(4, date(b.getSubmissionDate()));
+                ps.setString(5, money(b.getBidAmount()));
+                ps.setString(6, money(b.getTechnicalScore()));
+                ps.setString(7, money(b.getFinancialScore()));
+                ps.setString(8, money(b.getWeightedScore()));
+                ps.setString(9, b.getDocuments());
+                ps.setString(10, b.getRemarks());
+                ps.setString(11, enumName(b.getStatus()));
+                ps.setInt(12, b.getRank());
+                ps.setString(13, dateTime(b.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadTenderBids(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM tender_bids ORDER BY submission_date")) {
+            while (rs.next()) {
+                TenderBid b = TenderBid.withId(rs.getString("id"));
+                b.setTenderId(rs.getString("tender_id"));
+                b.setSupplierId(rs.getString("supplier_id"));
+                b.setSubmissionDate(parseDate(rs.getString("submission_date")));
+                b.setBidAmount(parseMoney(rs.getString("bid_amount")));
+                b.setTechnicalScore(parseMoney(rs.getString("technical_score")));
+                b.setFinancialScore(parseMoney(rs.getString("financial_score")));
+                b.setWeightedScore(parseMoney(rs.getString("weighted_score")));
+                b.setDocuments(rs.getString("documents"));
+                b.setRemarks(rs.getString("remarks"));
+                String status = rs.getString("status");
+                if (status != null) {
+                    b.setStatus(BidStatus.valueOf(status));
+                }
+                b.setRank(rs.getInt("rank"));
+                b.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getBids().add(b);
+            }
+        }
+    }
+
+    private void saveTenderEvaluations(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO tender_evaluations (id, tender_id, bid_id, evaluator_name, evaluation_type,
+                    score, max_score, comments, evaluated_date, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET tender_id=excluded.tender_id, bid_id=excluded.bid_id,
+                    evaluator_name=excluded.evaluator_name, evaluation_type=excluded.evaluation_type,
+                    score=excluded.score, max_score=excluded.max_score, comments=excluded.comments,
+                    evaluated_date=excluded.evaluated_date, created_at=excluded.created_at
+                """)) {
+            for (TenderEvaluation e : ProcurementStore.getInstance().getEvaluations()) {
+                ps.setString(1, e.getId());
+                ps.setString(2, e.getTenderId());
+                ps.setString(3, e.getBidId());
+                ps.setString(4, e.getEvaluatorName());
+                ps.setString(5, e.getEvaluationType());
+                ps.setString(6, money(e.getScore()));
+                ps.setString(7, money(e.getMaxScore()));
+                ps.setString(8, e.getComments());
+                ps.setString(9, date(e.getEvaluatedDate()));
+                ps.setString(10, dateTime(e.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadTenderEvaluations(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM tender_evaluations ORDER BY evaluated_date")) {
+            while (rs.next()) {
+                TenderEvaluation e = TenderEvaluation.withId(rs.getString("id"));
+                e.setTenderId(rs.getString("tender_id"));
+                e.setBidId(rs.getString("bid_id"));
+                e.setEvaluatorName(rs.getString("evaluator_name"));
+                e.setEvaluationType(rs.getString("evaluation_type"));
+                e.setScore(parseMoney(rs.getString("score")));
+                e.setMaxScore(parseMoney(rs.getString("max_score")));
+                e.setComments(rs.getString("comments"));
+                e.setEvaluatedDate(parseDate(rs.getString("evaluated_date")));
+                e.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getEvaluations().add(e);
+            }
+        }
+    }
+
+    private void saveTenderAwards(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO tender_awards (id, tender_id, supplier_id, award_date, award_amount,
+                    award_reason, contract_duration_months, approval_reference, approved_by, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET tender_id=excluded.tender_id, supplier_id=excluded.supplier_id,
+                    award_date=excluded.award_date, award_amount=excluded.award_amount,
+                    award_reason=excluded.award_reason, contract_duration_months=excluded.contract_duration_months,
+                    approval_reference=excluded.approval_reference, approved_by=excluded.approved_by,
+                    created_at=excluded.created_at
+                """)) {
+            for (TenderAward a : ProcurementStore.getInstance().getAwards()) {
+                ps.setString(1, a.getId());
+                ps.setString(2, a.getTenderId());
+                ps.setString(3, a.getSupplierId());
+                ps.setString(4, date(a.getAwardDate()));
+                ps.setString(5, money(a.getAwardAmount()));
+                ps.setString(6, a.getAwardReason());
+                ps.setInt(7, a.getContractDurationMonths());
+                ps.setString(8, a.getApprovalReference());
+                ps.setString(9, a.getApprovedBy());
+                ps.setString(10, dateTime(a.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadTenderAwards(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM tender_awards ORDER BY award_date")) {
+            while (rs.next()) {
+                TenderAward a = TenderAward.withId(rs.getString("id"));
+                a.setTenderId(rs.getString("tender_id"));
+                a.setSupplierId(rs.getString("supplier_id"));
+                a.setAwardDate(parseDate(rs.getString("award_date")));
+                a.setAwardAmount(parseMoney(rs.getString("award_amount")));
+                a.setAwardReason(rs.getString("award_reason"));
+                a.setContractDurationMonths(rs.getInt("contract_duration_months"));
+                a.setApprovalReference(rs.getString("approval_reference"));
+                a.setApprovedBy(rs.getString("approved_by"));
+                a.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getAwards().add(a);
+            }
+        }
+    }
+
+    private void saveContracts(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO contracts (id, contract_number, tender_id, supplier_id, start_date, end_date,
+                    contract_value, deliverables, status, notes, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET contract_number=excluded.contract_number,
+                    tender_id=excluded.tender_id, supplier_id=excluded.supplier_id,
+                    start_date=excluded.start_date, end_date=excluded.end_date,
+                    contract_value=excluded.contract_value, deliverables=excluded.deliverables,
+                    status=excluded.status, notes=excluded.notes, created_at=excluded.created_at
+                """)) {
+            for (Contract c : ProcurementStore.getInstance().getContracts()) {
+                ps.setString(1, c.getId());
+                ps.setString(2, c.getContractNumber());
+                ps.setString(3, c.getTenderId());
+                ps.setString(4, c.getSupplierId());
+                ps.setString(5, date(c.getStartDate()));
+                ps.setString(6, date(c.getEndDate()));
+                ps.setString(7, money(c.getContractValue()));
+                ps.setString(8, c.getDeliverables());
+                ps.setString(9, enumName(c.getStatus()));
+                ps.setString(10, c.getNotes());
+                ps.setString(11, dateTime(c.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadContracts(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM contracts ORDER BY contract_number")) {
+            while (rs.next()) {
+                Contract c = Contract.withId(rs.getString("id"));
+                c.setContractNumber(rs.getString("contract_number"));
+                c.setTenderId(rs.getString("tender_id"));
+                c.setSupplierId(rs.getString("supplier_id"));
+                c.setStartDate(parseDate(rs.getString("start_date")));
+                c.setEndDate(parseDate(rs.getString("end_date")));
+                c.setContractValue(parseMoney(rs.getString("contract_value")));
+                c.setDeliverables(rs.getString("deliverables"));
+                String status = rs.getString("status");
+                if (status != null) {
+                    c.setStatus(ContractStatus.valueOf(status));
+                }
+                c.setNotes(rs.getString("notes"));
+                c.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getContracts().add(c);
+            }
+        }
+    }
+
+    private void saveContractMilestones(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO contract_milestones (id, contract_id, title, description, due_date,
+                    completed_date, completed, amount, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET contract_id=excluded.contract_id, title=excluded.title,
+                    description=excluded.description, due_date=excluded.due_date,
+                    completed_date=excluded.completed_date, completed=excluded.completed,
+                    amount=excluded.amount, created_at=excluded.created_at
+                """)) {
+            for (ContractMilestone m : ProcurementStore.getInstance().getMilestones()) {
+                ps.setString(1, m.getId());
+                ps.setString(2, m.getContractId());
+                ps.setString(3, m.getTitle());
+                ps.setString(4, m.getDescription());
+                ps.setString(5, date(m.getDueDate()));
+                ps.setString(6, date(m.getCompletedDate()));
+                ps.setInt(7, boolInt(m.isCompleted()));
+                ps.setString(8, money(m.getAmount()));
+                ps.setString(9, dateTime(m.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadContractMilestones(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM contract_milestones ORDER BY due_date")) {
+            while (rs.next()) {
+                ContractMilestone m = ContractMilestone.withId(rs.getString("id"));
+                m.setContractId(rs.getString("contract_id"));
+                m.setTitle(rs.getString("title"));
+                m.setDescription(rs.getString("description"));
+                m.setDueDate(parseDate(rs.getString("due_date")));
+                m.setCompletedDate(parseDate(rs.getString("completed_date")));
+                m.setCompleted(parseBool(rs.getInt("completed")));
+                m.setAmount(parseMoney(rs.getString("amount")));
+                m.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                store.getMilestones().add(m);
+            }
+        }
+    }
+
+    private void saveProcurementApprovals(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO procurement_approvals (id, entity_type, entity_id, action, performed_by,
+                    role, comments, timestamp)
+                VALUES (?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET entity_type=excluded.entity_type, entity_id=excluded.entity_id,
+                    action=excluded.action, performed_by=excluded.performed_by, role=excluded.role,
+                    comments=excluded.comments, timestamp=excluded.timestamp
+                """)) {
+            for (ProcurementApproval a : ProcurementStore.getInstance().getApprovals()) {
+                ps.setString(1, a.getId());
+                ps.setString(2, a.getEntityType());
+                ps.setString(3, a.getEntityId());
+                ps.setString(4, enumName(a.getAction()));
+                ps.setString(5, a.getPerformedBy());
+                ps.setString(6, a.getRole());
+                ps.setString(7, a.getComments());
+                ps.setString(8, dateTime(a.getTimestamp()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadProcurementApprovals(Connection conn) throws SQLException {
+        ProcurementStore store = ProcurementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM procurement_approvals ORDER BY timestamp")) {
+            while (rs.next()) {
+                ProcurementApproval a = ProcurementApproval.withId(rs.getString("id"));
+                a.setEntityType(rs.getString("entity_type"));
+                a.setEntityId(rs.getString("entity_id"));
+                String action = rs.getString("action");
+                if (action != null) {
+                    a.setAction(ApprovalAction.valueOf(action));
+                }
+                a.setPerformedBy(rs.getString("performed_by"));
+                a.setRole(rs.getString("role"));
+                a.setComments(rs.getString("comments"));
+                a.setTimestamp(parseDateTime(rs.getString("timestamp")));
+                store.getApprovals().add(a);
+            }
+        }
     }
 }

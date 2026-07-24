@@ -25,6 +25,10 @@ public final class SchoolProfile {
     private String stampPath;
     private String signaturePath;
     private boolean pdfStampEnabled = true;
+    private long nextProcurementRequestNumber = 1001;
+    private long nextTenderNumber = 1001;
+    private long nextContractNumber = 1001;
+    private long nextSupplierNumber = 1001;
 
     public String getSchoolName() {
         return schoolName;
@@ -176,5 +180,53 @@ public final class SchoolProfile {
 
     public void setPdfStampEnabled(boolean pdfStampEnabled) {
         this.pdfStampEnabled = pdfStampEnabled;
+    }
+
+    public long getNextProcurementRequestNumber() {
+        return nextProcurementRequestNumber;
+    }
+
+    public void setNextProcurementRequestNumber(long nextProcurementRequestNumber) {
+        this.nextProcurementRequestNumber = nextProcurementRequestNumber;
+    }
+
+    public synchronized long allocateProcurementRequestNumber() {
+        return nextProcurementRequestNumber++;
+    }
+
+    public long getNextTenderNumber() {
+        return nextTenderNumber;
+    }
+
+    public void setNextTenderNumber(long nextTenderNumber) {
+        this.nextTenderNumber = nextTenderNumber;
+    }
+
+    public synchronized long allocateTenderNumber() {
+        return nextTenderNumber++;
+    }
+
+    public long getNextContractNumber() {
+        return nextContractNumber;
+    }
+
+    public void setNextContractNumber(long nextContractNumber) {
+        this.nextContractNumber = nextContractNumber;
+    }
+
+    public synchronized long allocateContractNumber() {
+        return nextContractNumber++;
+    }
+
+    public long getNextSupplierNumber() {
+        return nextSupplierNumber;
+    }
+
+    public void setNextSupplierNumber(long nextSupplierNumber) {
+        this.nextSupplierNumber = nextSupplierNumber;
+    }
+
+    public synchronized long allocateSupplierNumber() {
+        return nextSupplierNumber++;
     }
 }

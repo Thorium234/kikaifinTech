@@ -15,7 +15,10 @@ public enum TransactionType {
     DEPRECIATION("Depreciation"),
     CONTRA("Contra Entry"),
     PAYROLL("Payroll"),
-    PAYROLL_REVERSAL("Payroll Reversal");
+    PAYROLL_REVERSAL("Payroll Reversal"),
+    PROCUREMENT_GOODS_RECEIVED("Goods Received"),
+    PROCUREMENT_INVOICE("Supplier Invoice"),
+    PROCUREMENT_PAYMENT("Supplier Payment");
 
     private final String displayName;
 

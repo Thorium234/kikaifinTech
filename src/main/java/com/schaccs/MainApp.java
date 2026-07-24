@@ -19,6 +19,10 @@ import com.schaccs.ui.students.StudentView;
 import com.schaccs.ui.vouchers.VoucherView;
 import com.schaccs.ui.payroll.EmployeeView;
 import com.schaccs.ui.payroll.PayrollView;
+import com.schaccs.ui.procurement.SupplierView;
+import com.schaccs.ui.procurement.ProcurementRequestView;
+import com.schaccs.ui.procurement.TenderView;
+import com.schaccs.ui.procurement.ContractView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
@@ -46,6 +50,10 @@ public class MainApp extends Application {
         layout.register(Sidebar.EMPLOYEES, Sidebar.EMPLOYEES, EmployeeView::new);
         layout.register(Sidebar.PAYROLL, Sidebar.PAYROLL, PayrollView::new);
         layout.register(Sidebar.SCHOOL_CUSTOM, Sidebar.SCHOOL_CUSTOM, SchoolCustomView::new);
+        layout.register(Sidebar.PROCUREMENT, Sidebar.PROCUREMENT, ProcurementRequestView::new);
+        layout.register(Sidebar.TENDERS, Sidebar.TENDERS, TenderView::new);
+        layout.register(Sidebar.SUPPLIERS, Sidebar.SUPPLIERS, SupplierView::new);
+        layout.register(Sidebar.CONTRACTS, Sidebar.CONTRACTS, ContractView::new);
         layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
 
         layout.show(Sidebar.DASHBOARD);
