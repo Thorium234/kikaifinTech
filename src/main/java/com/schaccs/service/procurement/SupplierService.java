@@ -5,7 +5,6 @@ import com.schaccs.model.procurement.Supplier;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
 import com.schaccs.store.ProcurementStore;
-import com.schaccs.service.Services;
 
 import java.util.ArrayList;
 import java.util.List;

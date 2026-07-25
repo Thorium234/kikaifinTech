@@ -6,7 +6,6 @@ import com.schaccs.enums.ProcurementRequestStatus;
 import com.schaccs.model.procurement.ProcurementApproval;
 import com.schaccs.model.procurement.ProcurementRequest;
 import com.schaccs.repository.PersistenceService;
-import com.schaccs.service.Services;
 import com.schaccs.service.audit.AuditService;
 import com.schaccs.store.ProcurementStore;
 
@@ -26,7 +25,7 @@ public class ProcurementService {
     }
 
     public ProcurementService() {
-        this(ProcurementStore.getInstance(), Services.getInstance().audit());
+        this(ProcurementStore.getInstance(), new AuditService());
     }
 
     public List<String> createRequest(ProcurementRequest request) {

@@ -38,6 +38,10 @@ public final class FeeStructureStore {
         voteheads.add(votehead);
     }
 
+    public void removeVotehead(Votehead votehead) {
+        voteheads.remove(votehead);
+    }
+
     public Optional<Votehead> findVoteheadByCode(String code) {
         return voteheads.stream()
                 .filter(v -> v.getCode().equalsIgnoreCase(code))

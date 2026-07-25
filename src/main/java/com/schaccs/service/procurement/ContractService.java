@@ -8,7 +8,6 @@ import com.schaccs.model.procurement.Contract;
 import com.schaccs.model.procurement.ContractMilestone;
 import com.schaccs.model.procurement.ProcurementApproval;
 import com.schaccs.repository.PersistenceService;
-import com.schaccs.service.Services;
 import com.schaccs.service.audit.AuditService;
 import com.schaccs.store.ProcurementStore;
 
@@ -29,7 +28,7 @@ public class ContractService {
     }
 
     public ContractService() {
-        this(ProcurementStore.getInstance(), Services.getInstance().audit());
+        this(ProcurementStore.getInstance(), new AuditService());
     }
 
     // ---- Contract Lifecycle ----

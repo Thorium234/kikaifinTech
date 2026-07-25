@@ -64,7 +64,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         VBox itemsCard = new VBox(8, new Label("Fee Lines"), itemTable, buildItemToolbar());
         itemsCard.getStyleClass().add("card");
 
-        VBox vhCard = new VBox(8, new Label("Vote Heads"), voteheadTable);
+        VBox vhCard = new VBox(8, new Label("Vote Heads"), buildVoteheadToolbar(), voteheadTable);
         vhCard.getStyleClass().add("card");
         vhCard.setPrefWidth(360);
         vhCard.setMinWidth(300);
@@ -180,6 +180,37 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         s.getItems().remove(item);
         PersistenceService.getInstance().saveAll();
         loadItems();
+    }
+
+    private HBox buildVoteheadToolbar() {
+        Button addBtn = new Button("New Vote Head");
+        addBtn.getStyleClass().add("success-button");
+        addBtn.setOnAction(e -> {
+            new VoteheadDialog(store, getScene().getWindow()).showAndWait();
+            voteheadTable.refresh();
+        });
+
+        Button delBtn = new Button("Delete");
+        delBtn.getStyleClass().add("secondary-button");
+        delBtn.setOnAction(e -> deleteVotehead());
+
+        HBox bar = new HBox(8, addBtn, delBtn);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        return bar;
+    }
+
+    private void deleteVotehead() {
+        Votehead vh = voteheadTable.getSelectionModel().getSelectedItem();
+        if (vh == null) {
+            AlertUtil.warn("Select vote head", "Select a vote head to delete.");
+            return;
+        }
+        if (!AlertUtil.confirm("Confirm", "Delete vote head '" + vh.getName() + "'?")) {
+            return;
+        }
+        store.removeVotehead(vh);
+        PersistenceService.getInstance().saveAll();
+        voteheadTable.refresh();
     }
 
     private void setupItemTable() {
