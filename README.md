@@ -8,7 +8,7 @@ Accounting-first fee management for Kenyan secondary schools. Version 1 focuses 
 
 ## Requirements
 
-- JDK 21+
+- JDK 25+
 - Maven 3.9+
 - JavaFX (resolved via Maven)
 

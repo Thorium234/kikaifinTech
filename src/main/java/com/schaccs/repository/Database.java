@@ -533,7 +533,8 @@ public final class Database {
             ps.setInt(8, config.isActive() ? 1 : 0);
             ps.setString(9, config.getJdbcUrl());
             ps.executeUpdate();
-        } catch (SQLException ignored) {
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to persist database configuration", e);
         }
     }
 
@@ -548,12 +549,16 @@ public final class Database {
                 config.setPort(rs.getInt("port"));
                 config.setDatabaseName(rs.getString("database_name"));
                 config.setUsername(rs.getString("username"));
-                config.setPassword(CredentialCrypto.decrypt(rs.getString("password")));
+                String encryptedPassword = rs.getString("password");
+                if (encryptedPassword != null && !encryptedPassword.isBlank()) {
+                    config.setPassword(CredentialCrypto.decrypt(encryptedPassword));
+                }
                 config.setSslMode(rs.getString("ssl_mode"));
                 config.setActive(rs.getInt("active") == 1);
                 return config;
             }
-        } catch (SQLException ignored) {
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to load database configuration", e);
         }
         return null;
     }

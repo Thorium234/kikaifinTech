@@ -6,7 +6,7 @@
 *.pdf
 # Local worktrees / scratch
 /v2/
-
+.devin/
 # IDE
 .idea/
 *.iml
@@ -37,3 +37,4 @@ artifacr/
 tester.txt
 pro.txt
 audit.txt
+plain.md

@@ -77,7 +77,8 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final TableView<String[]> migrationTable = new TableView<>();
     private final TextField jdbcUrl = new TextField();
     private final TextField dbUser = new TextField();
-    private final TextField dbPassword = new TextField();
+    private final PasswordField dbPassword = new PasswordField();
+    private String dbPasswordValue = "";
     private final Label dbStatusLabel = new Label("Not connected");
 
     public SettingsView() {
@@ -263,17 +264,22 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
     private void saveDbConfig() {
         DatasourceManager.DbConfig config = readDbConfigFromForm();
-        boolean ok = DatasourceManager.getInstance().connectRemote(config);
-        if (ok) {
+        try {
+            boolean ok = DatasourceManager.getInstance().connectRemote(config);
             Database.getInstance().saveDbConfig(config);
-            dbStatusLabel.setText("Saved and connected successfully!");
-            dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
-        } else {
-            Database.getInstance().saveDbConfig(config);
-            dbStatusLabel.setText("Saved but connection failed. Will retry on startup.");
-            dbStatusLabel.setStyle("-fx-text-fill: #e65100;");
+            if (ok) {
+                dbStatusLabel.setText("Saved and connected successfully!");
+                dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
+            } else {
+                dbStatusLabel.setText("Saved but connection failed. Will retry on startup.");
+                dbStatusLabel.setStyle("-fx-text-fill: #e65100;");
+            }
+            PersistenceService.getInstance().saveAll();
+        } catch (Exception ex) {
+            dbStatusLabel.setText("Save failed: " + ex.getMessage());
+            dbStatusLabel.setStyle("-fx-text-fill: #b00020;");
+            AlertUtil.error("Database configuration failed", ex.getMessage());
         }
-        PersistenceService.getInstance().saveAll();
     }
 
     private DatasourceManager.DbConfig readDbConfigFromForm() {
@@ -282,7 +288,10 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         config.setJdbcUrl(url);
         parseJdbcUrl(url, config);
         config.setUsername(dbUser.getText().trim());
-        config.setPassword(dbPassword.getText().trim());
+        String enteredPassword = dbPassword.getText();
+        config.setPassword((enteredPassword == null || enteredPassword.isBlank())
+                ? dbPasswordValue
+                : enteredPassword.trim());
         config.setActive(true);
         return config;
     }
@@ -354,15 +363,26 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     }
 
     private void loadDbConfig() {
-        DatasourceManager.DbConfig config = Database.getInstance().loadDbConfig();
-        if (config != null) {
-            jdbcUrl.setText(config.getJdbcUrl() != null ? config.getJdbcUrl() : buildJdbcUrl(config));
-            dbUser.setText(config.getUsername());
-            dbPassword.setText(config.getPassword());
-            if (config.isActive() && DatasourceManager.getInstance().isOnline()) {
-                dbStatusLabel.setText("Connected");
-                dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
+        try {
+            DatasourceManager.DbConfig config = Database.getInstance().loadDbConfig();
+            if (config != null) {
+                jdbcUrl.setText(config.getJdbcUrl() != null ? config.getJdbcUrl() : buildJdbcUrl(config));
+                dbUser.setText(config.getUsername());
+                dbPasswordValue = config.getPassword() == null ? "" : config.getPassword();
+                dbPassword.clear();
+                if (!dbPasswordValue.isBlank()) {
+                    dbPassword.setPromptText("Password stored securely");
+                } else {
+                    dbPassword.setPromptText("password");
+                }
+                if (config.isActive() && DatasourceManager.getInstance().isOnline()) {
+                    dbStatusLabel.setText("Connected");
+                    dbStatusLabel.setStyle("-fx-text-fill: #1a472a;");
+                }
             }
+        } catch (Exception ex) {
+            dbStatusLabel.setText("Failed to load DB config: " + ex.getMessage());
+            dbStatusLabel.setStyle("-fx-text-fill: #b00020;");
         }
     }
 
