@@ -7,6 +7,7 @@ import com.schaccs.ui.dashboard.FeeReminderView;
 import com.schaccs.ui.fees.FeeStructureView;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
+import com.schaccs.ui.layout.TitleBar;
 import com.schaccs.ui.audit.AuditLogView;
 import com.schaccs.ui.banking.BankReconciliationView;
 import com.schaccs.ui.receipts.ReceiptView;
@@ -25,7 +26,10 @@ import com.schaccs.ui.procurement.TenderView;
 import com.schaccs.ui.procurement.ContractView;
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 import java.util.Objects;
 
@@ -33,7 +37,11 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage stage) {
+        stage.initStyle(StageStyle.UNDECORATED);
+
         AppBootstrap.initialize();
+
+        TitleBar titleBar = new TitleBar(stage);
 
         MainLayout layout = new MainLayout();
         layout.register(Sidebar.DASHBOARD, Sidebar.DASHBOARD, DashboardView::new);
@@ -58,7 +66,11 @@ public class MainApp extends Application {
 
         layout.show(Sidebar.DASHBOARD);
 
-        Scene scene = new Scene(layout, 1280, 800);
+        VBox root = new VBox();
+        VBox.setVgrow(layout, Priority.ALWAYS);
+        root.getChildren().addAll(titleBar, layout);
+
+        Scene scene = new Scene(root, 1280, 800);
         scene.getStylesheets().add(
                 Objects.requireNonNull(getClass().getResource("/styles/app.css")).toExternalForm());
 
