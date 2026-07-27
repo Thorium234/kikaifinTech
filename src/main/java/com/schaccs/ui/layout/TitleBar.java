@@ -3,6 +3,8 @@ package com.schaccs.ui.layout;
 import com.schaccs.repository.AppBootstrap;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
+import javafx.collections.ObservableList;
 import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -10,6 +12,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 public class TitleBar extends HBox {
@@ -17,6 +20,7 @@ public class TitleBar extends HBox {
     private static final int BORDER_ZONE = 5;
 
     private final Stage stage;
+    private boolean maximized = false;
 
     private double xOffset = 0;
     private double yOffset = 0;
@@ -48,7 +52,9 @@ public class TitleBar extends HBox {
         maxButton = createControlButton("max-btn", "\u25A1");
         closeButton = createControlButton("close-btn", "\u2715");
 
-        minButton.setOnAction(e -> stage.setIconified(true));
+        minButton.setOnAction(e -> {
+            stage.setIconified(true);
+        });
 
         maxButton.setOnAction(e -> toggleMaximize());
 
@@ -69,7 +75,7 @@ public class TitleBar extends HBox {
 
         setOnMouseDragged(event -> {
             if (event.getTarget() instanceof Button) return;
-            if (activeResizeCursor == Cursor.DEFAULT && !stage.isMaximized()) {
+            if (activeResizeCursor == Cursor.DEFAULT && !maximized) {
                 stage.setX(event.getScreenX() - xOffset);
                 stage.setY(event.getScreenY() - yOffset);
             }
@@ -90,25 +96,39 @@ public class TitleBar extends HBox {
     }
 
     private void toggleMaximize() {
-        if (stage.isMaximized()) {
-            stage.setMaximized(false);
+        if (maximized) {
+            maximized = false;
             stage.setX(restoreX);
             stage.setY(restoreY);
             stage.setWidth(restoreWidth);
             stage.setHeight(restoreHeight);
             maxButton.setId("max-btn");
+            maxButton.setText("\u25A1");
         } else {
             restoreX = stage.getX();
             restoreY = stage.getY();
             restoreWidth = stage.getWidth();
             restoreHeight = stage.getHeight();
-            stage.setMaximized(true);
+
+            Rectangle2D stageBounds = new Rectangle2D(
+                    restoreX != 0 ? restoreX : stage.getX(),
+                    restoreY != 0 ? restoreY : stage.getY(),
+                    restoreWidth > 0 ? restoreWidth : stage.getWidth(),
+                    restoreHeight > 0 ? restoreHeight : stage.getHeight());
+            Rectangle2D bounds = findScreenBounds(stageBounds);
+            stage.setX(bounds.getMinX());
+            stage.setY(bounds.getMinY());
+            stage.setWidth(bounds.getWidth());
+            stage.setHeight(bounds.getHeight());
+
+            maximized = true;
             maxButton.setId("restore-btn");
+            maxButton.setText("\u25A3");
         }
     }
 
     private void handleMouseMoved(MouseEvent event, Scene scene) {
-        if (stage.isMaximized()) {
+        if (maximized) {
             scene.setCursor(Cursor.DEFAULT);
             activeResizeCursor = Cursor.DEFAULT;
             return;
@@ -143,7 +163,7 @@ public class TitleBar extends HBox {
     }
 
     private void handleMouseDragged(MouseEvent event) {
-        if (activeResizeCursor == Cursor.DEFAULT || stage.isMaximized()) return;
+        if (activeResizeCursor == Cursor.DEFAULT || maximized) return;
 
         double deltaX = event.getScreenX() - resizeAnchorX;
         double deltaY = event.getScreenY() - resizeAnchorY;
@@ -185,5 +205,13 @@ public class TitleBar extends HBox {
         btn.getStyleClass().add("window-control-btn");
         btn.setFocusTraversable(false);
         return btn;
+    }
+
+    private Rectangle2D findScreenBounds(Rectangle2D windowBounds) {
+        ObservableList<Screen> screens = Screen.getScreensForRectangle(
+                windowBounds.getMinX(), windowBounds.getMinY(),
+                windowBounds.getWidth(), windowBounds.getHeight());
+        Screen screen = screens.isEmpty() ? Screen.getPrimary() : screens.get(0);
+        return screen.getVisualBounds();
     }
 }
