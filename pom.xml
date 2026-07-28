@@ -17,7 +17,6 @@
         <main.class>com.schaccs.Launcher</main.class>
         <app.name>SCHACCS</app.name>
         <app.vendor>Friends School Kikai Boys</app.vendor>
-        <jpackage.java.home>${java.home}</jpackage.java.home>
     </properties>
 
     <dependencies>
@@ -151,93 +150,5 @@
         </plugins>
     </build>
 
-    <profiles>
-        <profile>
-            <id>jpackage</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-antrun-plugin</artifactId>
-                        <version>3.1.0</version>
-                        <executions>
-                            <execution>
-                                <id>jpackage-extract-dlls</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                                <configuration>
-                                    <target>
-                                        <property name="dist.dir" value="${project.build.directory}"/>
-                                        <property name="input.dir" value="${dist.dir}/jpackage-input"/>
-                                        <property name="javafx.repo" value="${settings.localRepository}/org/openjfx"/>
-                                        <echo message="=== Extracting JavaFX native DLLs ==="/>
-                                        <mkdir dir="${input.dir}"/>
-                                        <copy file="${dist.dir}/${project.build.finalName}.jar" todir="${input.dir}" overwrite="true"/>
-                                        <unjar dest="${input.dir}">
-                                            <fileset dir="${javafx.repo}">
-                                                <include name="javafx-graphics/21.0.6/javafx-graphics-21.0.6-win.jar"/>
-                                                <include name="javafx-media/21.0.6/javafx-media-21.0.6-win.jar"/>
-                                                <include name="javafx-web/21.0.6/javafx-web-21.0.6-win.jar"/>
-                                                <include name="javafx-swing/21.0.6/javafx-swing-21.0.6-win.jar"/>
-                                            </fileset>
-                                            <patternset includes="**/*.dll"/>
-                                        </unjar>
-                                        <echo message="=== DLLs extracted to ${input.dir} ==="/>
-                                    </target>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>jpackage-exe</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                                <configuration>
-                                    <target>
-                                        <property name="jpackage.exe" value="${jpackage.java.home}/../bin/jpackage.exe"/>
-                                        <property name="dist.dir" value="${project.build.directory}"/>
-                                        <property name="input.dir" value="${dist.dir}/jpackage-input"/>
-                                        <property name="app.name" value="${app.name}"/>
-                                        <echo message="=== Building SCHACCS installer ==="/>
-                                        <mkdir dir="${dist.dir}/installer"/>
-                                        <exec executable="${jpackage.exe}" failonerror="true">
-                                            <arg value="--input"/>
-                                            <arg value="${input.dir}"/>
-                                            <arg value="--main-jar"/>
-                                            <arg value="${project.build.finalName}.jar"/>
-                                            <arg value="--main-class"/>
-                                            <arg value="${main.class}"/>
-                                            <arg value="--name"/>
-                                            <arg value="${app.name}"/>
-                                            <arg value="--dest"/>
-                                            <arg value="${dist.dir}/installer"/>
-                                            <arg value="--type"/>
-                                            <arg value="exe"/>
-                                            <arg value="--app-version"/>
-                                            <arg value>1.0.0</arg>
-                                            <arg value="--vendor"/>
-                                            <arg value>${app.vendor}</arg>
-                                            <arg value="--win-menu"/>
-                                            <arg value="--win-menu-group"/>
-                                            <arg value>${app.name}</arg>
-                                            <arg value="--win-shortcut"/>
-                                            <arg value="--java-options"/>
-                                            <arg value="-Xmx512m"/>
-                                            <arg value="--java-options"/>
-                                            <arg value="-Dfile.encoding=UTF-8"/>
-                                            <arg value="--java-options"/>
-                                            <arg value="-Djava.library.path=."/>
-                                        </exec>
-                                        <echo message="=== Installer built: ${dist.dir}/installer/ ==="/>
-                                    </target>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
+
 </project>
