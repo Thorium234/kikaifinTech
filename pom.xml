@@ -15,6 +15,9 @@
         <maven.compiler.release>21</maven.compiler.release>
         <javafx.version>21.0.6</javafx.version>
         <main.class>com.schaccs.Launcher</main.class>
+        <app.name>SCHACCS</app.name>
+        <app.vendor>Friends School Kikai Boys</app.vendor>
+        <jpackage.java.home>${java.home}</jpackage.java.home>
     </properties>
 
     <dependencies>
@@ -114,6 +117,93 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>${main.class}</mainClass>
+                                </transformer>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>jpackage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>jpackage-exe</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <property name="jpackage.exe" value="${jpackage.java.home}/../bin/jpackage.exe"/>
+                                        <property name="jpackage.dir" value="${jpackage.java.home}/../bin"/>
+                                        <property name="dist.dir" value="${project.build.directory}"/>
+                                        <property name="app.jar" value="${project.build.directory}/${project.build.finalName}.jar"/>
+                                        <property name="app.name" value="${app.name}"/>
+                                        <property name="javafx.mods" value="${settings.localRepository}/org/openjfx"/>
+                                        <echo message="=== Building SCHACCS installer ==="/>
+                                        <echo message="JAR: ${app.jar}"/>
+                                        <mkdir dir="${dist.dir}/installer"/>
+                                        <exec executable="${jpackage.exe}" failonerror="true">
+                                            <arg value="--input"/>
+                                            <arg value="${dist.dir}"/>
+                                            <arg value="--main-jar"/>
+                                            <arg value="${project.build.finalName}.jar"/>
+                                            <arg value="--main-class"/>
+                                            <arg value="${main.class}"/>
+                                            <arg value="--name"/>
+                                            <arg value="${app.name}"/>
+                                            <arg value="--dest"/>
+                                            <arg value="${dist.dir}/installer"/>
+                                            <arg value="--type"/>
+                                            <arg value="app-image"/>
+                                            <arg value="--java-options"/>
+                                            <arg value="-Xmx512m"/>
+                                            <arg value="--java-options"/>
+                                            <arg value="-Dfile.encoding=UTF-8"/>
+                                        </exec>
+                                        <echo message="=== Installer built: ${dist.dir}/installer/ ==="/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
