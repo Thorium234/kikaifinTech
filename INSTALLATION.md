@@ -1,81 +1,97 @@
-# ThorCash v1.0.0 — Installation Guide
+# ThorCash v1.0.0
 
 **Vendor:** Thor Technologies
 
-## System Requirements
+---
+
+## For End Users: Installing ThorCash
+
+### System Requirements
 
 - Windows 10 or later (64-bit)
-- 512 MB free disk space
-- 4 GB RAM minimum
+- 1 GB free disk space
+- 4 GB RAM
 
-## Installing
+### How to Install
 
-1. Locate the installer file `ThorCash-Setup-1.0.0.exe` on the USB drive or download location.
-2. Double-click `ThorCash-Setup-1.0.0.exe` to launch the setup wizard.
-3. Read and accept the **End User License Agreement (EULA)** when prompted.
-4. Choose the install location (default: `C:\Program Files\ThorCash`) or click **Browse** to pick a different folder.
-5. Confirm that a **Desktop Shortcut** and **Start Menu entry** are created.
-6. Click **Install** and wait for the progress bar to complete.
-7. Click **Finish** to close the wizard.
+1. Get the file `ThorCash-Setup-1.0.0.exe` from the developer.
+2. **Double-click** it to launch the installer.
+3. Read the License Agreement and check **"I accept"**, then click **Install**.
+4. Choose where to install (or leave the default).
+5. Wait for the progress bar to finish.
+6. Click **Finish** — ThorCash is ready.
 
-## Launching the Application
+That's it. No Java, no other dependencies needed.
 
-- **Desktop:** Double-click the **ThorCash** shortcut on the desktop.
-- **Start Menu:** Open the Start Menu, find the **ThorCash** folder (under **Thor Technologies**), and click **ThorCash**.
+### How to Launch
 
-On first launch, the application will create its database at `C:\Users\<YourName>\.schaccs\schaccs.db` and load sample school data.
+- **Desktop shortcut:** Double-click the **ThorCash** icon.
+- **Start Menu:** Find **ThorCash** under **Thor Technologies**.
 
-## Uninstalling
+### How to Uninstall
 
-1. Open **Settings > Apps > Installed apps** (Windows 10/11).
-2. Search for **ThorCash**.
-3. Click **Uninstall** and follow the prompts. The MSI installer will cleanly remove all application files while preserving user data in `~/.schaccs/`.
+Open **Settings > Apps > Installed apps**, search for **ThorCash**, click **Uninstall**.
 
-Alternatively, run the uninstaller from **Add or Remove Programs** in the Control Panel.
+---
 
-## Database Location
+## For Developers: How to Build the Installer
 
-The application stores all data in a single SQLite file:
+You only need to run **one script**. It produces a single `.exe` file you can share.
+
+### Prerequisites
+
+| Tool | Where to get it |
+|------|----------------|
+| **JDK 21+** | https://adoptium.net — install and add to PATH |
+| **Maven 3.9+** | https://maven.apache.org/download.cgi — add `bin/` to PATH |
+| **WiX Toolset v3** | `winget install WiXToolset.WiXToolset` — or download from https://wixtoolset.org |
+
+Verify they are installed:
 
 ```
-C:\Users\<YourName>\.schaccs\schaccs.db
+java -version
+mvn -version
+candle -?
 ```
 
-Back up this file regularly. Copying it to another computer gives you a full data transfer.
+### Build the installer
 
-## Default Login
-
-The application opens directly to the dashboard. No login is required in V1.
-
-## Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| App won't open | Ensure you are on Windows 10+ (64-bit). Check that antivirus is not blocking the app. |
-| Black screen on launch | Update your graphics drivers. The app requires DirectX 9+ support. |
-| "Database is locked" error | Close any other instances of ThorCash, then reopen. |
-| Data missing after reinstall | Copy your backup of `schaccs.db` back to `C:\Users\<YourName>\.schaccs\` |
-
-## Support
-
-Contact your system administrator for assistance.
-
-## Building the Installer (for Developers)
-
-To build the MSI installer from source:
-
-1. Ensure JDK 21+, Maven 3.9+, and WiX Toolset v3 are installed.
-2. Run the automated build script from the project root:
+From the project root folder, run:
 
 ```
 build-installer.bat
 ```
 
-The script runs tests, packages the application, extracts native libraries, and produces:
+The script will:
+
+1. **Run all 80 tests** to make sure nothing is broken.
+2. **Compile and package** the application into a JAR with dependencies.
+3. **Extract JavaFX native DLLs** needed for Windows.
+4. **Build an MSI** via jpackage (Windows Installer format).
+5. **Wrap it into a professional EXE** bootstrapper with a custom UI.
+
+### Output
+
+After the script finishes, your shareable file is at:
 
 ```
-target\installer\ThorCash-1.0.0.msi
 target\bootstrapper-output\ThorCash-Setup-1.0.0.exe
 ```
+
+That's **the only file you need** to share. Send it to your friend — they double-click and install.
+
+An intermediate `.msi` file is also produced at `target\installer\ThorCash-1.0.0.msi`, but you don't need to share it.
+
+### What the installer includes
+
+- Desktop shortcut named **ThorCash**
+- Start Menu entry under **Thor Technologies**
+- Appears in **Installed Apps** as **ThorCash** with the app icon
+- Custom **splash screen** on launch
+- Desktop and taskbar **icon**
+- Full **uninstall** support via Add/Remove Programs
+- Bundled Java runtime — no separate Java install needed
+
+---
 
 **Thor Technologies**

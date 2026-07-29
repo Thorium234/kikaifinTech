@@ -6,33 +6,49 @@ echo   ThorCash Financial System - Full Installer Build
 echo   Thor Technologies
 echo ============================================================================
 echo.
+echo This script produces a ready-to-share Windows installer (.exe).
+echo You ONLY need to share the final .exe file — nothing else.
+echo.
+echo Prerequisites:
+echo   - JDK 21+         (java -version)
+echo   - Maven 3.9+      (mvn -version)
+echo   - WiX Toolset v3  (candle)
+echo.
+echo ============================================================================
+echo.
 
 :: Check Java
 java -version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERROR: Java not found. Install JDK 21+ and add to PATH.
+    echo [FAIL] Java not found. Install JDK 21+ from https://adoptium.net
     exit /b 1
+) else (
+    echo [OK]   Java found
 )
 
 :: Check Maven
 mvn -version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERROR: Maven not found. Install Maven 3.9+ and add to PATH.
+    echo [FAIL] Maven not found. Install from https://maven.apache.org
     exit /b 1
+) else (
+    echo [OK]   Maven found
 )
 
-:: Check WiX (needed for both MSI and Burn bootstrapper)
+:: Check WiX
 set "WIX_PATH=C:\Program Files (x86)\WiX Toolset v3.14\bin"
 where candle >nul 2>&1
 if %errorlevel% neq 0 (
     if exist "%WIX_PATH%\candle.exe" (
         set "PATH=%PATH%;%WIX_PATH%"
-        echo WiX added to PATH.
+        echo [OK]   WiX found (added to PATH)
     ) else (
-        echo ERROR: WiX Toolset v3 not installed.
-        echo Install with: winget install WiXToolset.WiXToolset
+        echo [FAIL] WiX Toolset v3 not found.
+        echo        Install with: winget install WiXToolset.WiXToolset
         exit /b 1
     )
+) else (
+    echo [OK]   WiX found
 )
 
 set "APP_JAR=thorcash-1.0.0.jar"
@@ -42,34 +58,46 @@ set "LIBS_DIR=target\libs"
 set "BOOTSTRAPPER_SCRIPT=src\main\installer\build-bootstrapper.bat"
 
 echo.
-echo [1/5] Running tests...
+echo ============================================================================
+echo   STEP 1/5: Run tests
+echo   Verifying all 80 tests pass before building...
+echo ============================================================================
+echo.
 call mvn clean test
 if %errorlevel% neq 0 (
-    echo ERROR: Tests failed. Fix issues before building installer.
+    echo [FAIL] Tests failed. Fix issues before building installer.
     exit /b 1
 )
+echo [OK]   All tests passed
 
 echo.
-echo [2/5] Packaging application and dependencies...
+echo ============================================================================
+echo   STEP 2/5: Package application
+echo   Compiling source and bundling dependencies...
+echo ============================================================================
+echo.
 call mvn package -DskipTests
 if %errorlevel% neq 0 (
-    echo ERROR: Package build failed.
+    echo [FAIL] Package build failed.
     exit /b 1
 )
+echo [OK]   Application packaged (target\%APP_JAR%)
 
 echo.
-echo [3/5] Assembling installer input directory...
+echo ============================================================================
+echo   STEP 3/5: Assemble installer input
+echo   Copying JAR, libraries, and JavaFX native DLLs into one folder...
+echo ============================================================================
+echo.
 if exist "%INPUT_DIR%" rmdir /s /q "%INPUT_DIR%"
 mkdir "%INPUT_DIR%"
 
-:: Copy app JAR and dependency JARs
 copy "target\%APP_JAR%" "%INPUT_DIR%\" >nul
 if exist "%LIBS_DIR%" (
     xcopy /s /q /y "%LIBS_DIR%\*" "%INPUT_DIR%\" >nul
 )
 
-:: Extract JavaFX native DLLs
-echo Extracting JavaFX native libraries...
+echo Extracting JavaFX native DLLs (glass, prism, etc.)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "Add-Type -AssemblyName System.IO.Compression.FileSystem; ^
      $inputDir = '%INPUT_DIR%'; ^
@@ -89,9 +117,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
              $zip.Dispose() ^
          } ^
      }"
+echo [OK]   Installer input ready
 
 echo.
-echo [4/5] Building Windows MSI installer with jpackage...
+echo ============================================================================
+echo   STEP 4/5: Build MSI with jpackage
+echo   Creating Windows Installer (.msi) with shortcuts, icon, splash screen...
+echo ============================================================================
+echo.
 if exist "%MSI_DIR%" rmdir /s /q "%MSI_DIR%"
 mkdir "%MSI_DIR%"
 
@@ -116,40 +149,54 @@ jpackage ^
 
 if %errorlevel% neq 0 (
     echo.
-    echo ERROR: jpackage failed. Common causes:
+    echo [FAIL] jpackage failed. Common causes:
     echo   - WiX Toolset v3 not installed or not on PATH
     echo   - Icon file missing at src/main/resources/icon.ico
     echo   - EULA file missing at src/main/installer/eula.rtf
+    echo   - JavaFX DLL extraction failed (missing DLLs)
     exit /b 1
 )
+echo [OK]   MSI built: %MSI_DIR%\ThorCash-1.0.0.msi
 
 echo.
-echo [5/5] Building professional bootstrapper EXE...
+echo ============================================================================
+echo   STEP 5/5: Build bootstrapper EXE (the file you share)
+echo   Wrapping the MSI into a professional installer with:
+echo     - Custom Fluent Design theme
+echo     - License agreement page
+echo     - Folder picker
+echo     - Progress bar
+echo     - Launch-on-finish checkbox
+echo ============================================================================
+echo.
 call "%BOOTSTRAPPER_SCRIPT%"
 if %errorlevel% neq 0 (
-    echo ERROR: Bootstrapper build failed.
+    echo [FAIL] Bootstrapper build failed.
     exit /b 1
 )
 
 echo.
 echo ============================================================================
-echo   FULL BUILD SUCCESSFUL
+echo   DONE! Your installer is ready to share.
 echo ============================================================================
-echo   MSI Installer:       %MSI_DIR%\ThorCash-1.0.0.msi
-echo   Bootstrapper EXE:    target\bootstrapper-output\ThorCash-Setup-1.0.0.exe
 echo.
-echo   End-user runs: ThorCash-Setup-1.0.0.exe
+echo   SHARE THIS FILE:
+echo     target\bootstrapper-output\ThorCash-Setup-1.0.0.exe
+echo.
+echo   Your friend double-clicks it and installs like any normal program.
+echo   No Java, no Maven, no WiX needed on their computer.
+echo.
 echo   Features:
-echo     - Professional Fluent Design UI
-echo     - License Agreement with acceptance required
-echo     - Custom installation folder with Browse
-echo     - Modern progress bar
-echo     - Launch on finish option
-echo     - Windows version / disk space / admin checks
-echo     - Rollback on failure
-echo     - Silent install: /quiet /passive /log log.txt
-echo     - Add/Remove Programs uninstall support
-echo     - Self-contained (private JRE, no Java install needed)
+echo     - Desktop shortcut named "ThorCash"
+echo     - Start Menu entry under "Thor Technologies"
+echo     - Shows in "Installed Apps" as "ThorCash"
+echo     - Custom splash screen on launch
+echo     - Uninstallable via Add/Remove Programs
+echo     - Self-contained (bundles its own Java runtime)
+echo.
+echo   Note: The MSI at target\installer\ThorCash-1.0.0.msi
+echo         is an intermediate file. You only need the .exe.
+echo.
 echo ============================================================================
 
 endlocal
