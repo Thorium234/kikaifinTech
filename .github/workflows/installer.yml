@@ -94,7 +94,7 @@ jobs:
 
       - name: Build MSI with jpackage
         run: |
-          jpackage --type msi --dest target\installer --name "$env:APP_NAME" --app-version "$env:APP_VERSION" --input target\installer-input --main-jar "thorcash-$env:APP_VERSION.jar" --main-class com.schaccs.Launcher --icon src/main/resources/icon.ico --vendor "Thor Technologies" --license-file src/main/installer/eula.rtf --win-shortcut --win-menu --win-dir-chooser --java-options "-Xmx512m" --java-options "-Dfile.encoding=UTF-8" --java-options "-Djava.library.path=." --splash src/main/resources/Splashscreen.png
+          jpackage --type msi --dest target\installer --name "$env:APP_NAME" --app-version "$env:APP_VERSION" --input target\installer-input --main-jar "thorcash-$env:APP_VERSION.jar" --main-class com.schaccs.Launcher --icon src/main/resources/icon.ico --vendor "Thor Technologies" --license-file src/main/installer/eula.rtf --win-shortcut --win-menu --win-dir-chooser --java-options "-Xmx512m" --java-options "-Dfile.encoding=UTF-8" --java-options "-Djava.library.path=."
         timeout-minutes: 15
 
       - name: Upload MSI artifact

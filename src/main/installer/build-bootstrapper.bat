@@ -54,7 +54,7 @@ if errorlevel 1 (
 
 :: Step 2: Link
 echo [2/2] Linking ThorCash-Setup-!APP_VERSION!.exe...
-"%WIX_TOOLS%\light.exe" -nologo -out "!BUILD_DIR!\ThorCash-Setup-!APP_VERSION!.exe" -ext WixBalExtension -ext WixUtilExtension -cultures:en-US -loc "!WIX_DIR!\Theme.wxl" "!BUILD_DIR!\Bundle.wixobj"
+"%WIX_TOOLS%\light.exe" -nologo -out "!BUILD_DIR!\ThorCash-Setup-!APP_VERSION!.exe" -ext WixBalExtension -ext WixUtilExtension "!BUILD_DIR!\Bundle.wixobj"
 if errorlevel 1 (
     echo ERROR: Light failed.
     popd
@@ -70,7 +70,7 @@ for %%f in ("!OUTPUT_DIR!\ThorCash-Setup-!APP_VERSION!.exe") do set SIZE=%%~zf
 set /a SIZE_MB=!SIZE!/1048576
 echo.
 echo ============================================================================
-echo   SUCCESS: ThorCash-Setup-!APP_VERSION!.exe (!SIZE_MB! MB^)
+echo   SUCCESS: ThorCash-Setup-!APP_VERSION!.exe (!SIZE_MB! MB)
 echo   Location: %CD%\!OUTPUT_DIR!
 echo ============================================================================
 

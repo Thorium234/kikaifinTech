@@ -144,8 +144,7 @@ jpackage ^
     --win-dir-chooser ^
     --java-options "-Xmx512m" ^
     --java-options "-Dfile.encoding=UTF-8" ^
-    --java-options "-Djava.library.path=." ^
-    --splash src/main/resources/Splashscreen.png
+    --java-options "-Djava.library.path=."
 
 if %errorlevel% neq 0 (
     echo.
