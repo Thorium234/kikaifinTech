@@ -2,6 +2,8 @@ package com.schaccs;
 
 import com.schaccs.config.AppConfig;
 import com.schaccs.repository.AppBootstrap;
+import com.schaccs.update.UpdateScheduler;
+import com.schaccs.update.UpdateService;
 import com.schaccs.ui.dashboard.DashboardView;
 import com.schaccs.ui.dashboard.FeeReminderView;
 import com.schaccs.ui.fees.FeeStructureView;
@@ -36,9 +38,13 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
+import java.io.InputStream;
 import java.util.Objects;
+import java.util.Properties;
 
 public class MainApp extends Application {
+
+    private UpdateScheduler updateScheduler;
 
     @Override
     public void start(Stage stage) {
@@ -59,6 +65,11 @@ public class MainApp extends Application {
         splashStage.show();
 
         AppBootstrap.initialize();
+
+        String appVersion = loadVersion();
+        UpdateService updateService = new UpdateService(appVersion);
+        updateScheduler = new UpdateScheduler(updateService);
+        updateScheduler.start();
 
         PauseTransition delay = new PauseTransition(Duration.seconds(1.5));
         delay.setOnFinished(e -> {
@@ -89,7 +100,8 @@ public class MainApp extends Application {
             layout.register(Sidebar.TENDERS, Sidebar.TENDERS, TenderView::new);
             layout.register(Sidebar.SUPPLIERS, Sidebar.SUPPLIERS, SupplierView::new);
             layout.register(Sidebar.CONTRACTS, Sidebar.CONTRACTS, ContractView::new);
-            layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
+            UpdateService finalUs = updateService;
+            layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, () -> new SettingsView(finalUs));
 
             layout.show(Sidebar.DASHBOARD);
 
@@ -114,7 +126,19 @@ public class MainApp extends Application {
 
     @Override
     public void stop() {
+        if (updateScheduler != null) updateScheduler.stop();
         AppBootstrap.shutdown();
+    }
+
+    private static String loadVersion() {
+        try (InputStream in = MainApp.class.getResourceAsStream("/version.properties")) {
+            if (in == null) return "0.0.0";
+            Properties props = new Properties();
+            props.load(in);
+            return props.getProperty("app.version", "0.0.0");
+        } catch (Exception e) {
+            return "0.0.0";
+        }
     }
 
     public static void main(String[] args) {

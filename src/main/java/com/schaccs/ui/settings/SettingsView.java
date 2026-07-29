@@ -10,6 +10,8 @@ import com.schaccs.service.setup.DemoDataSeeder;
 import com.schaccs.service.setup.SystemResetService;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.layout.MainLayout;
+import com.schaccs.update.UpdateService;
+import com.schaccs.update.UpdateSettingsView;
 import com.schaccs.util.AlertUtil;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -80,7 +82,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final TextField dbPassword = new TextField();
     private final Label dbStatusLabel = new Label("Not connected");
 
-    public SettingsView() {
+    public SettingsView(UpdateService updateService) {
         setSpacing(14);
         setPadding(new Insets(4));
 
@@ -186,7 +188,9 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         VBox demoCard = buildDemoDataCard();
         VBox purgeCard = buildSystemPurgeCard();
 
-        VBox allContent = new VBox(14, heading, card, historyCard, dbCard, demoCard, purgeCard);
+        UpdateSettingsView updateCard = new UpdateSettingsView(updateService);
+
+        VBox allContent = new VBox(14, heading, card, historyCard, dbCard, demoCard, purgeCard, updateCard);
         allContent.setPadding(new Insets(0, 0, 60, 0));
         ScrollPane mainScroll = new ScrollPane(allContent);
         mainScroll.setFitToWidth(true);

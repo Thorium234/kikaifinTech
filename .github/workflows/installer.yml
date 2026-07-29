@@ -128,11 +128,33 @@ jobs:
         shell: cmd
         timeout-minutes: 10
 
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path target\bootstrapper-output\*.exe, target\installer\*.msi
+          $lines = foreach ($f in $files) {
+            $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($f.Name)"
+          }
+          $lines | Set-Content -Path target\checksums.txt
+          Get-Content target\checksums.txt
+          Get-ChildItem target\bootstrapper-output\*.exe | ForEach-Object {
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+            $hash | Set-Content -Path "$($_.DirectoryName)\$($_.BaseName).sha256"
+          }
+
       - name: Upload bootstrapper artifact
         uses: actions/upload-artifact@v4
         with:
           name: ThorCash-Setup
-          path: target\bootstrapper-output\*.exe
+          path: target\bootstrapper-output\*.*
+          retention-days: 90
+
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThorCash-Checksums
+          path: target\checksums.txt
           retention-days: 90
 
   release:
@@ -155,6 +177,9 @@ jobs:
             - **Windows Installer (EXE)**: ThorCash-Setup-*.exe - Professional bootstrapper with Fluent Design UI
             - **Windows Installer (MSI)**: ThorCash-*.msi - Standard Windows Installer package
 
+            ### SHA-256 Checksums
+            See `checksums.txt` attached to this release for file integrity verification.
+
             ### Installation
             1. Download `ThorCash-Setup-*.exe`
             2. Run as Administrator
@@ -167,6 +192,8 @@ jobs:
             ```
           files: |
             ThorCash-Setup/*.exe
+            ThorCash-Setup/*.sha256
             ThorCash-MSI/*.msi
+            ThorCash-Checksums/*.txt
           draft: false
           prerelease: false
