@@ -11,29 +11,28 @@
 
 ## Installing
 
-1. Locate the installer file `SCHACCS-1.0.0.exe` on the USB drive or download location.
-2. Double-click `SCHACCS-1.0.0.exe` to launch the setup wizard.
-3. Follow the on-screen prompts:
-   - Accept the default install location or choose a different folder.
-   - Select **Create Desktop Shortcut** for easy access.
-   - The installer will add SCHACCS to the Start Menu under **SCHACCS**.
-4. Click **Install** and wait for the progress bar to complete.
-5. Click **Finish** to close the wizard.
+1. Locate the installer file `SCHACCS-1.0.0.msi` on the USB drive or download location.
+2. Double-click `SCHACCS-1.0.0.msi` to launch the setup wizard.
+3. Read and accept the **End User License Agreement (EULA)** when prompted.
+4. Choose the install location (default: `C:\Program Files\SCHACCS`) or click **Browse** to pick a different folder.
+5. Confirm that a **Desktop Shortcut** and **Start Menu entry** are created.
+6. Click **Install** and wait for the progress bar to complete.
+7. Click **Finish** to close the wizard.
 
 ## Launching the Application
 
 - **Desktop:** Double-click the **SCHACCS** shortcut on the desktop.
-- **Start Menu:** Open the Start Menu, find the **SCHACCS** folder, and click **SCHACCS**.
+- **Start Menu:** Open the Start Menu, find the **SCHACCS** folder (under **Friends School Kikai Boys**), and click **SCHACCS**.
 
-On first launch, the application will create its database at `C:\Users\<YourName>\.schaccs\schaccs.db` and load sample data for the school.
+On first launch, the application will create its database at `C:\Users\<YourName>\.schaccs\schaccs.db` and load sample school data.
 
 ## Uninstalling
 
 1. Open **Settings > Apps > Installed apps** (Windows 10/11).
 2. Search for **SCHACCS**.
-3. Click **Uninstall** and follow the prompts.
+3. Click **Uninstall** and follow the prompts. The MSI installer will cleanly remove all application files while preserving user data in `~/.schaccs/`.
 
-Alternatively, run the uninstaller from the install directory or from the Start Menu shortcut.
+Alternatively, run the uninstaller from **Add or Remove Programs** in the Control Panel.
 
 ## Database Location
 
@@ -72,6 +71,23 @@ The application opens directly to the dashboard. No login is required in V1.
 ## Support
 
 Contact the school bursar or IT administrator for assistance.
+
+## Building the Installer (for Developers)
+
+To build the MSI installer from source:
+
+1. Ensure JDK 21+, Maven 3.9+, and WiX Toolset v3 are installed.
+2. Run the automated build script from the project root:
+
+```
+build-installer.bat
+```
+
+The script runs tests, packages the application, extracts native libraries, and produces:
+
+```
+target\installer\SCHACCS-1.0.0.msi
+```
 
 **Friends School Kikai Boys Secondary School**
 P.O. Box 345-50202, Chwele
