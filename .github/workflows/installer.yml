@@ -1,0 +1,172 @@
+name: Build SCHACCS Installer
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - quick
+
+env:
+  JAVA_VERSION: 21
+  JAVA_DISTRIBUTION: microsoft
+  APP_NAME: SCHACCS
+  APP_VERSION: 1.0.0
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run tests
+        run: mvn clean test --batch-mode
+        timeout-minutes: 30
+
+  build-msi:
+    name: Build MSI Installer
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Install WiX Toolset v3
+        run: |
+          choco install wixtoolset --version 3.14.1 --confirm --no-progress
+          echo "$env:ProgramFiles(x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build fat JAR
+        run: mvn package -DskipTests --batch-mode
+        timeout-minutes: 15
+
+      - name: Extract JavaFX native DLLs
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $inputDir = "target\installer-input"
+          New-Item -ItemType Directory -Force -Path $inputDir
+          Copy-Item "target\schaccs-$env:APP_VERSION.jar" "$inputDir\"
+          if (Test-Path "target\libs") { Copy-Item "target\libs\*" "$inputDir\" }
+          $jars = @("javafx-graphics","javafx-media","javafx-web","javafx-swing")
+          $base = "$env:USERPROFILE\.m2\repository\org\openjfx"
+          foreach ($name in $jars) {
+            $jar = "$base\$name\$env:APP_VERSION-win\$name-$env:APP_VERSION-win.jar"
+            if (Test-Path $jar) {
+              $zip = [System.IO.Compression.ZipFile]::OpenRead($jar)
+              foreach ($entry in $zip.Entries) {
+                if ($entry.Name -like "*.dll") { [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, "$inputDir\$($entry.Name)", $true) }
+              }
+              $zip.Dispose()
+            }
+          }
+
+      - name: Build MSI with jpackage
+        run: |
+          jpackage --type msi --dest target\installer --name "$env:APP_NAME" --app-version "$env:APP_VERSION" --input target\installer-input --main-jar "schaccs-$env:APP_VERSION.jar" --main-class com.schaccs.Launcher --icon src/main/resources/assets/icon.ico --vendor "Friends School Kikai Boys" --license-file src/main/installer/eula.rtf --win-shortcut --win-menu --win-dir-chooser --java-options "-Xmx512m" --java-options "-Dfile.encoding=UTF-8" --java-options "-Djava.library.path=."
+        timeout-minutes: 15
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SCHACCS-MSI
+          path: target\installer\SCHACCS-${{ env.APP_VERSION }}.msi
+          retention-days: 30
+
+  build-bootstrapper:
+    name: Build Professional EXE Bootstrapper
+    needs: build-msi
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download MSI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SCHACCS-MSI
+          path: target\installer
+
+      - name: Install WiX Toolset v3
+        run: |
+          choco install wixtoolset --version 3.14.1 --confirm --no-progress
+          echo "$env:ProgramFiles(x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build Burn bootstrapper EXE
+        run: |
+          call src\main\installer\build-bootstrapper.bat
+        shell: cmd
+        timeout-minutes: 10
+
+      - name: Upload bootstrapper artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SCHACCS-Setup
+          path: target\bootstrapper-output\*.exe
+          retention-days: 90
+
+  release:
+    name: Create Release
+    needs: build-bootstrapper
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SCHACCS ${{ github.ref_name }}
+          body: |
+            ## SCHACCS Financial System ${{ github.ref_name }}
+
+            ### Downloads
+            - **Windows Installer (EXE)**: SCHACCS-Setup-*.exe - Professional bootstrapper with Fluent Design UI
+            - **Windows Installer (MSI)**: SCHACCS-*.msi - Standard Windows Installer package
+
+            ### Installation
+            1. Download `SCHACCS-Setup-*.exe`
+            2. Run as Administrator
+            3. Follow the installation wizard
+            4. Launch SCHACCS from the desktop shortcut or Start Menu
+
+            ### Silent Installation
+            ```
+            SCHACCS-Setup-*.exe /quiet /log install.log
+            ```
+          files: |
+            SCHACCS-Setup/*.exe
+            SCHACCS-MSI/*.msi
+          draft: false
+          prerelease: false

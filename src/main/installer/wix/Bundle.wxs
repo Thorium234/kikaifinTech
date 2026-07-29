@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:bal="http://schemas.microsoft.com/wix/BalExtension">
+  <Bundle
+    Name="SCHACCS Financial System"
+    Version="!(bind.packageVersion.SCHACCSMsi)"
+    Manufacturer="Friends School Kikai Boys Secondary School"
+    UpgradeCode="7A8B3C4D-5E6F-4A7B-8C9D-0E1F2A3B4C5D"
+    IconSourceFile="$(var.IconPath)"
+    AboutUrl="https://github.com/Thorium234/kikaifinTech">
+
+    <bal:Condition
+      Message="SCHACCS requires Windows 10 (build 10240) or later.">
+      VersionNT >= 603
+    </bal:Condition>
+    <bal:Condition
+      Message="SCHACCS requires at least 1 GB of free disk space.">
+      %SystemDrive\ > 1000
+    </bal:Condition>
+    <bal:Condition
+      Message="You must be an administrator to install SCHACCS. Please run this installer as Administrator.">
+      Privileged
+    </bal:Condition>
+
+    <BootstrapperApplicationRef Id="WixStandardBootstrapperApplication.HyperlinkLicense">
+      <bal:WixStandardBootstrapperApplication
+        LicenseUrl=""
+        ThemeFile="$(var.ProjectDir)\Theme.xml"
+        LocalizationFile="$(var.ProjectDir)\Theme.wxl"
+        SuppressOptionsUI="no"
+        SuppressRepair="no"
+        ShowFilesInUse="yes"
+        />
+    </BootstrapperApplicationRef>
+
+    <Chain
+      DisableSystemRestore="no"
+      ParallelCache="yes">
+      <RollbackBoundary Id="DefaultRollbackBoundary" />
+
+      <MsiPackage
+        Id="SCHACCSMsi"
+        SourceFile="$(var.MsiPath)"
+        Compressed="yes"
+        Vital="yes"
+        DisplayInternalUI="no"
+        SuppressSignatureVerification="no">
+        <MsiProperty Name="INSTALLDIR" Value="[InstallFolder]" />
+      </MsiPackage>
+    </Chain>
+  </Bundle>
+</Wix>
