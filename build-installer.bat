@@ -71,10 +71,10 @@ echo [OK]   Maven
 :: Check WiX
 set "WIX_TOOLS=C:\Program Files (x86)\WiX Toolset v3.14\bin"
 where candle >nul 2>&1
-if %errorlevel% neq 0 (
+if not %errorlevel% equ 0 (
     if exist "%WIX_TOOLS%\candle.exe" (
         set "PATH=%PATH%;%WIX_TOOLS%"
-        echo [OK]   WiX (added from %WIX_TOOLS%)
+        echo [OK]   WiX (added from !WIX_TOOLS!)
     ) else (
         echo [FAIL] WiX Toolset v3 not found.
         echo        Install: winget install WiXToolset.WiXToolset
@@ -163,8 +163,9 @@ if not exist "%RUNTIME_DIR%\bin\javaw.exe" (
     exit /b 1
 )
 echo [OK]   Runtime created: %RUNTIME_DIR%
-echo        Size: 
-for /f %%i in ('dir /s /a-d /-c "%RUNTIME_DIR%" ^| find "File(s)"') do echo        %%i
+for /f "tokens=3" %%a in ('dir /s /a-d /-c "%RUNTIME_DIR%" 2^>nul ^| find "File(s)"') do set RUNTIME_SIZE_BYTES=%%a
+if defined RUNTIME_SIZE_BYTES set /a RUNTIME_SIZE_MB=RUNTIME_SIZE_BYTES/1048576
+if defined RUNTIME_SIZE_MB (echo        Size: !RUNTIME_SIZE_MB! MB) else (echo        Size: unknown)
 echo.
 
 :: ============================================================================
@@ -204,32 +205,7 @@ if exist "%LIBS_DIR%" (
 :: These are extracted to the input dir and end up in app/, where
 :: -Djava.library.path=. allows the JVM to find them at runtime.
 echo Extracting JavaFX native DLLs...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$base = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.m2\repository\org\openjfx'; ^
-     $version = '21.0.6'; ^
-     $jars = @('javafx-graphics','javafx-media','javafx-web','javafx-swing'); ^
-     $count = 0; ^
-     Add-Type -AssemblyName System.IO.Compression.FileSystem; ^
-     foreach ($name in $jars) { ^
-         $jarPath = Join-Path $base ($name + '\' + $version + '\' + $name + '-' + $version + '-win.jar'); ^
-         if (Test-Path $jarPath) { ^
-             Write-Host '  ' $name; ^
-             $zip = [System.IO.Compression.ZipFile]::OpenRead($jarPath); ^
-             foreach ($entry in $zip.Entries) { ^
-                 if ($entry.Name -like '*.dll') { ^
-                     $dest = Join-Path $INPUT_DIR $entry.Name; ^
-                     if (-not (Test-Path $dest)) { ^
-                         [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $dest, $true); ^
-                         $count++ ^
-                     } ^
-                 } ^
-             }; ^
-             $zip.Dispose() ^
-         } else { ^
-             Write-Host '  SKIP ' $name ' (not found)' ^
-         } ^
-     }; ^
-     Write-Host ('Extracted ' + $count + ' JavaFX DLLs')"
+powershell -NoProfile -ExecutionPolicy Bypass -File "src\main\installer\extract-javafx-dlls.ps1" -OutputDir "%INPUT_DIR%"
 
 echo [OK]   Installer input ready at %INPUT_DIR%
 echo.
@@ -398,16 +374,7 @@ echo ===========================================================================
 echo   STEP 8/9: Generate SHA-256 checksums
 echo ============================================================================
 echo.
-powershell -NoProfile -Command ^
-    "$msi = '%MSI_PATH%'; ^
-     $exe = '%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe'; ^
-     $hash = (Get-FileHash -Path $msi -Algorithm SHA256).Hash.ToLower(); ^
-     Write-Host ('MSI:  ' + $hash); ^
-     $hash2 = (Get-FileHash -Path $exe -Algorithm SHA256).Hash.ToLower(); ^
-     Write-Host ('EXE:  ' + $hash2); ^
-     $hash + '  ' + (Get-Item $msi).Name | Out-File -FilePath 'target\checksums.txt' -Encoding utf8; ^
-     $hash2 + '  ' + (Get-Item $exe).Name | Out-File -FilePath 'target\checksums.txt' -Encoding utf8 -Append; ^
-     $hash2 | Out-File -FilePath ('target\' + (Get-Item $exe).BaseName + '.sha256') -Encoding utf8"
+powershell -NoProfile -Command "& { $msi='%MSI_PATH%'; $exe='%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe'; $hash=(Get-FileHash $msi -Algorithm SHA256).Hash.ToLower(); Write-Host ('MSI:  '+$hash); $hash2=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower(); Write-Host ('EXE:  '+$hash2); $hash+'  '+(Get-Item $msi).Name | Out-File 'target\checksums.txt' -Encoding utf8; $hash2+'  '+(Get-Item $exe).Name | Out-File 'target\checksums.txt' -Encoding utf8 -Append }"
 
 echo [OK]   Checksums saved to target\checksums.txt
 echo.
