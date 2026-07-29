@@ -17,6 +17,7 @@
         <main.class>com.schaccs.Launcher</main.class>
         <app.name>ThorCash</app.name>
         <app.vendor>Thor Technologies</app.vendor>
+        <app.version>${project.version}</app.version>
     </properties>
 
     <dependencies>
@@ -79,6 +80,8 @@
     </dependencies>
 
     <build>
+        <!-- version.properties is filtered to inject ${project.version} at build time.
+             The UpdateService reads this file at runtime to know the current version. -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -95,7 +98,9 @@
                 </excludes>
             </resource>
         </resources>
+
         <plugins>
+            <!-- Compile with Java 21, warn on unchecked operations -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -107,14 +112,15 @@
                     </compilerArgs>
                 </configuration>
             </plugin>
+
+            <!-- Run unit tests via JUnit 5 -->
             <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.8</version>
-                <configuration>
-                    <mainClass>${main.class}</mainClass>
-                </configuration>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
             </plugin>
+
+            <!-- Copy all runtime-scope dependencies into target/libs/ for the installer -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -133,6 +139,8 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- Build the executable JAR with Class-Path and Main-Class manifest entries -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -147,12 +155,35 @@
                     </archive>
                 </configuration>
             </plugin>
+
+            <!-- jlink: create a custom JRE runtime image with only the needed JDK modules.
+                 This is invoked by build-installer.bat (not during Maven lifecycle) to
+                 keep the build script in full control of the packaging pipeline. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.2</version>
+                <artifactId>maven-jlink-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <output>${project.build.directory}/runtime</output>
+                    <addModules>
+                        <module>java.base</module>
+                        <module>java.sql</module>
+                        <module>java.xml</module>
+                        <module>java.desktop</module>
+                        <module>jdk.unsupported</module>
+                        <module>java.logging</module>
+                        <module>jdk.management</module>
+                        <module>jdk.management.agent</module>
+                        <module>jdk.zipfs</module>
+                        <module>jdk.crypto.cryptoki</module>
+                        <module>jdk.crypto.ec</module>
+                    </addModules>
+                    <noHeaderFiles>true</noHeaderFiles>
+                    <noManPages>true</noManPages>
+                    <stripDebug>true</stripDebug>
+                    <compress>2</compress>
+                </configuration>
             </plugin>
         </plugins>
     </build>
-
 </project>
