@@ -4,19 +4,19 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.schaccs</groupId>
-    <artifactId>schaccs</artifactId>
+    <groupId>com.thortech</groupId>
+    <artifactId>thorcash</artifactId>
     <version>1.0.0</version>
-    <name>SCHACCS</name>
-    <description>School Accounting and Fee Management System — Friends School Kikai Boys</description>
+    <name>ThorCash</name>
+    <description>ThorCash Financial Management System</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
         <javafx.version>21.0.6</javafx.version>
         <main.class>com.schaccs.Launcher</main.class>
-        <app.name>SCHACCS</app.name>
-        <app.vendor>Friends School Kikai Boys</app.vendor>
+        <app.name>ThorCash</app.name>
+        <app.vendor>Thor Technologies</app.vendor>
     </properties>
 
     <dependencies>

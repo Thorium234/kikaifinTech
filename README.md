@@ -1,4 +1,4 @@
-# SCHACCS — School Accounting System (V1)
+# ThorCash — Financial Management System
 
 **School:** Friends School Kikai Boys Secondary School  
 **Location:** P.O. Box 345-50202, Chwele  

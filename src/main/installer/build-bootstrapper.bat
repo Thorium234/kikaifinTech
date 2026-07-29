@@ -2,7 +2,7 @@
 setlocal ENABLEDELAYEDEXPANSION
 
 echo ============================================================================
-echo   SCHACCS - Professional Bootstrapper Build (WiX v3.14)
+echo   ThorCash - Professional Bootstrapper Build (WiX v3.14)
 echo ============================================================================
 echo.
 
@@ -18,10 +18,10 @@ set WIX_DIR=src\main\installer\wix
 set MSI_DIR=target\installer
 set OUTPUT_DIR=target\bootstrapper-output
 set BUILD_DIR=target\bootstrapper
-set ICON_PATH=src\main\resources\assets\icon.ico
+set ICON_PATH=src\main\resources\icon.ico
 
 :: Find MSI
-set MSI_PATH=%MSI_DIR%\SCHACCS-1.0.0.msi
+set MSI_PATH=%MSI_DIR%\ThorCash-1.0.0.msi
 if not exist "%MSI_PATH%" (
     echo Searching for MSI in %CD%\%MSI_DIR%...
     for %%f in ("%MSI_DIR%\*.msi") do set MSI_PATH=%%f
@@ -53,8 +53,8 @@ if errorlevel 1 (
 )
 
 :: Step 2: Link
-echo [2/2] Linking SCHACCS-Setup-!APP_VERSION!.exe...
-"%WIX_TOOLS%\light.exe" -nologo -out "!BUILD_DIR!\SCHACCS-Setup-!APP_VERSION!.exe" -ext WixBalExtension -ext WixUtilExtension -cultures:en-US -loc "!WIX_DIR!\Theme.wxl" "!BUILD_DIR!\Bundle.wixobj"
+echo [2/2] Linking ThorCash-Setup-!APP_VERSION!.exe...
+"%WIX_TOOLS%\light.exe" -nologo -out "!BUILD_DIR!\ThorCash-Setup-!APP_VERSION!.exe" -ext WixBalExtension -ext WixUtilExtension -cultures:en-US -loc "!WIX_DIR!\Theme.wxl" "!BUILD_DIR!\Bundle.wixobj"
 if errorlevel 1 (
     echo ERROR: Light failed.
     popd
@@ -63,14 +63,14 @@ if errorlevel 1 (
 
 :: Copy to output
 if not exist "!OUTPUT_DIR!" mkdir "!OUTPUT_DIR!"
-copy /y "!BUILD_DIR!\SCHACCS-Setup-!APP_VERSION!.exe" "!OUTPUT_DIR!\" >nul
+copy /y "!BUILD_DIR!\ThorCash-Setup-!APP_VERSION!.exe" "!OUTPUT_DIR!\" >nul
 
 :: Report
-for %%f in ("!OUTPUT_DIR!\SCHACCS-Setup-!APP_VERSION!.exe") do set SIZE=%%~zf
+for %%f in ("!OUTPUT_DIR!\ThorCash-Setup-!APP_VERSION!.exe") do set SIZE=%%~zf
 set /a SIZE_MB=!SIZE!/1048576
 echo.
 echo ============================================================================
-echo   SUCCESS: SCHACCS-Setup-!APP_VERSION!.exe (!SIZE_MB! MB^)
+echo   SUCCESS: ThorCash-Setup-!APP_VERSION!.exe (!SIZE_MB! MB^)
 echo   Location: %CD%\!OUTPUT_DIR!
 echo ============================================================================
 

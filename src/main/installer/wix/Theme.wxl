@@ -2,25 +2,25 @@
 <WixLocalization
   Culture="en-US"
   xmlns="http://schemas.microsoft.com/wix/2006/localization">
-  <String Id="ConfirmCancelMessage">Are you sure you want to cancel the SCHACCS installation?</String>
+  <String Id="ConfirmCancelMessage">Are you sure you want to cancel the ThorCash installation?</String>
   <String Id="FilesInUseHeader">Files In Use</String>
   <String Id="FilesInUseMessage">The following applications are using files that need to be updated. Please close them and click Refresh to continue.</String>
   <String Id="FilesInUseCloseRadioButton">Close the applications and attempt to restart them</String>
   <String Id="FilesInUseDontCloseRadioButton">Do not close applications; a reboot will be required</String>
   <String Id="FilesInUseOkButton">OK</String>
   <String Id="FilesInUseCancelButton">Cancel</String>
-  <String Id="OverallProgressText">Installing SCHACCS Financial System...</String>
-  <String Id="OverallProgressTextInstalling">Installing SCHACCS Financial System...</String>
+  <String Id="OverallProgressText">Installing ThorCash Financial System...</String>
+  <String Id="OverallProgressTextInstalling">Installing ThorCash Financial System...</String>
   <String Id="OverallProgressTextWaitingForCache">Waiting for cached packages...</String>
   <String Id="OverallProgressTextCaching">Caching packages locally...</String>
   <String Id="OverallProgressTextAcquiring">Downloading installation files...</String>
   <String Id="CacheProgressText">Caching packages...</String>
   <String Id="CacheProgressHeader">Caching Packages</String>
-  <String Id="InstallProgressText">Installing SCHACCS...</String>
-  <String Id="InstallProgressHeader">Installing SCHACCS</String>
-  <String Id="InstallSuccessMessage">SCHACCS Financial System was installed successfully.</String>
-  <String Id="InstallFailureMessage">SCHACCS Financial System installation failed.</String>
-  <String Id="InstallCancelledMessage">SCHACCS Financial System installation was cancelled.</String>
+  <String Id="InstallProgressText">Installing ThorCash...</String>
+  <String Id="InstallProgressHeader">Installing ThorCash</String>
+  <String Id="InstallSuccessMessage">ThorCash Financial System was installed successfully.</String>
+  <String Id="InstallFailureMessage">ThorCash Financial System installation failed.</String>
+  <String Id="InstallCancelledMessage">ThorCash Financial System installation was cancelled.</String>
   <String Id="HelpHeader">Setup Help</String>
   <String Id="HelpText">
     /install | /repair | /uninstall | /layout [directory] - installs, repairs,
@@ -32,8 +32,8 @@
     /log [file] - logs installation to a specific file.
   </String>
   <String Id="HelpCloseButton">Close</String>
-  <String Id="HelpNoSupport">SCHACCS Support</String>
-  <String Id="HyperlinkSidebarHeader">SCHACCS Financial System</String>
+  <String Id="HelpNoSupport">ThorCash Support</String>
+  <String Id="HyperlinkSidebarHeader">ThorCash Financial System</String>
   <String Id="HyperlinkSidebarLicenseLabel">License Agreement</String>
   <String Id="HyperlinkSidebarAcceptCheckbox">I accept the terms in the License Agreement</String>
   <String Id="HyperlinkSidebarInstallButton">Install</String>
@@ -42,13 +42,13 @@
   <String Id="HyperlinkSidebarBrowseButton">Browse</String>
   <String Id="HyperlinkSidebarFolderLabel">Installation Folder</String>
   <String Id="HyperlinkSidebarProgressLabel">Progress</String>
-  <String Id="HyperlinkSidebarProgressText">Installing SCHACCS...</String>
+  <String Id="HyperlinkSidebarProgressText">Installing ThorCash...</String>
   <String Id="HyperlinkSidebarFinishedLabel">Completed</String>
-  <String Id="HyperlinkSidebarFinishedText">SCHACCS Financial System has been successfully installed.</String>
-  <String Id="HyperlinkSidebarLaunchText">Launch SCHACCS Financial System</String>
+  <String Id="HyperlinkSidebarFinishedText">ThorCash Financial System has been successfully installed.</String>
+  <String Id="HyperlinkSidebarLaunchText">Launch ThorCash Financial System</String>
   <String Id="HyperlinkSidebarYesText">Yes</String>
   <String Id="HyperlinkSidebarNoText">No</String>
   <String Id="HyperlinkSidebarRestartText">Restart Now</String>
   <String Id="HyperlinkSidebarRestartLater">Restart Later</String>
-  <String Id="InstallFolder">C:\Program Files\SCHACCS\</String>
+  <String Id="InstallFolder">C:\Program Files\ThorCash\</String>
 </WixLocalization>

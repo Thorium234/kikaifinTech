@@ -24,12 +24,17 @@ import com.schaccs.ui.procurement.SupplierView;
 import com.schaccs.ui.procurement.ProcurementRequestView;
 import com.schaccs.ui.procurement.TenderView;
 import com.schaccs.ui.procurement.ContractView;
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.util.Duration;
 
 import java.util.Objects;
 
@@ -37,50 +42,74 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage stage) {
-        stage.initStyle(StageStyle.UNDECORATED);
+        Stage splashStage = new Stage();
+        splashStage.initStyle(StageStyle.UNDECORATED);
+        splashStage.getIcons().add(new Image(Objects.requireNonNull(
+                getClass().getResourceAsStream("/icon.png"))));
+        Image splashImage = new Image(Objects.requireNonNull(
+                getClass().getResourceAsStream("/Splashscreen.png")));
+        ImageView splashView = new ImageView(splashImage);
+        splashView.setFitWidth(600);
+        splashView.setPreserveRatio(true);
+        StackPane splashRoot = new StackPane(splashView);
+        splashRoot.setStyle("-fx-background-color: #0D1B2A;");
+        Scene splashScene = new Scene(splashRoot, 600, 327);
+        splashStage.setScene(splashScene);
+        splashStage.centerOnScreen();
+        splashStage.show();
 
         AppBootstrap.initialize();
 
-        TitleBar titleBar = new TitleBar(stage);
+        PauseTransition delay = new PauseTransition(Duration.seconds(1.5));
+        delay.setOnFinished(e -> {
+            splashStage.close();
 
-        MainLayout layout = new MainLayout();
-        layout.register(Sidebar.DASHBOARD, Sidebar.DASHBOARD, DashboardView::new);
-        layout.register(Sidebar.STUDENTS, Sidebar.STUDENTS, StudentView::new);
-        layout.register(Sidebar.FEES, Sidebar.FEES, FeeStructureView::new);
-        layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);
-        layout.register(Sidebar.VOUCHERS, Sidebar.VOUCHERS, VoucherView::new);
-        layout.register(Sidebar.REPORTS, Sidebar.REPORTS, ReportsView::new);
-        layout.register(Sidebar.FEE_REMINDER, Sidebar.FEE_REMINDER, FeeReminderView::new);
-        layout.register(Sidebar.AUDIT_LOG, Sidebar.AUDIT_LOG, AuditLogView::new);
-        layout.register(Sidebar.BANK_RECONCILIATION, Sidebar.BANK_RECONCILIATION, BankReconciliationView::new);
-        layout.register(Sidebar.SYNC, Sidebar.SYNC, SyncStatusView::new);
-        layout.register(Sidebar.FIXED_ASSETS, Sidebar.FIXED_ASSETS, FixedAssetView::new);
-        layout.register(Sidebar.EMPLOYEES, Sidebar.EMPLOYEES, EmployeeView::new);
-        layout.register(Sidebar.PAYROLL, Sidebar.PAYROLL, PayrollView::new);
-        layout.register(Sidebar.SCHOOL_CUSTOM, Sidebar.SCHOOL_CUSTOM, SchoolCustomView::new);
-        layout.register(Sidebar.PROCUREMENT, Sidebar.PROCUREMENT, ProcurementRequestView::new);
-        layout.register(Sidebar.TENDERS, Sidebar.TENDERS, TenderView::new);
-        layout.register(Sidebar.SUPPLIERS, Sidebar.SUPPLIERS, SupplierView::new);
-        layout.register(Sidebar.CONTRACTS, Sidebar.CONTRACTS, ContractView::new);
-        layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
+            stage.initStyle(StageStyle.UNDECORATED);
+            stage.getIcons().add(new Image(Objects.requireNonNull(
+                    getClass().getResourceAsStream("/icon.png"))));
 
-        layout.show(Sidebar.DASHBOARD);
+            TitleBar titleBar = new TitleBar(stage);
 
-        VBox root = new VBox();
-        VBox.setVgrow(layout, Priority.ALWAYS);
-        root.getChildren().addAll(titleBar, layout);
+            MainLayout layout = new MainLayout();
+            layout.register(Sidebar.DASHBOARD, Sidebar.DASHBOARD, DashboardView::new);
+            layout.register(Sidebar.STUDENTS, Sidebar.STUDENTS, StudentView::new);
+            layout.register(Sidebar.FEES, Sidebar.FEES, FeeStructureView::new);
+            layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);
+            layout.register(Sidebar.VOUCHERS, Sidebar.VOUCHERS, VoucherView::new);
+            layout.register(Sidebar.REPORTS, Sidebar.REPORTS, ReportsView::new);
+            layout.register(Sidebar.FEE_REMINDER, Sidebar.FEE_REMINDER, FeeReminderView::new);
+            layout.register(Sidebar.AUDIT_LOG, Sidebar.AUDIT_LOG, AuditLogView::new);
+            layout.register(Sidebar.BANK_RECONCILIATION, Sidebar.BANK_RECONCILIATION, BankReconciliationView::new);
+            layout.register(Sidebar.SYNC, Sidebar.SYNC, SyncStatusView::new);
+            layout.register(Sidebar.FIXED_ASSETS, Sidebar.FIXED_ASSETS, FixedAssetView::new);
+            layout.register(Sidebar.EMPLOYEES, Sidebar.EMPLOYEES, EmployeeView::new);
+            layout.register(Sidebar.PAYROLL, Sidebar.PAYROLL, PayrollView::new);
+            layout.register(Sidebar.SCHOOL_CUSTOM, Sidebar.SCHOOL_CUSTOM, SchoolCustomView::new);
+            layout.register(Sidebar.PROCUREMENT, Sidebar.PROCUREMENT, ProcurementRequestView::new);
+            layout.register(Sidebar.TENDERS, Sidebar.TENDERS, TenderView::new);
+            layout.register(Sidebar.SUPPLIERS, Sidebar.SUPPLIERS, SupplierView::new);
+            layout.register(Sidebar.CONTRACTS, Sidebar.CONTRACTS, ContractView::new);
+            layout.register(Sidebar.SETTINGS, Sidebar.SETTINGS, SettingsView::new);
 
-        Scene scene = new Scene(root, 1280, 800);
-        scene.getStylesheets().add(
-                Objects.requireNonNull(getClass().getResource("/styles/app.css")).toExternalForm());
-        titleBar.attachResizeListeners(scene);
+            layout.show(Sidebar.DASHBOARD);
 
-        stage.setTitle("SCHACCS — " + AppConfig.getInstance().getSchoolProfile().getSchoolName());
-        stage.setScene(scene);
-        stage.setMinWidth(1100);
-        stage.setMinHeight(700);
-        stage.setOnCloseRequest(e -> AppBootstrap.shutdown());
-        stage.show();
+            VBox root = new VBox();
+            VBox.setVgrow(layout, Priority.ALWAYS);
+            root.getChildren().addAll(titleBar, layout);
+
+            Scene scene = new Scene(root, 1280, 800);
+            scene.getStylesheets().add(
+                    Objects.requireNonNull(getClass().getResource("/styles/app.css")).toExternalForm());
+            titleBar.attachResizeListeners(scene);
+
+            stage.setTitle("ThorCash — " + AppConfig.getInstance().getSchoolProfile().getSchoolName());
+            stage.setScene(scene);
+            stage.setMinWidth(1100);
+            stage.setMinHeight(700);
+            stage.setOnCloseRequest(ev -> AppBootstrap.shutdown());
+            stage.show();
+        });
+        delay.play();
     }
 
     @Override

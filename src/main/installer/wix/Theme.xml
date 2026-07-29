@@ -8,7 +8,7 @@
     FontId="0"
     HideMaximizeButton="yes"
     HideMinimizeButton="no">
-    <WindowTitle>SCHACCS Financial System - Installer</WindowTitle>
+    <WindowTitle>ThorCash Financial System - Installer</WindowTitle>
   </Window>
 
   <!-- Font Definitions -->
@@ -32,7 +32,7 @@
     <Rectangle X="0" Y="0" Width="200" Height="480" Fill="0D1B2A" />
 
     <!-- Product name vertical -->
-    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">SCHACCS</Text>
+    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">ThorCash</Text>
     <Text X="20" Y="155" Width="160" Height="40" FontId="5" DisablePrefix="yes">Financial System</Text>
 
     <!-- Decorative line -->
@@ -42,18 +42,18 @@
     <Text X="20" Y="210" Width="160" Height="20" FontId="9" DisablePrefix="yes" HideWhenDisabled="yes">Version 1.0.0</Text>
 
     <!-- Footer branding -->
-    <Text X="20" Y="420" Width="160" Height="40" FontId="8" DisablePrefix="yes">Friends School Kikai Boys</Text>
+    <Text X="20" Y="420" Width="160" Height="40" FontId="8" DisablePrefix="yes">Thor Technologies</Text>
 
     <!-- Right side content -->
     <!-- Title -->
-    <Text X="230" Y="40" Width="360" Height="50" FontId="7" DisablePrefix="yes">Welcome to SCHACCS</Text>
-    <Text X="230" Y="85" Width="360" Height="20" FontId="3" DisablePrefix="yes">School Accounting &amp; Fee Management System</Text>
+    <Text X="230" Y="40" Width="360" Height="50" FontId="7" DisablePrefix="yes">Welcome to ThorCash</Text>
+    <Text X="230" Y="85" Width="360" Height="20" FontId="3" DisablePrefix="yes">Financial Management System</Text>
 
     <!-- Separator line -->
     <Rectangle X="230" Y="115" Width="360" Height="1" Fill="E0E0E0" />
 
     <!-- Description -->
-    <Text X="230" Y="135" Width="360" Height="60" FontId="0" DisablePrefix="yes">This wizard will guide you through installing SCHACCS Financial System on your computer. The application includes a bundled Java runtime and all necessary dependencies.</Text>
+    <Text X="230" Y="135" Width="360" Height="60" FontId="0" DisablePrefix="yes">This wizard will guide you through installing ThorCash Financial System on your computer. The application includes a bundled Java runtime and all necessary dependencies.</Text>
 
     <!-- License area -->
     <Text X="230" Y="200" Width="360" Height="20" FontId="2" DisablePrefix="yes">License Agreement</Text>
@@ -144,17 +144,17 @@
 
     <!-- Left sidebar branding -->
     <Rectangle X="0" Y="0" Width="200" Height="480" Fill="0D1B2A" />
-    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">SCHACCS</Text>
+    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">ThorCash</Text>
     <Text X="20" Y="155" Width="160" Height="40" FontId="5" DisablePrefix="yes">Financial System</Text>
     <Rectangle X="20" Y="195" Width="60" Height="3" Fill="0A6633" />
 
     <!-- Right side - Installation folder -->
     <Text X="230" Y="40" Width="360" Height="50" FontId="7" DisablePrefix="yes">Installation Options</Text>
-    <Text X="230" Y="85" Width="360" Height="20" FontId="3" DisablePrefix="yes">Choose where to install SCHACCS</Text>
+    <Text X="230" Y="85" Width="360" Height="20" FontId="3" DisablePrefix="yes">Choose where to install ThorCash</Text>
     <Rectangle X="230" Y="115" Width="360" Height="1" Fill="E0E0E0" />
 
     <Text X="230" Y="135" Width="360" Height="20" FontId="2" DisablePrefix="yes">Installation Folder</Text>
-    <Text X="230" Y="158" Width="360" Height="15" FontId="3" DisablePrefix="yes">Select the folder where SCHACCS will be installed:</Text>
+    <Text X="230" Y="158" Width="360" Height="15" FontId="3" DisablePrefix="yes">Select the folder where ThorCash will be installed:</Text>
 
     <TextBox
       Name="Folder"
@@ -203,7 +203,7 @@
       FontId="0"
       TabStop="yes"
       HideWhenDisabled="yes">
-      Launch SCHACCS on &amp;startup (optional)
+      Launch ThorCash on &amp;startup (optional)
     </Checkbox>
 
     <!-- Buttons -->
@@ -267,12 +267,12 @@
 
     <!-- Left sidebar branding -->
     <Rectangle X="0" Y="0" Width="200" Height="480" Fill="0D1B2A" />
-    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">SCHACCS</Text>
+    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">ThorCash</Text>
     <Text X="20" Y="155" Width="160" Height="40" FontId="5" DisablePrefix="yes">Financial System</Text>
     <Rectangle X="20" Y="195" Width="60" Height="3" Fill="0A6633" />
 
     <!-- Installation progress -->
-    <Text X="230" Y="40" Width="360" Height="50" FontId="7" DisablePrefix="yes">Installing SCHACCS</Text>
+    <Text X="230" Y="40" Width="360" Height="50" FontId="7" DisablePrefix="yes">Installing ThorCash</Text>
     <Rectangle X="230" Y="85" Width="360" Height="1" Fill="E0E0E0" />
 
     <!-- Overall progress -->
@@ -349,7 +349,7 @@
 
     <!-- Left sidebar branding - success accent -->
     <Rectangle X="0" Y="0" Width="200" Height="480" Fill="0A6633" />
-    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">SCHACCS</Text>
+    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">ThorCash</Text>
     <Text X="20" Y="155" Width="160" Height="40" FontId="5" DisablePrefix="yes">Financial System</Text>
     <Rectangle X="20" Y="195" Width="60" Height="3" Fill="FFFFFF" />
 
@@ -360,7 +360,7 @@
     <Text X="230" Y="40" Width="360" Height="50" FontId="7" DisablePrefix="yes">Installation Complete</Text>
     <Rectangle X="230" Y="85" Width="360" Height="1" Fill="E0E0E0" />
 
-    <Text X="230" Y="110" Width="360" Height="60" FontId="0" DisablePrefix="yes">SCHACCS Financial System has been successfully installed on your computer. You can now launch the application from the Start Menu or desktop shortcut.</Text>
+    <Text X="230" Y="110" Width="360" Height="60" FontId="0" DisablePrefix="yes">ThorCash Financial System has been successfully installed on your computer. You can now launch the application from the Start Menu or desktop shortcut.</Text>
 
     <!-- Launch checkbox -->
     <Checkbox
@@ -372,7 +372,7 @@
       FontId="0"
       TabStop="yes"
       HideWhenDisabled="yes">
-      &amp;Launch SCHACCS Financial System
+      &amp;Launch ThorCash Financial System
     </Checkbox>
 
     <!-- View release notes -->
@@ -390,14 +390,14 @@
 
     <!-- Installation path info -->
     <Text X="230" Y="260" Width="360" Height="40" FontId="8" DisablePrefix="yes">
-      Installed to: C:\Program Files\SCHACCS\
-      User data: %APPDATA%\SCHACCS\
+      Installed to: C:\Program Files\ThorCash\
+      User data: %APPDATA%\ThorCash\
     </Text>
 
     <!-- Support info -->
     <Text X="230" Y="305" Width="360" Height="30" FontId="8" DisablePrefix="yes">
-      Friends School Kikai Boys Secondary School
-      P.O. Box 345-50202, Chwele
+      Thor Technologies
+      thorcash.com
     </Text>
 
     <!-- Buttons -->
@@ -423,7 +423,7 @@
   <Page Name="Resume">
     <Rectangle X="0" Y="0" Width="620" Height="480" Fill="FFFFFF" />
     <Rectangle X="0" Y="0" Width="200" Height="480" Fill="0D1B2A" />
-    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">SCHACCS</Text>
+    <Text X="20" Y="100" Width="160" Height="60" FontId="4" DisablePrefix="yes">ThorCash</Text>
     <Text X="20" Y="155" Width="160" Height="40" FontId="5" DisablePrefix="yes">Financial System</Text>
     <Rectangle X="20" Y="195" Width="60" Height="3" Fill="0A6633" />
     <Text X="230" Y="180" Width="360" Height="30" FontId="2" DisablePrefix="yes">Resuming installation...</Text>

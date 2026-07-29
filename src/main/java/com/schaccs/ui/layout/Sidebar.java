@@ -45,7 +45,7 @@ public class Sidebar extends VBox {
         VBox navContent = new VBox();
         navContent.setSpacing(2);
 
-        Label title = new Label("SCHACCS");
+        Label title = new Label("ThorCash");
         title.getStyleClass().add("sidebar-title");
         Label sub = new Label("Friends School Kikai Boys");
         sub.getStyleClass().add("sidebar-sub");

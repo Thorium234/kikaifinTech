@@ -2,9 +2,8 @@
 setlocal
 
 echo ============================================================================
-echo   SCHACCS Financial System - Full Installer Build
-echo   Friends School Kikai Boys Secondary School
-echo   Republic of Kenya, Ministry of Education
+echo   ThorCash Financial System - Full Installer Build
+echo   Thor Technologies
 echo ============================================================================
 echo.
 
@@ -36,7 +35,7 @@ if %errorlevel% neq 0 (
     )
 )
 
-set "APP_JAR=schaccs-1.0.0.jar"
+set "APP_JAR=thorcash-1.0.0.jar"
 set "MSI_DIR=target\installer"
 set "INPUT_DIR=target\installer-input"
 set "LIBS_DIR=target\libs"
@@ -99,26 +98,27 @@ mkdir "%MSI_DIR%"
 jpackage ^
     --type msi ^
     --dest "%MSI_DIR%" ^
-    --name "SCHACCS" ^
+    --name "ThorCash" ^
     --app-version "1.0.0" ^
     --input "%INPUT_DIR%" ^
     --main-jar "%APP_JAR%" ^
     --main-class com.schaccs.Launcher ^
-    --icon src/main/resources/assets/icon.ico ^
-    --vendor "Friends School Kikai Boys" ^
+    --icon src/main/resources/icon.ico ^
+    --vendor "Thor Technologies" ^
     --license-file src/main/installer/eula.rtf ^
     --win-shortcut ^
     --win-menu ^
     --win-dir-chooser ^
     --java-options "-Xmx512m" ^
     --java-options "-Dfile.encoding=UTF-8" ^
-    --java-options "-Djava.library.path=."
+    --java-options "-Djava.library.path=." ^
+    --splash src/main/resources/Splashscreen.png
 
 if %errorlevel% neq 0 (
     echo.
     echo ERROR: jpackage failed. Common causes:
     echo   - WiX Toolset v3 not installed or not on PATH
-    echo   - Icon file missing at src/main/resources/assets/icon.ico
+    echo   - Icon file missing at src/main/resources/icon.ico
     echo   - EULA file missing at src/main/installer/eula.rtf
     exit /b 1
 )
@@ -135,10 +135,10 @@ echo.
 echo ============================================================================
 echo   FULL BUILD SUCCESSFUL
 echo ============================================================================
-echo   MSI Installer:       %MSI_DIR%\SCHACCS-1.0.0.msi
-echo   Bootstrapper EXE:    target\bootstrapper-output\SCHACCS-Setup-1.0.0.exe
+echo   MSI Installer:       %MSI_DIR%\ThorCash-1.0.0.msi
+echo   Bootstrapper EXE:    target\bootstrapper-output\ThorCash-Setup-1.0.0.exe
 echo.
-echo   End-user runs: SCHACCS-Setup-1.0.0.exe
+echo   End-user runs: ThorCash-Setup-1.0.0.exe
 echo   Features:
 echo     - Professional Fluent Design UI
 echo     - License Agreement with acceptance required

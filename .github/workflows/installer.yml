@@ -1,4 +1,4 @@
-name: Build SCHACCS Installer
+name: Build ThorCash Installer
 
 on:
   push:
@@ -20,7 +20,7 @@ on:
 env:
   JAVA_VERSION: 21
   JAVA_DISTRIBUTION: microsoft
-  APP_NAME: SCHACCS
+  APP_NAME: ThorCash
   APP_VERSION: 1.0.0
 
 jobs:
@@ -77,7 +77,7 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $inputDir = "target\installer-input"
           New-Item -ItemType Directory -Force -Path $inputDir
-          Copy-Item "target\schaccs-$env:APP_VERSION.jar" "$inputDir\"
+          Copy-Item "target\thorcash-$env:APP_VERSION.jar" "$inputDir\"
           if (Test-Path "target\libs") { Copy-Item "target\libs\*" "$inputDir\" }
           $jars = @("javafx-graphics","javafx-media","javafx-web","javafx-swing")
           $base = "$env:USERPROFILE\.m2\repository\org\openjfx"
@@ -94,14 +94,14 @@ jobs:
 
       - name: Build MSI with jpackage
         run: |
-          jpackage --type msi --dest target\installer --name "$env:APP_NAME" --app-version "$env:APP_VERSION" --input target\installer-input --main-jar "schaccs-$env:APP_VERSION.jar" --main-class com.schaccs.Launcher --icon src/main/resources/assets/icon.ico --vendor "Friends School Kikai Boys" --license-file src/main/installer/eula.rtf --win-shortcut --win-menu --win-dir-chooser --java-options "-Xmx512m" --java-options "-Dfile.encoding=UTF-8" --java-options "-Djava.library.path=."
+          jpackage --type msi --dest target\installer --name "$env:APP_NAME" --app-version "$env:APP_VERSION" --input target\installer-input --main-jar "thorcash-$env:APP_VERSION.jar" --main-class com.schaccs.Launcher --icon src/main/resources/icon.ico --vendor "Thor Technologies" --license-file src/main/installer/eula.rtf --win-shortcut --win-menu --win-dir-chooser --java-options "-Xmx512m" --java-options "-Dfile.encoding=UTF-8" --java-options "-Djava.library.path=." --splash src/main/resources/Splashscreen.png
         timeout-minutes: 15
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SCHACCS-MSI
-          path: target\installer\SCHACCS-${{ env.APP_VERSION }}.msi
+          name: ThorCash-MSI
+          path: target\installer\ThorCash-${{ env.APP_VERSION }}.msi
           retention-days: 30
 
   build-bootstrapper:
@@ -114,7 +114,7 @@ jobs:
       - name: Download MSI artifact
         uses: actions/download-artifact@v4
         with:
-          name: SCHACCS-MSI
+          name: ThorCash-MSI
           path: target\installer
 
       - name: Install WiX Toolset v3
@@ -131,7 +131,7 @@ jobs:
       - name: Upload bootstrapper artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SCHACCS-Setup
+          name: ThorCash-Setup
           path: target\bootstrapper-output\*.exe
           retention-days: 90
 
@@ -147,26 +147,26 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: SCHACCS ${{ github.ref_name }}
+          name: ThorCash ${{ github.ref_name }}
           body: |
-            ## SCHACCS Financial System ${{ github.ref_name }}
+            ## ThorCash Financial System ${{ github.ref_name }}
 
             ### Downloads
-            - **Windows Installer (EXE)**: SCHACCS-Setup-*.exe - Professional bootstrapper with Fluent Design UI
-            - **Windows Installer (MSI)**: SCHACCS-*.msi - Standard Windows Installer package
+            - **Windows Installer (EXE)**: ThorCash-Setup-*.exe - Professional bootstrapper with Fluent Design UI
+            - **Windows Installer (MSI)**: ThorCash-*.msi - Standard Windows Installer package
 
             ### Installation
-            1. Download `SCHACCS-Setup-*.exe`
+            1. Download `ThorCash-Setup-*.exe`
             2. Run as Administrator
             3. Follow the installation wizard
-            4. Launch SCHACCS from the desktop shortcut or Start Menu
+            4. Launch ThorCash from the desktop shortcut or Start Menu
 
             ### Silent Installation
             ```
-            SCHACCS-Setup-*.exe /quiet /log install.log
+            ThorCash-Setup-*.exe /quiet /log install.log
             ```
           files: |
-            SCHACCS-Setup/*.exe
-            SCHACCS-MSI/*.msi
+            ThorCash-Setup/*.exe
+            ThorCash-MSI/*.msi
           draft: false
           prerelease: false

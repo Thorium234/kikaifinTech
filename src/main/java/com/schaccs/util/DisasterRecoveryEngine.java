@@ -76,7 +76,7 @@ public final class DisasterRecoveryEngine {
     }
 
     private Path getBackupDir() {
-        return Path.of(System.getProperty("user.home"), "Documents", "SCHACCS_Backups",
+        return Path.of(System.getProperty("user.home"), "Documents", "ThorCash_Backups",
                 LocalDate.now().format(DIR_FMT));
     }
 
