@@ -1,3 +1,32 @@
+# =============================================================================
+# ThorCash Installer Build — GitHub Actions
+# =============================================================================
+# Architecture:
+#
+#   test ──> build ──> release (tags only)
+#
+#   test:    mvn clean test
+#   build:   package (mvn) → jlink (runtime) → jpackage (MSI) → WiX Burn (EXE)
+#   release: softprops/action-gh-release
+#
+# Key design decisions:
+#
+#   1. Explicit 'jlink' step creates the runtime, then jpackage receives it
+#      via --runtime-image.  This avoids relying on jpackage's internal jlink
+#      which (on some JDK versions) generates a runtime that lacks java.exe
+#      and javaw.exe, causing "Failed to launch JVM".
+#
+#   2. JavaFX native DLLs are extracted from platform JARs into the input
+#      directory so that -Djava.library.path=. resolves them directly at
+#      startup.  JAVAFX_VERSION is a separate variable from APP_VERSION
+#      because the project version (1.0.0) differs from the JavaFX library
+#      version (21.0.6).
+#
+#   3. Artifact transfers between jobs are kept to a minimum.  MSI and EXE
+#      are both created in the 'build' job, avoiding 170 MB of cross-job
+#      downloads.  Only the release job downloads from the build job.
+# =============================================================================
+
 name: Build ThorCash Installer
 
 on:
@@ -22,8 +51,14 @@ env:
   JAVA_DISTRIBUTION: microsoft
   APP_NAME: ThorCash
   APP_VERSION: 1.0.0
+  JAVAFX_VERSION: 21.0.6
+  APP_VENDOR: Thor Technologies
+  APP_MAIN_CLASS: com.schaccs.Launcher
 
 jobs:
+  # ===========================================================================
+  # Job 1 — Run tests
+  # ===========================================================================
   test:
     name: Run Tests
     runs-on: windows-latest
@@ -41,10 +76,17 @@ jobs:
         run: mvn clean test --batch-mode
         timeout-minutes: 30
 
-  build-msi:
-    name: Build MSI Installer
+  # ===========================================================================
+  # Job 2 — Build MSI and bootstrapper EXE
+  # ===========================================================================
+  build:
+    name: Build Installer
     needs: test
     runs-on: windows-latest
+    outputs:
+      msi_path: target\installer\${{ env.APP_NAME }}-${{ env.APP_VERSION }}.msi
+      exe_path: target\bootstrapper-output\${{ env.APP_NAME }}-Setup-${{ env.APP_VERSION }}.exe
+
     steps:
       - uses: actions/checkout@v4
 
@@ -55,116 +97,167 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: maven
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2
-
       - name: Install WiX Toolset v3
         run: |
           choco install wixtoolset --version 3.14.1 --confirm --no-progress
           echo "$env:ProgramFiles(x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Build fat JAR
+      # ---- Step A: Package application JAR and copy dependencies -----------
+      - name: Package application
         run: mvn package -DskipTests --batch-mode
         timeout-minutes: 15
 
-      - name: Extract JavaFX native DLLs
+      # ---- Step B: Prepare input directory for jpackage --------------------
+      # jpackage --input copies everything here into the app image's app/
+      - name: Prepare installer input
         shell: pwsh
         run: |
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
           $inputDir = "target\installer-input"
-          New-Item -ItemType Directory -Force -Path $inputDir
+          Remove-Item -Recurse -Force $inputDir -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $inputDir | Out-Null
+
+          # Copy main JAR
           Copy-Item "target\thorcash-$env:APP_VERSION.jar" "$inputDir\"
-          if (Test-Path "target\libs") { Copy-Item "target\libs\*" "$inputDir\" }
-          $jars = @("javafx-graphics","javafx-media","javafx-web","javafx-swing")
-          $base = "$env:USERPROFILE\.m2\repository\org\openjfx"
-          foreach ($name in $jars) {
-            $jar = "$base\$name\$env:APP_VERSION-win\$name-$env:APP_VERSION-win.jar"
-            if (Test-Path $jar) {
-              $zip = [System.IO.Compression.ZipFile]::OpenRead($jar)
-              foreach ($entry in $zip.Entries) {
-                if ($entry.Name -like "*.dll") { [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, "$inputDir\$($entry.Name)", $true) }
-              }
-              $zip.Dispose()
-            }
+
+          # Copy dependency JARs (including JavaFX platform JARs)
+          if (Test-Path "target\libs") {
+            Copy-Item "target\libs\*" "$inputDir\"
           }
 
-      - name: Build MSI with jpackage
+          # Extract JavaFX native DLLs from platform JARs
+          # jpackage bundles these into app/ where -Djava.library.path=. finds them
+          $repoRoot = (Get-Item $PWD).FullName
+          & "$repoRoot\src\main\installer\extract-javafx-dlls.ps1" -OutputDir $inputDir
+
+      # ---- Step C: Create runtime with explicit jlink ----------------------
+      # This is the critical fix.  jpackage's internal jlink is unreliable —
+      # it can produce a runtime missing java.exe/javaw.exe.
+      # Explicit jlink always generates a complete runtime with both executables.
+      - name: Create runtime with jlink
+        shell: pwsh
         run: |
-          jpackage --type msi --dest target\installer --name "$env:APP_NAME" --app-version "$env:APP_VERSION" --input target\installer-input --main-jar "thorcash-$env:APP_VERSION.jar" --main-class com.schaccs.Launcher --icon src/main/resources/icon.ico --vendor "Thor Technologies" --license-file src/main/installer/eula.rtf --win-shortcut --win-menu --win-dir-chooser --java-options "-Xmx512m" --java-options "-Dfile.encoding=UTF-8" --java-options "-Djava.library.path=."
+          $runtimeDir = "target\runtime"
+          Remove-Item -Recurse -Force $runtimeDir -ErrorAction SilentlyContinue
+
+          & "$env:JAVA_HOME\bin\jlink.exe" `
+            --module-path "$env:JAVA_HOME\jmods" `
+            --add-modules java.base,java.sql,java.xml,java.desktop,jdk.unsupported,java.logging,jdk.management,jdk.management.agent,jdk.zipfs,jdk.crypto.cryptoki,jdk.crypto.ec `
+            --no-header-files --no-man-pages --strip-debug --compress=2 `
+            --output $runtimeDir
+
+          if (-not (Test-Path "$runtimeDir\bin\java.exe")) {
+            throw "jlink runtime is missing java.exe"
+          }
+          if (-not (Test-Path "$runtimeDir\bin\javaw.exe")) {
+            throw "jlink runtime is missing javaw.exe"
+          }
+          Write-Host "Runtime created: $( (Get-Item $runtimeDir).FullName )"
+          Write-Host "  java.exe: $( (Get-Item "$runtimeDir\bin\java.exe").Length ) bytes"
+          Write-Host "  javaw.exe: $( (Get-Item "$runtimeDir\bin\javaw.exe").Length ) bytes"
+
+      # ---- Step D: Build MSI with jpackage --runtime-image -----------------
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $msiDir = "target\installer"
+          Remove-Item -Recurse -Force $msiDir -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
+
+          & "$env:JAVA_HOME\bin\jpackage.exe" `
+            --type msi `
+            --runtime-image "target\runtime" `
+            --dest $msiDir `
+            --name "$env:APP_NAME" `
+            --app-version "$env:APP_VERSION" `
+            --input "target\installer-input" `
+            --main-jar "thorcash-$env:APP_VERSION.jar" `
+            --main-class "$env:APP_MAIN_CLASS" `
+            --icon "src\main\resources\icon.ico" `
+            --vendor "$env:APP_VENDOR" `
+            --license-file "src\main\installer\eula.rtf" `
+            --win-shortcut --win-menu --win-dir-chooser `
+            --java-options "-Xmx512m" `
+            --java-options "-Dfile.encoding=UTF-8" `
+            --java-options "-Djava.library.path=."
+
+          # Verify MSI exists
+          $msiPath = "$msiDir\$env:APP_NAME-$env:APP_VERSION.msi"
+          if (-not (Test-Path $msiPath)) {
+            throw "MSI not created at $msiPath"
+          }
+          $size = (Get-Item $msiPath).Length / 1MB
+          Write-Host "MSI created: $msiPath ($([math]::Round($size, 1)) MB)"
+
         timeout-minutes: 15
 
-      - name: Upload MSI artifact
+      # ---- Step E: Build WiX Burn bootstrapper -----------------------------
+      # Wraps the MSI into a single EXE with admin elevation, EULA, etc.
+      - name: Build bootstrapper EXE
+        shell: cmd
+        run: call src\main\installer\build-bootstrapper.bat
+        timeout-minutes: 10
+
+      # ---- Step F: Generate SHA-256 checksums ------------------------------
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $msi = "target\installer\$env:APP_NAME-$env:APP_VERSION.msi"
+          $exe = "target\bootstrapper-output\$env:APP_NAME-Setup-$env:APP_VERSION.exe"
+
+          $msiHash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
+          $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+
+          Write-Host "MSI:  $msiHash"
+          Write-Host "EXE:  $exeHash"
+
+          $msiHash | Out-File -FilePath "target\$env:APP_NAME-$env:APP_VERSION.msi.sha256" -Encoding utf8
+          $exeHash | Out-File -FilePath "target\$env:APP_NAME-Setup-$env:APP_VERSION.exe.sha256" -Encoding utf8
+
+          @"
+          $msiHash  $env:APP_NAME-$env:APP_VERSION.msi
+          $exeHash  $env:APP_NAME-Setup-$env:APP_VERSION.exe
+          "@ | Out-File -FilePath "target\checksums.txt" -Encoding utf8
+
+          Get-Content "target\checksums.txt"
+
+      # ---- Step G: Upload artifacts ----------------------------------------
+      - name: Upload MSI
         uses: actions/upload-artifact@v4
         with:
           name: ThorCash-MSI
           path: target\installer\ThorCash-${{ env.APP_VERSION }}.msi
           retention-days: 30
 
-  build-bootstrapper:
-    name: Build Professional EXE Bootstrapper
-    needs: build-msi
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download MSI artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ThorCash-MSI
-          path: target\installer
-
-      - name: Install WiX Toolset v3
-        run: |
-          choco install wixtoolset --version 3.14.1 --confirm --no-progress
-          echo "$env:ProgramFiles(x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Build Burn bootstrapper EXE
-        run: |
-          call src\main\installer\build-bootstrapper.bat
-        shell: cmd
-        timeout-minutes: 10
-
-      - name: Generate SHA-256 checksums
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem -Path target\bootstrapper-output\*.exe, target\installer\*.msi
-          $lines = foreach ($f in $files) {
-            $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($f.Name)"
-          }
-          $lines | Set-Content -Path target\checksums.txt
-          Get-Content target\checksums.txt
-          Get-ChildItem target\bootstrapper-output\*.exe | ForEach-Object {
-            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
-            $hash | Set-Content -Path "$($_.DirectoryName)\$($_.BaseName).sha256"
-          }
-
-      - name: Upload bootstrapper artifact
+      - name: Upload bootstrapper
         uses: actions/upload-artifact@v4
         with:
           name: ThorCash-Setup
-          path: target\bootstrapper-output\*.*
+          path: target\bootstrapper-output\ThorCash-Setup-${{ env.APP_VERSION }}.exe
           retention-days: 90
 
-      - name: Upload checksums artifact
+      - name: Upload checksums
         uses: actions/upload-artifact@v4
         with:
           name: ThorCash-Checksums
-          path: target\checksums.txt
+          path: |
+            target\checksums.txt
+            target\*.sha256
           retention-days: 90
 
+  # ===========================================================================
+  # Job 3 — Create GitHub Release (tags only)
+  # ===========================================================================
   release:
     name: Create Release
-    needs: build-bootstrapper
+    needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
+
+      - name: Display artifacts
+        run: ls -laR ThorCash-*/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -174,8 +267,8 @@ jobs:
             ## ThorCash Financial System ${{ github.ref_name }}
 
             ### Downloads
-            - **Windows Installer (EXE)**: ThorCash-Setup-*.exe - Professional bootstrapper with Fluent Design UI
-            - **Windows Installer (MSI)**: ThorCash-*.msi - Standard Windows Installer package
+            - **Windows Installer (EXE)**: ThorCash-Setup-*.exe — Professional bootstrapper
+            - **Windows Installer (MSI)**: ThorCash-*.msi — Standard Windows Installer package
 
             ### SHA-256 Checksums
             See `checksums.txt` attached to this release for file integrity verification.
@@ -184,7 +277,6 @@ jobs:
             1. Download `ThorCash-Setup-*.exe`
             2. Run as Administrator
             3. Follow the installation wizard
-            4. Launch ThorCash from the desktop shortcut or Start Menu
 
             ### Silent Installation
             ```
@@ -195,5 +287,6 @@ jobs:
             ThorCash-Setup/*.sha256
             ThorCash-MSI/*.msi
             ThorCash-Checksums/*.txt
+            ThorCash-Checksums/*.sha256
           draft: false
           prerelease: false
