@@ -42,14 +42,14 @@ You only need to run **one script**. It produces a single `.exe` file you can sh
 
 | Tool | Where to get it |
 |------|----------------|
-| **JDK 21+** | https://adoptium.net — install and add to PATH |
+| **JDK 21+** (26.0.2 used) | https://adoptium.net — install and set `JAVA_HOME` |
 | **Maven 3.9+** | https://maven.apache.org/download.cgi — add `bin/` to PATH |
-| **WiX Toolset v3** | `winget install WiXToolset.WiXToolset` — or download from https://wixtoolset.org |
+| **WiX Toolset v3** (3.14) | `winget install WiXToolset.WiXToolset` — or https://wixtoolset.org |
 
 Verify they are installed:
 
 ```
-java -version
+"C:\Program Files\Java\jdk-26.0.2\bin\java" -version
 mvn -version
 candle -?
 ```
@@ -62,25 +62,24 @@ From the project root folder, run:
 build-installer.bat
 ```
 
-The script will:
+The script runs **9 stages**:
 
-1. **Run all 80 tests** to make sure nothing is broken.
-2. **Compile and package** the application into a JAR with dependencies.
-3. **Extract JavaFX native DLLs** needed for Windows.
-4. **Build an MSI** via jpackage (Windows Installer format).
-5. **Wrap it into a professional EXE** bootstrapper with a custom UI.
+1. **Verify** environment (JDK, Maven, WiX)
+2. **Test** — 93 unit tests
+3. **Package** — compile and produce `thorcash-1.0.0.jar` with dependencies
+4. **jlink** — create a custom JVM runtime (fixes "Failed to launch JVM")
+5. **Assemble input** — JARs + extracted JavaFX native DLLs
+6. **MSI** — `jpackage --runtime-image` produces `ThorCash-1.0.0.msi`
+7. **Verify** runtime executables inside the MSI
+8. **Bootstrapper** — wrap MSI into `ThorCash-Setup-1.0.0.exe`
+9. **Checksums** — SHA-256 of MSI and EXE
 
 ### Output
 
-After the script finishes, your shareable file is at:
-
-```
-target\bootstrapper-output\ThorCash-Setup-1.0.0.exe
-```
-
-That's **the only file you need** to share. Send it to your friend — they double-click and install.
-
-An intermediate `.msi` file is also produced at `target\installer\ThorCash-1.0.0.msi`, but you don't need to share it.
+| File | Path | Purpose |
+|------|------|---------|
+| `ThorCash-Setup-1.0.0.exe` | `target\bootstrapper-output\` | **Shareable installer** |
+| `ThorCash-1.0.0.msi` | `target\installer\` | Intermediate MSI |
 
 ### What the installer includes
 
