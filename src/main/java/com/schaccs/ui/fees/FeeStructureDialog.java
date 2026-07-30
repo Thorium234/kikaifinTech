@@ -6,6 +6,8 @@ import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
+import com.schaccs.model.fee.FeeStructureTemplate;
+import com.schaccs.model.fee.FeeStructureTemplateItem;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.FeeStructureStore;
@@ -41,6 +43,7 @@ public class FeeStructureDialog extends Stage {
     private final TextField nameField = new TextField();
     private final TextField yearField = new TextField();
     private final ComboBox<String> formClassBox = new ComboBox<>();
+    private final ComboBox<FeeStructureTemplate> templateBox = new ComboBox<>();
     private final TableView<VoteheadRow> amountTable = new TableView<>();
     private final ObservableList<VoteheadRow> rows = FXCollections.observableArrayList();
 
@@ -55,6 +58,17 @@ public class FeeStructureDialog extends Stage {
         formClassBox.getItems().add("ALL");
         formClassBox.setValue("ALL");
         formClassBox.setEditable(true);
+
+        templateBox.setItems(store.getTemplates());
+        templateBox.setPromptText("Load from template...");
+        templateBox.setPrefWidth(280);
+
+        Button loadTemplateBtn = new Button("Apply Template");
+        loadTemplateBtn.getStyleClass().add("secondary-button");
+        loadTemplateBtn.setOnAction(e -> applyTemplate());
+
+        HBox templateRow = new HBox(8, new Label("Template:"), templateBox, loadTemplateBtn);
+        templateRow.setAlignment(Pos.CENTER_LEFT);
 
         GridPane form = new GridPane();
         form.setHgap(10);
@@ -93,6 +107,7 @@ public class FeeStructureDialog extends Stage {
 
         VBox root = new VBox(12,
                 new Label("Configure fee structure(s). Amounts are per-term per-votehead."),
+                templateRow,
                 form,
                 new Label("Votehead Amounts per Term:"),
                 copyBtn,
@@ -150,6 +165,20 @@ public class FeeStructureDialog extends Stage {
                 rows.add(new VoteheadRow(vh.getCode(), vh.getName()));
             }
         }
+    }
+
+    private void applyTemplate() {
+        FeeStructureTemplate t = templateBox.getValue();
+        if (t == null) return;
+        for (FeeStructureTemplateItem item : t.getItems()) {
+            for (VoteheadRow row : rows) {
+                if (row.getCode().equals(item.getVoteheadCode())) {
+                    row.setAmount(item.getTerm(), item.getAmount());
+                    break;
+                }
+            }
+        }
+        amountTable.refresh();
     }
 
     private void copyTerm1ToAll() {

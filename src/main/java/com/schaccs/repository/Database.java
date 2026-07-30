@@ -10,6 +10,7 @@ import com.schaccs.repository.migration.MigrationV10PdfStampEnabled;
 import com.schaccs.repository.migration.MigrationV11AccountingFoundation;
 import com.schaccs.repository.migration.MigrationV12AddReceiptHash;
 import com.schaccs.repository.migration.MigrationV13AddAuditTrail;
+import com.schaccs.repository.migration.MigrationV17FeeTemplates;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -205,7 +206,8 @@ public final class Database {
                 new MigrationV13AddAuditTrail(),
                 new com.schaccs.repository.migration.MigrationV14PayrollModule(),
                 new com.schaccs.repository.migration.MigrationV15ReceiptLineOutstandingBefore(),
-                new com.schaccs.repository.migration.MigrationV16ProcurementModule()
+                new com.schaccs.repository.migration.MigrationV16ProcurementModule(),
+                new MigrationV17FeeTemplates()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {

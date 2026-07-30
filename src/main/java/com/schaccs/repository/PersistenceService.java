@@ -21,6 +21,8 @@ import com.schaccs.enums.TenderStatus;
 import com.schaccs.enums.TenderType;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
+import com.schaccs.model.fee.FeeStructureTemplate;
+import com.schaccs.model.fee.FeeStructureTemplateItem;
 import com.schaccs.model.finance.Account;
 import com.schaccs.model.finance.Asset;
 import com.schaccs.model.finance.AssetCategory;
@@ -132,6 +134,7 @@ public final class PersistenceService {
             markInitialized(conn);
             saveVoteheads(conn);
             saveFeeStructures(conn);
+            saveFeeTemplates(conn);
             saveStudents(conn);
             saveReceipts(conn);
             saveLedger(conn);
@@ -179,6 +182,7 @@ public final class PersistenceService {
             loadSettings(conn);
             loadVoteheads(conn);
             loadFeeStructures(conn);
+            loadFeeTemplates(conn);
             loadStudents(conn);
             loadReceipts(conn);
             loadLedger(conn);
@@ -233,6 +237,8 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM student_ledger_lines");
             st.executeUpdate("DELETE FROM student_ledgers");
             st.executeUpdate("DELETE FROM students");
+            st.executeUpdate("DELETE FROM fee_template_items");
+            st.executeUpdate("DELETE FROM fee_templates");
             st.executeUpdate("DELETE FROM fee_structure_items");
             st.executeUpdate("DELETE FROM fee_structures");
             st.executeUpdate("DELETE FROM voteheads");
@@ -461,6 +467,65 @@ public final class PersistenceService {
                             BoardingStatus.valueOf(rs.getString("boarding_status")),
                             parseMoney(rs.getString("amount")));
                     s.addItem(item);
+                }
+            }
+        }
+    }
+
+    private void saveFeeTemplates(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO fee_templates (id, name) VALUES (?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET name=excluded.name");
+             PreparedStatement itemPs = conn.prepareStatement(
+                     "INSERT INTO fee_template_items (id, template_id, votehead_code, votehead_name, term, boarding_status, amount) "
+                             + "VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+                             + "template_id=excluded.template_id, votehead_code=excluded.votehead_code, "
+                             + "votehead_name=excluded.votehead_name, term=excluded.term, "
+                             + "boarding_status=excluded.boarding_status, amount=excluded.amount")) {
+            for (FeeStructureTemplate t : FeeStructureStore.getInstance().getTemplates()) {
+                ps.setString(1, t.getId());
+                ps.setString(2, t.getName());
+                ps.addBatch();
+                for (FeeStructureTemplateItem item : t.getItems()) {
+                    itemPs.setString(1, item.getId());
+                    itemPs.setString(2, t.getId());
+                    itemPs.setString(3, item.getVoteheadCode());
+                    itemPs.setString(4, item.getVoteheadName());
+                    itemPs.setString(5, enumName(item.getTerm()));
+                    itemPs.setString(6, "ALL");
+                    itemPs.setString(7, money(item.getAmount()));
+                    itemPs.addBatch();
+                }
+            }
+            ps.executeBatch();
+            itemPs.executeBatch();
+        }
+    }
+
+    private void loadFeeTemplates(Connection conn) throws SQLException {
+        FeeStructureStore store = FeeStructureStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM fee_templates")) {
+            while (rs.next()) {
+                FeeStructureTemplate t = new FeeStructureTemplate(rs.getString("name"));
+                store.addTemplate(t);
+                loadItemsForTemplate(conn, rs.getString("id"), t);
+            }
+        }
+    }
+
+    private void loadItemsForTemplate(Connection conn, String templateId, FeeStructureTemplate t) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT * FROM fee_template_items WHERE template_id = ?")) {
+            ps.setString(1, templateId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    FeeStructureTemplateItem item = new FeeStructureTemplateItem(
+                            rs.getString("votehead_code"),
+                            rs.getString("votehead_name"),
+                            AcademicTerm.valueOf(rs.getString("term")),
+                            parseMoney(rs.getString("amount")));
+                    t.addItem(item);
                 }
             }
         }

@@ -4,6 +4,8 @@ import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
+import com.schaccs.model.fee.FeeStructureTemplate;
+import com.schaccs.model.fee.FeeStructureTemplateItem;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.FeeStructureStore;
@@ -96,7 +98,15 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         delStruct.getStyleClass().add("secondary-button");
         delStruct.setOnAction(e -> deleteStructure());
 
-        HBox bar = new HBox(10, newStruct, delStruct);
+        Button saveTemplateBtn = new Button("Save as Template");
+        saveTemplateBtn.getStyleClass().add("secondary-button");
+        saveTemplateBtn.setOnAction(e -> saveAsTemplate());
+
+        Button delTemplateBtn = new Button("Delete Template");
+        delTemplateBtn.getStyleClass().add("secondary-button");
+        delTemplateBtn.setOnAction(e -> deleteTemplate());
+
+        HBox bar = new HBox(10, newStruct, delStruct, saveTemplateBtn, delTemplateBtn);
         bar.setAlignment(Pos.CENTER_LEFT);
         VBox box = new VBox(8, new Label("Structures"), bar);
         box.getStyleClass().add("card");
@@ -123,6 +133,57 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         HBox bar = new HBox(8, vhBox, term, amount, add, remove);
         bar.setAlignment(Pos.CENTER_LEFT);
         return bar;
+    }
+
+    private void saveAsTemplate() {
+        FeeStructure s = structureBox.getValue();
+        if (s == null) {
+            AlertUtil.warn("Select structure", "Select a structure to save as template.");
+            return;
+        }
+        String name = s.getName();
+        TextField nameInput = new TextField(name);
+        javafx.scene.control.Dialog<String> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Save as Template");
+        dialog.getDialogPane().setContent(new VBox(8, new Label("Template name:"), nameInput));
+        dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        dialog.setResultConverter(bt -> bt == javafx.scene.control.ButtonType.OK ? nameInput.getText().trim() : null);
+        dialog.initOwner(getScene().getWindow());
+        String result = dialog.showAndWait().orElse(null);
+        if (result == null || result.isBlank()) return;
+
+        FeeStructureTemplate t = new FeeStructureTemplate(result);
+        for (FeeStructureItem item : s.getItems()) {
+            t.addItem(new FeeStructureTemplateItem(
+                    item.getVoteheadCode(), item.getVoteheadName(), item.getTerm(), item.getAmount()));
+        }
+        store.addTemplate(t);
+        PersistenceService.getInstance().saveAll();
+        AlertUtil.info("Template Saved", "Template '" + result + "' saved.");
+    }
+
+    private void deleteTemplate() {
+        FeeStructureTemplate t = selectTemplate();
+        if (t == null) return;
+        if (!AlertUtil.confirm("Delete Template", "Delete template '" + t.getName() + "'?")) return;
+        store.removeTemplate(t);
+        PersistenceService.getInstance().saveAll();
+    }
+
+    private FeeStructureTemplate selectTemplate() {
+        if (store.getTemplates().isEmpty()) {
+            AlertUtil.warn("No Templates", "No templates available.");
+            return null;
+        }
+        ComboBox<FeeStructureTemplate> box = new ComboBox<>(store.getTemplates());
+        box.setPrefWidth(300);
+        javafx.scene.control.Dialog<FeeStructureTemplate> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Select Template");
+        dialog.getDialogPane().setContent(new VBox(8, new Label("Choose a template to delete:"), box));
+        dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        dialog.setResultConverter(bt -> bt == javafx.scene.control.ButtonType.OK ? box.getValue() : null);
+        dialog.initOwner(getScene().getWindow());
+        return dialog.showAndWait().orElse(null);
     }
 
     private void deleteStructure() {
