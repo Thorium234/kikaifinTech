@@ -36,11 +36,11 @@ public final class ProcurementStore {
         return suppliers;
     }
 
-    public void addSupplier(Supplier s) {
+    public synchronized void addSupplier(Supplier s) {
         suppliers.add(0, s);
     }
 
-    public void removeSupplier(Supplier s) {
+    public synchronized void removeSupplier(Supplier s) {
         suppliers.remove(s);
     }
 
@@ -58,11 +58,11 @@ public final class ProcurementStore {
         return procurementRequests;
     }
 
-    public void addProcurementRequest(ProcurementRequest r) {
+    public synchronized void addProcurementRequest(ProcurementRequest r) {
         procurementRequests.add(0, r);
     }
 
-    public void removeProcurementRequest(ProcurementRequest r) {
+    public synchronized void removeProcurementRequest(ProcurementRequest r) {
         procurementRequests.remove(r);
     }
 
@@ -80,11 +80,11 @@ public final class ProcurementStore {
         return tenders;
     }
 
-    public void addTender(Tender t) {
+    public synchronized void addTender(Tender t) {
         tenders.add(0, t);
     }
 
-    public void removeTender(Tender t) {
+    public synchronized void removeTender(Tender t) {
         tenders.remove(t);
     }
 
@@ -102,11 +102,11 @@ public final class ProcurementStore {
         return bids;
     }
 
-    public void addBid(TenderBid b) {
+    public synchronized void addBid(TenderBid b) {
         bids.add(0, b);
     }
 
-    public void removeBid(TenderBid b) {
+    public synchronized void removeBid(TenderBid b) {
         bids.remove(b);
     }
 
@@ -136,7 +136,7 @@ public final class ProcurementStore {
         return evaluations;
     }
 
-    public void addEvaluation(TenderEvaluation e) {
+    public synchronized void addEvaluation(TenderEvaluation e) {
         evaluations.add(0, e);
     }
 
@@ -156,7 +156,7 @@ public final class ProcurementStore {
         return awards;
     }
 
-    public void addAward(TenderAward a) {
+    public synchronized void addAward(TenderAward a) {
         awards.add(0, a);
     }
 
@@ -175,11 +175,11 @@ public final class ProcurementStore {
         return contracts;
     }
 
-    public void addContract(Contract c) {
+    public synchronized void addContract(Contract c) {
         contracts.add(0, c);
     }
 
-    public void removeContract(Contract c) {
+    public synchronized void removeContract(Contract c) {
         contracts.remove(c);
     }
 
@@ -197,11 +197,11 @@ public final class ProcurementStore {
         return milestones;
     }
 
-    public void addMilestone(ContractMilestone m) {
+    public synchronized void addMilestone(ContractMilestone m) {
         milestones.add(0, m);
     }
 
-    public void removeMilestone(ContractMilestone m) {
+    public synchronized void removeMilestone(ContractMilestone m) {
         milestones.remove(m);
     }
 
@@ -216,7 +216,7 @@ public final class ProcurementStore {
         return approvals;
     }
 
-    public void addApproval(ProcurementApproval a) {
+    public synchronized void addApproval(ProcurementApproval a) {
         approvals.add(0, a);
     }
 
@@ -226,7 +226,7 @@ public final class ProcurementStore {
                         a.getEntityType().equals(entityType) && a.getEntityId().equals(entityId)).toList());
     }
 
-    public void clear() {
+    public synchronized void clear() {
         suppliers.clear();
         procurementRequests.clear();
         tenders.clear();

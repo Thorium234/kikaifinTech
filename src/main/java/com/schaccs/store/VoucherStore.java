@@ -53,39 +53,39 @@ public final class VoucherStore {
         return imprests;
     }
 
-    public void addCreditor(Creditor c) {
+    public synchronized void addCreditor(Creditor c) {
         creditors.add(c);
     }
 
-    public void addCommitment(Commitment c) {
+    public synchronized void addCommitment(Commitment c) {
         commitments.add(0, c);
     }
 
-    public void addVoucher(PaymentVoucher v) {
+    public synchronized void addVoucher(PaymentVoucher v) {
         vouchers.add(0, v);
     }
 
-    public void addLpo(Lpo l) {
+    public synchronized void addLpo(Lpo l) {
         lpos.add(0, l);
     }
 
-    public void removeLpo(Lpo l) {
+    public synchronized void removeLpo(Lpo l) {
         lpos.remove(l);
     }
 
-    public void addInvoice(Invoice i) {
+    public synchronized void addInvoice(Invoice i) {
         invoices.add(0, i);
     }
 
-    public void removeInvoice(Invoice i) {
+    public synchronized void removeInvoice(Invoice i) {
         invoices.remove(i);
     }
 
-    public void addImprest(Imprest imp) {
+    public synchronized void addImprest(Imprest imp) {
         imprests.add(0, imp);
     }
 
-    public void removeImprest(Imprest imp) {
+    public synchronized void removeImprest(Imprest imp) {
         imprests.remove(imp);
     }
 
@@ -113,7 +113,7 @@ public final class VoucherStore {
         return imprests.stream().filter(imp -> imp.getId().equals(id)).findFirst();
     }
 
-    public void clear() {
+    public synchronized void clear() {
         creditors.clear();
         commitments.clear();
         vouchers.clear();

@@ -64,7 +64,7 @@ public final class AccountStore {
         return depreciationSchedules.stream().filter(ds -> assetId.equals(ds.getAssetId())).toList();
     }
 
-    public void seedDefaultAccounts() {
+    public synchronized void seedDefaultAccounts() {
         if (!accounts.isEmpty()) return;
         int order = 0;
         for (AccountType type : AccountType.values()) {
@@ -79,7 +79,7 @@ public final class AccountStore {
         }
     }
 
-    public void clear() {
+    public synchronized void clear() {
         accounts.clear();
         fiscalYears.clear();
         budgets.clear();

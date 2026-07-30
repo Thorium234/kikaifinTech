@@ -15,11 +15,11 @@ public final class AuditStore {
 
     public ObservableList<AuditLog> getEntries() { return entries; }
 
-    public void add(AuditLog entry) {
+    public synchronized void add(AuditLog entry) {
         entries.add(0, entry);
     }
 
-    public void clear() {
+    public synchronized void clear() {
         entries.clear();
     }
 }

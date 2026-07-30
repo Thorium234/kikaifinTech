@@ -39,11 +39,11 @@ public final class LedgerStore {
         return ledgerEntries;
     }
 
-    public void addTransaction(FinancialTransaction tx) {
+    public synchronized void addTransaction(FinancialTransaction tx) {
         transactions.add(0, tx);
     }
 
-    public void addLedgerEntry(LedgerEntry entry) {
+    public synchronized void addLedgerEntry(LedgerEntry entry) {
         ledgerEntries.add(0, entry);
         AccountType type = entry.getAccountType();
         if (type != null) {
@@ -80,7 +80,7 @@ public final class LedgerStore {
      * then recalculates account balances from the remaining entries.
      * Used for rollback when persistence fails after accounting entries were posted.
      */
-    public void removeByReceiptId(String receiptId) {
+    public synchronized void removeByReceiptId(String receiptId) {
         if (receiptId == null) return;
         java.util.Set<String> removedTxIds = new java.util.HashSet<>();
         transactions.removeIf(tx -> {
@@ -97,7 +97,7 @@ public final class LedgerStore {
     /**
      * Rebuilds account balances from scratch using all remaining ledger entries.
      */
-    public void recalculateBalances() {
+    public synchronized void recalculateBalances() {
         for (AccountType type : AccountType.values()) {
             accountBalances.put(type, CurrencyConfig.zero());
         }
@@ -117,7 +117,7 @@ public final class LedgerStore {
         }
     }
 
-    public void clear() {
+    public synchronized void clear() {
         transactions.clear();
         ledgerEntries.clear();
         for (AccountType type : AccountType.values()) {

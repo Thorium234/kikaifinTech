@@ -14,11 +14,11 @@ public final class BankReconciliationStore {
     public static BankReconciliationStore getInstance() { return INSTANCE; }
     public ObservableList<BankReconciliation> getReconciliations() { return reconciliations; }
 
-    public void add(BankReconciliation r) {
+    public synchronized void add(BankReconciliation r) {
         reconciliations.add(0, r);
     }
 
-    public void clear() {
+    public synchronized void clear() {
         reconciliations.clear();
     }
 }

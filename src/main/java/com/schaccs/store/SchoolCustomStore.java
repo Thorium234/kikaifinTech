@@ -29,19 +29,19 @@ public final class SchoolCustomStore {
         return streams;
     }
 
-    public void addFormClass(SchoolFormClass fc) {
+    public synchronized void addFormClass(SchoolFormClass fc) {
         formClasses.add(fc);
     }
 
-    public void removeFormClass(SchoolFormClass fc) {
+    public synchronized void removeFormClass(SchoolFormClass fc) {
         formClasses.remove(fc);
     }
 
-    public void addStream(SchoolStream s) {
+    public synchronized void addStream(SchoolStream s) {
         streams.add(s);
     }
 
-    public void removeStream(SchoolStream s) {
+    public synchronized void removeStream(SchoolStream s) {
         streams.remove(s);
     }
 
@@ -61,7 +61,7 @@ public final class SchoolCustomStore {
         return streams.stream().anyMatch(s -> s.getName().equalsIgnoreCase(name.trim()));
     }
 
-    public void clear() {
+    public synchronized void clear() {
         formClasses.clear();
         streams.clear();
     }

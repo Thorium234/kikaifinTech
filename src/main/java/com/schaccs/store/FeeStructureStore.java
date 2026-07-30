@@ -30,15 +30,15 @@ public final class FeeStructureStore {
         return voteheads;
     }
 
-    public void addStructure(FeeStructure structure) {
+    public synchronized void addStructure(FeeStructure structure) {
         structures.add(structure);
     }
 
-    public void addVotehead(Votehead votehead) {
+    public synchronized void addVotehead(Votehead votehead) {
         voteheads.add(votehead);
     }
 
-    public void removeVotehead(Votehead votehead) {
+    public synchronized void removeVotehead(Votehead votehead) {
         voteheads.remove(votehead);
     }
 
@@ -58,7 +58,7 @@ public final class FeeStructureStore {
                 .findFirst();
     }
 
-    public void clear() {
+    public synchronized void clear() {
         structures.clear();
         voteheads.clear();
     }

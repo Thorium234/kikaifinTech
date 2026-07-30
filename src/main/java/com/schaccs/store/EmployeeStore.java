@@ -58,7 +58,7 @@ public final class EmployeeStore {
                 .toList();
     }
 
-    public void clear() {
+    public synchronized void clear() {
         employees.clear();
         salaryStructures.clear();
     }

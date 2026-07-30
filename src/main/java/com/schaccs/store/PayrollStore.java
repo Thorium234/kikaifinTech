@@ -48,7 +48,7 @@ public final class PayrollStore {
                 });
     }
 
-    public void clear() {
+    public synchronized void clear() {
         payrollRuns.clear();
         payrollItems.clear();
     }

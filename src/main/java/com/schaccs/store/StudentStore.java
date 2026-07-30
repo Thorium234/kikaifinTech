@@ -27,7 +27,7 @@ public final class StudentStore {
         return students;
     }
 
-    public void add(Student student) {
+    public synchronized void add(Student student) {
         if (student.getAdmissionNumber() != null && !student.getAdmissionNumber().isBlank()) {
             findByAdmissionNumber(student.getAdmissionNumber()).ifPresent(existing -> {
                 if (!existing.getId().equals(student.getId())) {
@@ -39,7 +39,7 @@ public final class StudentStore {
         ledgers.putIfAbsent(student.getId(), new StudentFeeLedger(student.getId()));
     }
 
-    public void remove(Student student) {
+    public synchronized void remove(Student student) {
         students.remove(student);
         ledgers.remove(student.getId());
     }
@@ -73,7 +73,7 @@ public final class StudentStore {
         return ledgers;
     }
 
-    public void clear() {
+    public synchronized void clear() {
         students.clear();
         ledgers.clear();
     }
