@@ -7,6 +7,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 /**
  * Snapshot of a student's fee position for UI tables and reports.
@@ -134,5 +135,17 @@ public class StudentBalance {
 
     public ObjectProperty<BigDecimal> balanceProperty() {
         return balance;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof StudentBalance that)) return false;
+        return Objects.equals(studentId.get(), that.studentId.get());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(studentId.get());
     }
 }

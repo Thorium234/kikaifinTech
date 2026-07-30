@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Objects;
 
 /**
  * Double-entry journal: one or more debit lines must equal credit lines.
@@ -108,5 +109,33 @@ public class JournalEntry {
         public String getDescription() {
             return description;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof JournalLine that)) return false;
+            return accountType == that.accountType
+                    && Objects.equals(voteheadCode, that.voteheadCode)
+                    && Objects.equals(debit, that.debit)
+                    && Objects.equals(credit, that.credit)
+                    && Objects.equals(description, that.description);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(accountType, voteheadCode, debit, credit, description);
+        }
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof JournalEntry that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

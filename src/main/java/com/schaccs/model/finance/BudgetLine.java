@@ -4,6 +4,7 @@ import com.schaccs.config.CurrencyConfig;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.Objects;
 
 public class BudgetLine {
 
@@ -51,5 +52,17 @@ public class BudgetLine {
         return used.multiply(BigDecimal.valueOf(100))
                 .divide(allocatedAmount, 2, java.math.RoundingMode.HALF_UP)
                 .doubleValue();
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BudgetLine that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

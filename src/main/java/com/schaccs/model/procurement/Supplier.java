@@ -2,6 +2,7 @@ package com.schaccs.model.procurement;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class Supplier {
 
@@ -80,5 +81,17 @@ public class Supplier {
     @Override
     public String toString() {
         return businessName != null ? businessName : supplierNumber;
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Supplier that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

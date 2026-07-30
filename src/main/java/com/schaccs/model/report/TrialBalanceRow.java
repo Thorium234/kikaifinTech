@@ -4,6 +4,7 @@ import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.AccountType;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 public class TrialBalanceRow {
 
@@ -33,5 +34,17 @@ public class TrialBalanceRow {
 
     public BigDecimal getCredit() {
         return credit;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TrialBalanceRow that)) return false;
+        return accountType == that.accountType;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(accountType);
     }
 }

@@ -4,6 +4,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 import java.util.UUID;
+import java.util.Objects;
 
 public class Creditor {
 
@@ -73,5 +74,17 @@ public class Creditor {
     @Override
     public String toString() {
         return getName() != null ? getName() : id;
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Creditor that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

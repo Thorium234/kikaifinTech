@@ -5,6 +5,7 @@ import com.schaccs.config.CurrencyConfig;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.Objects;
 
 public class SalaryStructure {
 
@@ -82,5 +83,17 @@ public class SalaryStructure {
         return CurrencyConfig.money(
                 getStaffLoanRepayment().add(getSalaryAdvanceRecovery())
                         .add(getWelfareContribution()));
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof SalaryStructure that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

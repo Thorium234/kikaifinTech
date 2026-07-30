@@ -5,6 +5,7 @@ import com.schaccs.config.CurrencyConfig;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.Objects;
 
 public class DepreciationSchedule {
 
@@ -39,4 +40,16 @@ public class DepreciationSchedule {
     public void setAccumulatedDepreciation(BigDecimal accumulatedDepreciation) { this.accumulatedDepreciation = CurrencyConfig.money(accumulatedDepreciation); }
     public BigDecimal getNetBookValue() { return netBookValue; }
     public void setNetBookValue(BigDecimal netBookValue) { this.netBookValue = CurrencyConfig.money(netBookValue); }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof DepreciationSchedule that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

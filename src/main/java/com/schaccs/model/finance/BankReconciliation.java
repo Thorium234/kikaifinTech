@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Objects;
 
 public class BankReconciliation {
 
@@ -92,5 +93,29 @@ public class BankReconciliation {
         public void setAmount(BigDecimal amount) { this.amount = CurrencyConfig.money(amount); }
         public boolean isCleared() { return cleared; }
         public void setCleared(boolean cleared) { this.cleared = cleared; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof ReconciliationItem that)) return false;
+            return Objects.equals(id, that.id);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id);
+        }
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BankReconciliation that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

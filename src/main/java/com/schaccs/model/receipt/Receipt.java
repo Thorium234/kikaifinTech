@@ -12,6 +12,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class Receipt {
 
@@ -218,5 +219,17 @@ public class Receipt {
         return lines.stream()
                 .map(ReceiptLine::getAmount)
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Receipt that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

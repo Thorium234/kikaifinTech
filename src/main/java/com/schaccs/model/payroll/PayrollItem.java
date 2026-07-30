@@ -4,6 +4,7 @@ import com.schaccs.config.CurrencyConfig;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.Objects;
 
 public class PayrollItem {
 
@@ -142,5 +143,17 @@ public class PayrollItem {
         return CurrencyConfig.money(
                 getHouseAllowance().add(getResponsibilityAllowance())
                         .add(getTransportAllowance()).add(getOtherEarnings()));
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PayrollItem that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

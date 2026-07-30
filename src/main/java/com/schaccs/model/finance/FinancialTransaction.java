@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class FinancialTransaction {
 
@@ -153,4 +154,16 @@ public class FinancialTransaction {
 
     public String getReversalOfId() { return reversalOfId; }
     public void setReversalOfId(String reversalOfId) { this.reversalOfId = reversalOfId; }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof FinancialTransaction that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

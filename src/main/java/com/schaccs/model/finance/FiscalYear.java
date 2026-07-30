@@ -3,6 +3,7 @@ package com.schaccs.model.finance;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class FiscalYear {
 
@@ -45,4 +46,16 @@ public class FiscalYear {
 
     @Override
     public String toString() { return "FY " + year; }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof FiscalYear that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

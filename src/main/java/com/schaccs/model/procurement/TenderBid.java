@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class TenderBid {
 
@@ -83,5 +84,17 @@ public class TenderBid {
     @Override
     public String toString() {
         return "Bid-" + (supplierId != null ? supplierId.substring(0, Math.min(8, supplierId.length())) : id);
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TenderBid that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

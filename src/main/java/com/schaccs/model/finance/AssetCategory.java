@@ -1,6 +1,7 @@
 package com.schaccs.model.finance;
 
 import java.util.UUID;
+import java.util.Objects;
 
 public class AssetCategory {
 
@@ -38,4 +39,16 @@ public class AssetCategory {
     public void setUsefulLifeYears(int usefulLifeYears) { this.usefulLifeYears = usefulLifeYears; }
     public double getSalvageValuePercent() { return salvageValuePercent; }
     public void setSalvageValuePercent(double salvageValuePercent) { this.salvageValuePercent = salvageValuePercent; }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AssetCategory that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

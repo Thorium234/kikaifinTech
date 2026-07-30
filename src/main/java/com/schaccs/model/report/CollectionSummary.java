@@ -5,6 +5,7 @@ import com.schaccs.enums.PaymentMode;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Objects;
 
 public class CollectionSummary {
 
@@ -34,5 +35,17 @@ public class CollectionSummary {
 
     public BigDecimal getTotalAmount() {
         return totalAmount;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof CollectionSummary that)) return false;
+        return Objects.equals(date, that.date) && paymentMode == that.paymentMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(date, paymentMode);
     }
 }

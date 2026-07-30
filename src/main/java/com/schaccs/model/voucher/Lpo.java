@@ -6,6 +6,7 @@ import com.schaccs.enums.AccountType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.Objects;
 
 public class Lpo {
 
@@ -124,5 +125,17 @@ public class Lpo {
     @Override
     public String toString() {
         return lpoNumber + " — " + creditorName + " (" + CurrencyConfig.format(amount) + ")";
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Lpo that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

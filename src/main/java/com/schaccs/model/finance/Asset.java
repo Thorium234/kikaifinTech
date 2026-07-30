@@ -5,6 +5,7 @@ import com.schaccs.config.CurrencyConfig;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.Objects;
 
 public class Asset {
 
@@ -67,4 +68,16 @@ public class Asset {
 
     @Override
     public String toString() { return assetCode + " - " + name; }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Asset that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

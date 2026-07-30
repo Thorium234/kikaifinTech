@@ -6,6 +6,7 @@ import com.schaccs.enums.AccountType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.Objects;
 
 /**
  * Open commitment / creditor obligation against a votehead budget.
@@ -159,5 +160,17 @@ public class Commitment {
     @Override
     public String toString() {
         return (reference != null ? reference + " — " : "") + creditorName + " (" + status + ")";
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Commitment that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

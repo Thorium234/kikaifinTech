@@ -192,6 +192,7 @@ public class ContractView extends VBox implements MainLayout.Refreshable {
         var columns = new TableColumn[]{numCol, supplierCol, valueCol, startCol, endCol, statusCol, daysCol};
         contractTable.getColumns().addAll(columns);
         contractTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        contractTable.setItems(filteredContracts);
         contractTable.getSelectionModel().selectedItemProperty().addListener((obs, o, c) -> selectContract(c));
     }
 

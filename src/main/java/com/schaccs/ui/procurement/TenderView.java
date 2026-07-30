@@ -210,6 +210,7 @@ public class TenderView extends VBox implements MainLayout.Refreshable {
         var columns = new TableColumn[]{numCol, titleCol, typeCol, catCol, budgetCol, statusCol, closeCol};
         tenderTable.getColumns().addAll(columns);
         tenderTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        tenderTable.setItems(filteredTenders);
         tenderTable.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> selectTender(s));
     }
 

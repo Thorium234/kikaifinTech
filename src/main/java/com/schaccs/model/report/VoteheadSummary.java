@@ -3,6 +3,7 @@ package com.schaccs.model.report;
 import com.schaccs.config.CurrencyConfig;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 public class VoteheadSummary {
 
@@ -39,5 +40,17 @@ public class VoteheadSummary {
 
     public BigDecimal getOutstanding() {
         return outstanding;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof VoteheadSummary that)) return false;
+        return Objects.equals(voteheadCode, that.voteheadCode);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(voteheadCode);
     }
 }

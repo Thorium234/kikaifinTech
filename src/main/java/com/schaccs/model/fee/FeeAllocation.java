@@ -3,6 +3,7 @@ package com.schaccs.model.fee;
 import com.schaccs.config.CurrencyConfig;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 /**
  * Result of automatic votehead distribution for a single payment line.
@@ -42,5 +43,17 @@ public class FeeAllocation {
 
     public BigDecimal getOutstandingAfter() {
         return outstandingAfter;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof FeeAllocation that)) return false;
+        return Objects.equals(voteheadCode, that.voteheadCode);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(voteheadCode);
     }
 }

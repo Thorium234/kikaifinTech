@@ -2,6 +2,7 @@ package com.schaccs.model.audit;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class AuditLog {
 
@@ -49,4 +50,16 @@ public class AuditLog {
     public void setOldValue(String oldValue) { this.oldValue = oldValue; }
     public String getNewValue() { return newValue; }
     public void setNewValue(String newValue) { this.newValue = newValue; }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AuditLog that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

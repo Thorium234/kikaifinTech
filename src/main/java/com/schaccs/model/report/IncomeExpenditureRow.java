@@ -1,6 +1,7 @@
 package com.schaccs.model.report;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 public class IncomeExpenditureRow {
 
@@ -17,4 +18,16 @@ public class IncomeExpenditureRow {
     public String getCategory() { return category; }
     public String getItem() { return item; }
     public BigDecimal getAmount() { return amount; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof IncomeExpenditureRow that)) return false;
+        return Objects.equals(category, that.category) && Objects.equals(item, that.item);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(category, item);
+    }
 }

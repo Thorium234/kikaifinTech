@@ -4,6 +4,7 @@ import com.schaccs.enums.ApprovalAction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class ProcurementApproval {
 
@@ -55,5 +56,17 @@ public class ProcurementApproval {
     public String toString() {
         return (action != null ? action.getDisplayName() : "Action") +
                 " by " + (performedBy != null ? performedBy : "Unknown");
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ProcurementApproval that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

@@ -6,6 +6,7 @@ import com.schaccs.enums.BoardingStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.Objects;
 
 public class FeeStructureItem {
 
@@ -72,5 +73,17 @@ public class FeeStructureItem {
 
     public void setAmount(BigDecimal amount) {
         this.amount = CurrencyConfig.money(amount);
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof FeeStructureItem that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

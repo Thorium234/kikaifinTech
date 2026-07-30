@@ -2,6 +2,7 @@ package com.schaccs.model.report;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Objects;
 
 public class CashbookRow {
 
@@ -28,4 +29,16 @@ public class CashbookRow {
     public BigDecimal getReceipts() { return receipts; }
     public BigDecimal getPayments() { return payments; }
     public BigDecimal getBalance() { return balance; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof CashbookRow that)) return false;
+        return Objects.equals(reference, that.reference);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(reference);
+    }
 }

@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Per-student votehead ledger: charged vs paid amounts by votehead code.
@@ -150,5 +151,17 @@ public class StudentFeeLedger {
     public void restorePaidByVotehead(Map<String, BigDecimal> snapshot) {
         paidByVotehead.clear();
         paidByVotehead.putAll(snapshot);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof StudentFeeLedger that)) return false;
+        return Objects.equals(studentId, that.studentId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(studentId);
     }
 }

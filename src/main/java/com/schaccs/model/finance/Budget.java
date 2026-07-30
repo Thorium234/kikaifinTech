@@ -2,6 +2,7 @@ package com.schaccs.model.finance;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Objects;
 
 public class Budget {
 
@@ -38,4 +39,16 @@ public class Budget {
 
     @Override
     public String toString() { return name; }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Budget that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }
