@@ -13,6 +13,7 @@ import com.schaccs.repository.Database;
 import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -59,6 +60,7 @@ class ProcurementModuleTest {
     // ── Supplier Tests ────────────────────────────────────────────────
 
     @Test
+    @DisplayName("supplier creation generates number and adds to store")
     void supplierCreationGeneratesNumberAndAddsToStore() {
         Supplier s = new Supplier();
         s.setBusinessName("Kenya Supplies Ltd");
@@ -76,6 +78,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("supplier creation rejects blank business name")
     void supplierCreationRejectsBlankName() {
         Supplier s = new Supplier();
         s.setBusinessName("");
@@ -86,6 +89,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("supplier blacklisting and removal works")
     void supplierBlacklistingWorks() {
         Supplier s = new Supplier();
         s.setBusinessName("Problem Corp");
@@ -101,6 +105,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("supplier deactivation and reactivation works")
     void supplierDeactivationWorks() {
         Supplier s = new Supplier();
         s.setBusinessName("Deactivatable Ltd");
@@ -115,6 +120,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("active suppliers excludes blacklisted and inactive")
     void activeSuppliersExcludesBlacklistedAndInactive() {
         Supplier active = new Supplier();
         active.setBusinessName("Active Co");
@@ -138,6 +144,7 @@ class ProcurementModuleTest {
     // ── Procurement Request Tests ─────────────────────────────────────
 
     @Test
+    @DisplayName("procurement request creation and approval workflow")
     void requestCreationWorkflow() {
         ProcurementRequest req = new ProcurementRequest();
         req.setItemDescription("Laboratory Chemicals");
@@ -161,6 +168,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("procurement request rejection workflow")
     void requestRejectionWorkflow() {
         ProcurementRequest req = new ProcurementRequest();
         req.setItemDescription("Furniture");
@@ -176,6 +184,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("procurement request return to draft workflow")
     void requestReturnToDraftWorkflow() {
         ProcurementRequest req = new ProcurementRequest();
         req.setItemDescription("Books");
@@ -191,6 +200,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("procurement request cannot submit when not in draft")
     void requestCannotSubmitWhenNotDraft() {
         ProcurementRequest req = new ProcurementRequest();
         req.setItemDescription("Test");
@@ -205,6 +215,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("procurement request creation rejects invalid data")
     void requestCreationRejectsInvalidData() {
         ProcurementRequest req = new ProcurementRequest();
         req.setItemDescription("");
@@ -214,6 +225,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("approval is recorded in store")
     void approvalIsRecorded() {
         ProcurementRequest req = new ProcurementRequest();
         req.setItemDescription("Computers");
@@ -232,6 +244,7 @@ class ProcurementModuleTest {
     // ── Tender Lifecycle Tests ─────────────────────────────────────────
 
     @Test
+    @DisplayName("tender full lifecycle (draft -> published -> closed -> evaluation)")
     void tenderFullLifecycle() {
         Tender tender = new Tender();
         tender.setTitle("Supply of Laboratory Equipment");
@@ -261,6 +274,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("tender cancellation works")
     void tenderCancellationWorks() {
         Tender tender = new Tender();
         tender.setTitle("Cancel Test");
@@ -276,6 +290,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("tender rejects closing date before opening date")
     void tenderRejectsInvalidDates() {
         Tender tender = new Tender();
         tender.setTitle("Bad Dates");
@@ -287,6 +302,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("tender rejects blank title")
     void tenderRejectsBlankTitle() {
         Tender tender = new Tender();
         tender.setOpeningDate(LocalDate.now());
@@ -299,6 +315,7 @@ class ProcurementModuleTest {
     // ── Bid Submission Tests ───────────────────────────────────────────
 
     @Test
+    @DisplayName("bid submission validates supplier and tender")
     void bidSubmissionValidatesSupplierAndTender() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Bidder Co");
@@ -324,6 +341,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("duplicate bid from same supplier is prevented")
     void bidDuplicatePrevented() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Duplicate Test Co");
@@ -355,6 +373,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("bid rejected for blacklisted supplier")
     void bidRejectedForBlacklistedSupplier() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Blacklisted Bidder");
@@ -380,6 +399,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("bid rejected for closed tender")
     void bidRejectedForClosedTender() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Late Bidder");
@@ -406,6 +426,7 @@ class ProcurementModuleTest {
     // ── Evaluation & Ranking Tests ────────────────────────────────────
 
     @Test
+    @DisplayName("bid ranking produces correct order by weighted score")
     void bidRankingProducesCorrectOrder() {
         Supplier s1 = new Supplier();
         s1.setBusinessName("Rank A");
@@ -450,6 +471,7 @@ class ProcurementModuleTest {
     // ── Tender Award Tests ────────────────────────────────────────────
 
     @Test
+    @DisplayName("tender award flow updates tender status and records award details")
     void tenderAwardFlow() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Winner Co");
@@ -489,6 +511,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("tender award requires evaluation status")
     void tenderAwardRequiresEvaluationStatus() {
         Tender tender = new Tender();
         tender.setTitle("Wrong Status Award");
@@ -509,6 +532,7 @@ class ProcurementModuleTest {
     // ── Contract Tests ─────────────────────────────────────────────────
 
     @Test
+    @DisplayName("contract lifecycle (draft -> active -> completed)")
     void contractLifecycle() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Contract Supplier");
@@ -536,6 +560,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("contract extension updates end date and sets extended status")
     void contractExtensionWorks() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Ext Supplier");
@@ -557,6 +582,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("contract termination sets terminated status")
     void contractTerminationWorks() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Term Supplier");
@@ -577,6 +603,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("contract creation rejects invalid data (missing supplier)")
     void contractRejectsInvalidData() {
         Contract contract = new Contract();
         contract.setSupplierId("");
@@ -587,6 +614,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("contract rejects end date before start date")
     void contractRejectsEndBeforeStart() {
         Contract contract = new Contract();
         contract.setSupplierId("sup-1");
@@ -601,6 +629,7 @@ class ProcurementModuleTest {
     // ── Contract Milestone Tests ───────────────────────────────────────
 
     @Test
+    @DisplayName("milestone lifecycle (add, complete, track status)")
     void milestoneLifecycle() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Milestone Supplier");
@@ -633,6 +662,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("overdue milestone is correctly detected")
     void overdueMilestoneDetected() {
         Supplier supplier = new Supplier();
         supplier.setBusinessName("Overdue Supplier");
@@ -659,6 +689,7 @@ class ProcurementModuleTest {
     // ── Accounting Integration Tests ───────────────────────────────────
 
     @Test
+    @DisplayName("goods received posts balanced journal entry")
     void goodsReceivedPostsBalancedEntry() {
         int txBefore = LedgerStore.getInstance().getTransactions().size();
 
@@ -678,6 +709,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("supplier payment posts balanced journal entry")
     void supplierPaymentPostsBalancedEntry() {
         accounting.postSupplierPayment("contract-456", "Chemical Co",
                 CurrencyConfig.money("300000"), "BOARD");
@@ -692,6 +724,7 @@ class ProcurementModuleTest {
     }
 
     @Test
+    @DisplayName("multiple accounting entries remain balanced")
     void multipleAccountingEntriesRemainBalanced() {
         accounting.postGoodsReceived("c1", "Supplier A", CurrencyConfig.money("100000"), "SUPPLIES", "Goods");
         accounting.postSupplierPayment("c1", "Supplier A", CurrencyConfig.money("100000"), "SUPPLIES");
@@ -711,6 +744,7 @@ class ProcurementModuleTest {
     // ── End-to-End Integration Test ───────────────────────────────────
 
     @Test
+    @DisplayName("full procurement lifecycle end-to-end")
     void fullProcurementLifecycle() {
         // 1. Create supplier
         Supplier supplier = new Supplier();
@@ -820,6 +854,7 @@ class ProcurementModuleTest {
     // ── Query Tests ───────────────────────────────────────────────────
 
     @Test
+    @DisplayName("query methods return correct results")
     void queryMethodsReturnCorrectResults() {
         Tender t1 = new Tender();
         t1.setTitle("T1");

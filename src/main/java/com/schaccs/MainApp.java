@@ -41,9 +41,11 @@ import javafx.util.Duration;
 import java.io.InputStream;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.logging.Logger;
 
 public class MainApp extends Application {
 
+    private static final Logger LOG = Logger.getLogger(MainApp.class.getName());
     private UpdateScheduler updateScheduler;
 
     @Override
@@ -137,6 +139,7 @@ public class MainApp extends Application {
             props.load(in);
             return props.getProperty("app.version", "0.0.0");
         } catch (Exception e) {
+            LOG.warning("Failed to load version.properties: " + e.getMessage());
             return "0.0.0";
         }
     }

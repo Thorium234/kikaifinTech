@@ -25,12 +25,14 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
 /**
  * SQLite connection + schema. Data lives under ~/.schaccs/schaccs.db
  */
 public final class Database {
 
+    private static final Logger LOG = Logger.getLogger(Database.class.getName());
     private static final String DB_DIR = System.getProperty("user.home") + "/.schaccs";
     private static final String DB_URL = "jdbc:sqlite:" + DB_DIR + "/schaccs.db";
 
@@ -137,8 +139,8 @@ public final class Database {
             if (rs.next()) {
                 return Integer.parseInt(rs.getString("value"));
             }
-        } catch (SQLException ignored) {
-            // meta table may not yet exist
+        } catch (SQLException e) {
+            LOG.fine("Could not read schema_version (meta table may not exist yet): " + e.getMessage());
         }
         return 0;
     }
@@ -533,7 +535,8 @@ public final class Database {
             ps.setInt(8, config.isActive() ? 1 : 0);
             ps.setString(9, config.getJdbcUrl());
             ps.executeUpdate();
-        } catch (SQLException ignored) {
+        } catch (SQLException e) {
+            LOG.warning("Failed to save DB config: " + e.getMessage());
         }
     }
 
@@ -553,7 +556,8 @@ public final class Database {
                 config.setActive(rs.getInt("active") == 1);
                 return config;
             }
-        } catch (SQLException ignored) {
+        } catch (SQLException e) {
+            LOG.warning("Failed to load DB config: " + e.getMessage());
         }
         return null;
     }
@@ -562,7 +566,8 @@ public final class Database {
         if (connection != null) {
             try {
                 connection.close();
-            } catch (SQLException ignored) {
+            } catch (SQLException e) {
+                LOG.fine("Error closing database connection: " + e.getMessage());
             }
             connection = null;
         }

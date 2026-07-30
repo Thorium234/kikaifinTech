@@ -18,6 +18,7 @@ import com.schaccs.store.StudentStore;
 import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -42,6 +43,7 @@ class ReceiptCoreTest {
     }
 
     @Test
+    @DisplayName("allocation respects priority order and overpayment goes to advance")
     void allocationRespectsPriorityAndOverpaymentAdvance() {
         StudentFeeLedger ledger = new StudentFeeLedger("S1");
         ledger.charge("ACT", CurrencyConfig.money("1000"));
@@ -59,6 +61,7 @@ class ReceiptCoreTest {
     }
 
     @Test
+    @DisplayName("receive and reverse receipt restores ledger and posts contra entry")
     void receiveAndReverseReceiptRestoresLedgerAndPostsContra() {
         String uniqueAdmission = "TEST-RCPT-" + UUID.randomUUID();
         Student student = new Student();

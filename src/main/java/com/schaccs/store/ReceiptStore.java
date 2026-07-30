@@ -26,7 +26,7 @@ public final class ReceiptStore {
         return receipts;
     }
 
-    public void add(Receipt receipt) {
+    public synchronized void add(Receipt receipt) {
         receipts.add(0, receipt);
     }
 
@@ -50,7 +50,7 @@ public final class ReceiptStore {
                 .collect(Collectors.toList());
     }
 
-    public void clear() {
+    public synchronized void clear() {
         receipts.clear();
     }
 }

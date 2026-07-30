@@ -14,6 +14,7 @@ import com.schaccs.store.VoucherStore;
 import com.schaccs.repository.PersistenceService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -34,6 +35,7 @@ class VoucherCoreTest {
     }
 
     @Test
+    @DisplayName("voucher status guards block invalid edits")
     void voucherStatusGuardsBlockInvalidEdits() {
         Votehead votehead = FeeStructureStore.getInstance().getVoteheads().getFirst();
         Creditor creditor = new Creditor("Guard Supplier", "0700000000");

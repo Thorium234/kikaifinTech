@@ -33,7 +33,7 @@ public class UpdateService {
             return;
         }
 
-        apiClient.fetchLatestRelease().thenAccept(release -> {
+        apiClient.fetchLatestRelease().orTimeout(30, java.util.concurrent.TimeUnit.SECONDS).thenAccept(release -> {
             String tagVersion = release.tagName().replaceFirst("^v", "");
             String skipped = settings.getSkippedVersion();
 

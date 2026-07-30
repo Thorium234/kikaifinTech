@@ -1,6 +1,7 @@
 package com.schaccs.update;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class GitHubApiClientTest {
@@ -8,6 +9,7 @@ class GitHubApiClientTest {
     private final GitHubApiClient client = new GitHubApiClient();
 
     @Test
+    @DisplayName("parseRelease with all fields present")
     void parseRelease_withAllFields() {
         String json = """
             {
@@ -42,6 +44,7 @@ class GitHubApiClientTest {
     }
 
     @Test
+    @DisplayName("parseRelease with prerelease flag")
     void parseRelease_withPrerelease() {
         String json = """
             {
@@ -60,6 +63,7 @@ class GitHubApiClientTest {
     }
 
     @Test
+    @DisplayName("parseRelease with tag name without v prefix")
     void parseRelease_tagNameWithoutVPrefix() {
         String json = """
             {
@@ -77,6 +81,7 @@ class GitHubApiClientTest {
     }
 
     @Test
+    @DisplayName("parseRelease with missing assets field")
     void parseRelease_noAssets() {
         String json = """
             {
@@ -93,6 +98,7 @@ class GitHubApiClientTest {
     }
 
     @Test
+    @DisplayName("parseRelease throws on invalid JSON")
     void parseRelease_throwsOnInvalidJson() {
         assertThrows(RuntimeException.class,
             () -> client.parseRelease("not valid json"));

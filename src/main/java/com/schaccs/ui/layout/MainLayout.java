@@ -17,6 +17,7 @@ public class MainLayout extends BorderPane {
     private final StatusBar statusBar = new StatusBar();
     private final StackPane content = new StackPane();
     private final Map<String, Supplier<Node>> factories = new HashMap<>();
+    private final Map<String, String> titles = new HashMap<>();
     private final Map<String, Node> cache = new HashMap<>();
 
     public MainLayout() {
@@ -31,7 +32,7 @@ public class MainLayout extends BorderPane {
 
     public void register(String key, String title, Supplier<Node> factory) {
         factories.put(key, factory);
-        // title stored via navigate
+        titles.put(key, title);
     }
 
     public void show(String key) {
@@ -46,8 +47,8 @@ public class MainLayout extends BorderPane {
         }
         content.getChildren().setAll(node);
         sidebar.setActive(key);
-        topBar.setTitle(key);
-        statusBar.setMessage("Viewing " + key);
+        topBar.setTitle(titles.getOrDefault(key, key));
+        statusBar.setMessage("Viewing " + titles.getOrDefault(key, key));
     }
 
     private Node wrapForResponsiveLayout(Node view) {

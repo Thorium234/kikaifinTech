@@ -4,7 +4,9 @@ import com.schaccs.config.AppConfig;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.service.export.PdfExportService;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,7 +16,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PdfExportCoreTest {
 
+    @TempDir
+    Path tempDir;
+
     @Test
+    @DisplayName("export receipt works with branding fields configured")
     void exportReceiptWorksWithBrandingFieldsConfigured() throws Exception {
         AppConfig.getInstance().getSchoolProfile().setLogoPath("/tmp/nonexistent-logo.png");
         AppConfig.getInstance().getSchoolProfile().setStampPath("/tmp/nonexistent-stamp.png");
@@ -35,7 +41,7 @@ class PdfExportCoreTest {
         line.setAmount(new java.math.BigDecimal("1500.00"));
         receipt.addLine(line);
 
-        Path file = Files.createTempFile("receipt-branding", ".pdf");
+        Path file = tempDir.resolve("receipt-branding.pdf");
         new PdfExportService().exportReceipt(file, receipt);
 
         assertTrue(Files.exists(file));
@@ -43,6 +49,7 @@ class PdfExportCoreTest {
     }
 
     @Test
+    @DisplayName("export receipt works without branding fields configured")
     void exportReceiptWorksWithoutBrandingFieldsConfigured() throws Exception {
         AppConfig.getInstance().getSchoolProfile().setLogoPath(null);
         AppConfig.getInstance().getSchoolProfile().setStampPath(null);
@@ -62,7 +69,7 @@ class PdfExportCoreTest {
         line.setAmount(new java.math.BigDecimal("800.00"));
         receipt.addLine(line);
 
-        Path file = Files.createTempFile("receipt-no-branding", ".pdf");
+        Path file = tempDir.resolve("receipt-no-branding.pdf");
         new PdfExportService().exportReceipt(file, receipt);
 
         assertTrue(Files.exists(file));
