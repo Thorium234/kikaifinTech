@@ -10,6 +10,7 @@ import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.fee.FeeAllocation;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.finance.Votehead;
+import com.schaccs.model.finance.FinancialTransaction;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
@@ -271,6 +272,9 @@ public class ReceiptService {
         java.util.Map<String, BigDecimal> savedPaid = new java.util.LinkedHashMap<>(ledger.getPaidByVotehead());
         boolean savedReversed = receipt.isReversed();
         String savedNotes = receipt.getNotes();
+        java.util.Set<String> ledgerSnapshot = LedgerStore.getInstance().getTransactions().stream()
+                .map(FinancialTransaction::getId)
+                .collect(java.util.stream.Collectors.toSet());
         try {
             String ref = "RCPT-RV-" + receipt.getReceiptNumber();
             for (ReceiptLine line : receipt.getLines()) {
@@ -321,7 +325,7 @@ public class ReceiptService {
             ledger.restorePaidByVotehead(savedPaid);
             receipt.setReversed(savedReversed);
             receipt.setNotes(savedNotes);
-            LedgerStore.getInstance().removeByReceiptId(receipt.getId());
+            LedgerStore.getInstance().rollbackToSnapshot(ledgerSnapshot);
             return Result.failure(List.of("Failed to reverse receipt: " + e.getMessage()));
         }
     }

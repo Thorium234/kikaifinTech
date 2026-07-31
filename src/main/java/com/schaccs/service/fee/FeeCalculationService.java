@@ -68,11 +68,12 @@ public class FeeCalculationService {
                 || student.getGuardianKey().trim().isEmpty()) {
             return CurrencyConfig.money("1.00");
         }
-        long sameGuardian = studentStore.getStudents().stream()
-                .filter(s -> s != student
-                        && student.getGuardianKey().equalsIgnoreCase(s.getGuardianKey()))
-                .count();
-        if (sameGuardian == 0) {
+        boolean isFirstSibling = studentStore.getStudents().stream()
+                .filter(s -> student.getGuardianKey().equalsIgnoreCase(s.getGuardianKey()))
+                .findFirst()
+                .map(first -> first.getId().equals(student.getId()))
+                .orElse(true);
+        if (isFirstSibling) {
             return CurrencyConfig.money("1.00");
         }
         BigDecimal rate = profile.getSiblingDiscountRate().max(CurrencyConfig.zero()).min(CurrencyConfig.money("0.50"));
@@ -90,8 +91,10 @@ public class FeeCalculationService {
             if (alreadyCharged) {
                 return;
             }
+            BigDecimal factor = siblingDiscountFactor(student);
             for (FeeStructureItem item : structure.itemsForTerm(term)) {
-                ledger.charge(item.getVoteheadCode(), item.getAmount());
+                BigDecimal amount = CurrencyConfig.money(item.getAmount().multiply(factor));
+                ledger.charge(item.getVoteheadCode(), amount);
             }
             ledger.setCurrentTerm(term);
         });

@@ -344,4 +344,90 @@ class BugFixRegressionTest {
         assertFalse(created.getReceipt().isReversed(),
                 "Receipt.reversed flag must be rolled back to false");
     }
+
+    // ==========================================
+    // BUG-8: Reversal rollback must NOT delete the original postings
+    // ==========================================
+
+    @Test
+    void bug8_reversalRollbackPreservesOriginalLedgerPostings() {
+        Student student = createTestStudent("ADM-RB2");
+        StudentStore.getInstance().add(student);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        ledger.charge("BOARD", CurrencyConfig.money("20000"));
+
+        java.util.concurrent.atomic.AtomicInteger callCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        ReceiptService twoPhaseService = new ReceiptService(
+                ReceiptStore.getInstance(), StudentStore.getInstance(), FeeStructureStore.getInstance(),
+                new ReceiptValidator(), new ReceiptAllocationEngine(), new AccountingEngine(),
+                new ReceiptNumberService(), () -> {
+                    if (callCount.incrementAndGet() > 1) {
+                        throw new RuntimeException("Simulated persistence failure on reversal");
+                    }
+                });
+
+        ReceiptService.Result created = twoPhaseService.receivePayment(student, CurrencyConfig.money("15000"),
+                PaymentMode.BANK_SLIP, "RB2-REF", LocalDate.now(), null);
+        assertTrue(created.isSuccess());
+
+        int originalTxCount = LedgerStore.getInstance().getTransactions().size();
+        assertTrue(originalTxCount > 0, "Receipt posting must create ledger transactions");
+
+        ReceiptService.Result reversed = twoPhaseService.reverseReceipt(created.getReceipt(), "Rollback test");
+        assertFalse(reversed.isSuccess());
+
+        assertEquals(originalTxCount, LedgerStore.getInstance().getTransactions().size(),
+                "Failed reversal must not delete the original receipt postings from the ledger");
+        assertTrue(LedgerStore.getInstance().getTransactions().stream()
+                        .noneMatch(t -> t.getReference().startsWith("RCPT-RV-")),
+                "Partial reversal contra entries must be rolled back");
+        assertTrue(LedgerStore.getInstance().getTransactions().stream()
+                        .anyMatch(t -> ("RCPT-" + created.getReceipt().getReceiptNumber()).equals(t.getReference())),
+                "Original fee receipt postings must survive a failed reversal");
+        assertEquals(CurrencyConfig.money("15000"), LedgerStore.getInstance().getAccountBalance(AccountType.CASH_AT_BANK),
+                "Bank balance should reflect the original 15000 receipt after rollback");
+    }
+
+    // ==========================================
+    // BUG-9: chargeTermFees applies the sibling discount
+    // ==========================================
+
+    @Test
+    void bug9_chargeTermFeesAppliesSiblingDiscount() {
+        AppConfig.getInstance().getSchoolProfile().setSiblingDiscountEnabled(true);
+        AppConfig.getInstance().getSchoolProfile().setSiblingDiscountRate(CurrencyConfig.money("0.15"));
+
+        FeeStructure structure = new FeeStructure(AppConfig.getInstance().getAcademicYear(),
+                "Form 2", BoardingStatus.BOARDING, "Sibling Test");
+        structure.addItem(new FeeStructureItem("BOARD", "Boarding", AcademicTerm.TERM_1,
+                BoardingStatus.BOARDING, CurrencyConfig.money("10000")));
+        FeeStructureStore.getInstance().addStructure(structure);
+
+        Student first = createTestStudent("ADM-SIB1");
+        first.setGuardianKey("FAM-X");
+        Student second = createTestStudent("ADM-SIB2");
+        second.setGuardianKey("FAM-X");
+        StudentStore.getInstance().add(first);
+        StudentStore.getInstance().add(second);
+
+        com.schaccs.service.fee.FeeCalculationService feeCalc = new com.schaccs.service.fee.FeeCalculationService();
+
+        feeCalc.chargeTermFees(first, AcademicTerm.TERM_1);
+        feeCalc.chargeTermFees(second, AcademicTerm.TERM_1);
+
+        StudentFeeLedger firstLedger = StudentStore.getInstance().getLedger(first.getId());
+        StudentFeeLedger secondLedger = StudentStore.getInstance().getLedger(second.getId());
+
+        assertEquals(CurrencyConfig.money("10000"), firstLedger.getCharged("BOARD"),
+                "First child with a guardian key pays the full fee");
+        assertEquals(CurrencyConfig.money("8500"), secondLedger.getCharged("BOARD"),
+                "Second child sharing the guardian key must receive the 15% sibling discount");
+
+        Student lone = createTestStudent("ADM-SIB3");
+        lone.setGuardianKey("FAM-Y");
+        StudentStore.getInstance().add(lone);
+        feeCalc.chargeTermFees(lone, AcademicTerm.TERM_1);
+        assertEquals(CurrencyConfig.money("10000"), StudentStore.getInstance().getLedger(lone.getId()).getCharged("BOARD"),
+                "A single child with a guardian key and no siblings pays the full fee");
+    }
 }

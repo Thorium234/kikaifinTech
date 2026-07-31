@@ -95,6 +95,20 @@ public final class LedgerStore {
     }
 
     /**
+     * Rolls the ledger back to a snapshot taken before a partially-completed
+     * posting: removes any transactions (and their ledger entries) that were
+     * not present in the snapshot, then recalculates balances. Unlike
+     * {@link #removeByReceiptId}, earlier postings sharing the same receipt id
+     * are preserved.
+     */
+    public synchronized void rollbackToSnapshot(java.util.Set<String> preservedTransactionIds) {
+        if (preservedTransactionIds == null || preservedTransactionIds.isEmpty()) return;
+        transactions.removeIf(tx -> !preservedTransactionIds.contains(tx.getId()));
+        ledgerEntries.removeIf(e -> !preservedTransactionIds.contains(e.getTransactionId()));
+        recalculateBalances();
+    }
+
+    /**
      * Rebuilds account balances from scratch using all remaining ledger entries.
      */
     public synchronized void recalculateBalances() {

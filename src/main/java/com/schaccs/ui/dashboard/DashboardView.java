@@ -67,6 +67,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
     private final DashboardCard todayCard;
     private final DashboardCard outstandingCard;
     private final DashboardCard schoolFundCard;
+    private final LineChart<String, Number> trendChart = createTrendChart();
     private final TableView<Receipt> recentReceipts = new TableView<>();
     private final TableView<StudentBalance> topDefaulters = new TableView<>();
     private final TableView<StudentBalance> reminderTable = new TableView<>();
@@ -93,7 +94,6 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         FlowPane cards = new FlowPane(12, 12);
         cards.getChildren().addAll(studentsCard, collectionCard, todayCard, outstandingCard, schoolFundCard);
 
-        LineChart<String, Number> trendChart = createTrendChart();
         trendChart.setPrefHeight(240);
         trendChart.setMaxWidth(800);
         VBox chartBox = new VBox(4, new Label("Daily Collection (Last 30 Days)"), trendChart);
@@ -172,7 +172,6 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
     }
 
     private void refreshTrendChart() {
-        LineChart<String, Number> chart = (LineChart<String, Number>) ((VBox) getChildren().get(3)).getChildren().get(1);
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         var trend = reportService.dailyCollectionTrend(30);
         for (var entry : trend) {
@@ -180,8 +179,8 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
                     entry.getKey().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM")),
                     entry.getValue()));
         }
-        chart.getData().clear();
-        chart.getData().add(series);
+        trendChart.getData().clear();
+        trendChart.getData().add(series);
     }
 
     private void refreshPieChart() {

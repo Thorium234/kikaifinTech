@@ -192,7 +192,7 @@ public class StudentImportService {
             for (Student student : stagedStudents) {
                 try {
                     studentStore.add(student);
-                    feeCalculationService.chargeAnnualFees(student);
+                    feeCalculationService.chargeTermFees(student, com.schaccs.enums.AcademicTerm.TERM_1);
                 } catch (IllegalArgumentException e) {
                     warnings.add("Skipped " + student.getAdmissionNumber() + ": " + e.getMessage());
                     imported--;
