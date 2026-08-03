@@ -14,6 +14,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
         <javafx.version>21.0.6</javafx.version>
+        <!-- Platform classifier: must be set to 'win' on Windows build hosts -->
+        <javafx.platform>win</javafx.platform>
+
         <main.class>com.schaccs.Launcher</main.class>
         <app.name>ThorCash</app.name>
         <app.vendor>Thor Technologies</app.vendor>
@@ -21,21 +24,27 @@
     </properties>
 
     <dependencies>
+        <!-- NOTE: platform classifier is REQUIRED for JavaFX platform artifacts -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
+            <classifier>${javafx.platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
+            <classifier>${javafx.platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-graphics</artifactId>
             <version>${javafx.version}</version>
+            <classifier>${javafx.platform}</classifier>
         </dependency>
+
+        <!-- other dependencies unchanged -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
@@ -142,6 +151,7 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>3.6.0</version>
                 <executions>
+                    <!-- preserve original copy to target/libs -->
                     <execution>
                         <id>copy-dependencies</id>
                         <phase>package</phase>
@@ -151,6 +161,58 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/libs</outputDirectory>
                             <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+
+                    <!-- COPY dependencies to installer-input so jpackage --input can find them -->
+                    <execution>
+                        <id>copy-dependencies-installer-input</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/installer-input</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+
+                    <!-- UNPACK JavaFX jmods (official jmods distribution) for jlink -->
+                    <execution>
+                        <id>unpack-javafx-jmods</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.openjfx</groupId>
+                                    <artifactId>javafx-jmods</artifactId>
+                                    <version>${javafx.version}</version>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${project.build.directory}/javafx-jmods</outputDirectory>
+                        </configuration>
+                    </execution>
+
+                    <!-- Copy the main artifact into installer-input -->
+                    <execution>
+                        <id>copy-main-jar-to-installer-input</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>${project.artifactId}</artifactId>
+                                    <version>${project.version}</version>
+                                    <outputDirectory>${project.build.directory}/installer-input</outputDirectory>
+                                    <destFileName>${project.build.finalName}.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
                         </configuration>
                     </execution>
                 </executions>
@@ -182,34 +244,117 @@
                 </configuration>
             </plugin>
 
-            <!-- jlink: create a custom JRE runtime image with only the needed JDK modules.
-                 This is invoked by build-installer.bat (not during Maven lifecycle) to
-                 keep the build script in full control of the packaging pipeline. -->
+            <!-- jlink: create a custom JRE runtime image with needed JDK + JavaFX modules.
+                 We unpack javafx-jmods above and pass that folder on the module-path. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jlink-plugin</artifactId>
-                <version>3.1.0</version>
+                <version>3.2.0</version>
                 <configuration>
                     <output>${project.build.directory}/runtime</output>
+
+                    <!-- Add jmods module-path: the JDK jmods and the unpacked JavaFX jmods -->
+                    <modulePaths>
+                        <modulePath>${java.home}/jmods</modulePath>
+                        <modulePath>${project.build.directory}/javafx-jmods</modulePath>
+                    </modulePaths>
+
                     <addModules>
-                        <module>java.base</module>
-                        <module>java.sql</module>
-                        <module>java.xml</module>
-                        <module>java.desktop</module>
-                        <module>jdk.unsupported</module>
-                        <module>java.logging</module>
-                        <module>jdk.management</module>
-                        <module>jdk.management.agent</module>
-                        <module>jdk.zipfs</module>
-                        <module>jdk.crypto.cryptoki</module>
-                        <module>jdk.crypto.ec</module>
+                        <!-- JDK modules your app requires -->
+                        <addModule>java.base</addModule>
+                        <addModule>java.sql</addModule>
+                        <addModule>java.xml</addModule>
+                        <addModule>java.desktop</addModule>
+                        <addModule>java.logging</addModule>
+
+                        <!-- JavaFX modules (ensure these are present in javafx-jmods) -->
+                        <addModule>javafx.controls</addModule>
+                        <addModule>javafx.fxml</addModule>
+                        <addModule>javafx.graphics</addModule>
+                        <!-- add javafx.media, javafx.web if used -->
                     </addModules>
+
                     <noHeaderFiles>true</noHeaderFiles>
                     <noManPages>true</noManPages>
                     <stripDebug>true</stripDebug>
                     <compress>2</compress>
                 </configuration>
             </plugin>
+
+            <!-- For packaging (jpackage) we run the jpackage executable from the JDK inside a profile (see profiles below). -->
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Windows packaging profile: sets platform classifier and runs jpackage during package phase -->
+        <profile>
+            <id>windows-package</id>
+            <activation>
+                <property>
+                    <!-- you can manually enable with -Pwindows-package -->
+                    <name>env.WIN</name>
+                </property>
+            </activation>
+            <properties>
+                <javafx.platform>win</javafx.platform>
+            </properties>
+
+            <build>
+                <plugins>
+                    <!-- Exec plugin to call jpackage (only activated inside windows-package) -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>jpackage</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- Use JAVA_HOME on the build machine. Ensure JAVA_HOME points to JDK 21+ with jpackage. -->
+                                    <executable>${env.JAVA_HOME}\bin\jpackage.exe</executable>
+                                    <workingDirectory>${project.build.directory}</workingDirectory>
+                                    <arguments>
+                                        <argument>--type</argument><argument>msi</argument>
+
+                                        <!-- runtime image created by maven-jlink-plugin -->
+                                        <argument>--runtime-image</argument><argument>${project.build.directory}\runtime</argument>
+
+                                        <argument>--dest</argument><argument>${project.build.directory}\installer</argument>
+
+                                        <argument>--name</argument><argument>${app.name}</argument>
+                                        <argument>--app-version</argument><argument>${app.version}</argument>
+                                        <argument>--vendor</argument><argument>${app.vendor}</argument>
+
+                                        <!-- The input directory contains the main jar and dependency jars -->
+                                        <argument>--input</argument><argument>${project.build.directory}\installer-input</argument>
+
+                                        <!-- our main jar -->
+                                        <argument>--main-jar</argument><argument>${project.build.finalName}.jar</argument>
+                                        <argument>--main-class</argument><argument>${main.class}</argument>
+
+                                        <argument>--icon</argument><argument>src\main\resources\icon.ico</argument>
+
+                                        <!-- Windows-specific options -->
+                                        <argument>--win-shortcut</argument>
+                                        <argument>--win-menu</argument>
+                                        <argument>--win-dir-chooser</argument>
+                                        <argument>--win-per-user-install</argument>
+
+                                        <!-- example JVM options; include library path for legacy native lookup as fallback -->
+                                        <argument>--java-options</argument><argument>-Xmx512m</argument>
+                                        <argument>--java-options</argument><argument>-Dfile.encoding=UTF-8</argument>
+                                        <argument>--java-options</argument><argument>-Djava.library.path=.</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
