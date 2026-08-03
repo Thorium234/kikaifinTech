@@ -30,6 +30,9 @@ public final class SchoolProfile {
     private long nextContractNumber = 1001;
     private long nextSupplierNumber = 1001;
 
+    // Footer text printed on receipts. Added to resolve compilation where ReceiptTemplate calls getReceiptFooter().
+    private String receiptFooter = "Thank you for your payment.";
+
     public String getSchoolName() {
         return schoolName;
     }
@@ -100,6 +103,14 @@ public final class SchoolProfile {
 
     public void setCashPolicy(String cashPolicy) {
         this.cashPolicy = cashPolicy;
+    }
+
+    public String getReceiptFooter() {
+        return receiptFooter;
+    }
+
+    public void setReceiptFooter(String receiptFooter) {
+        this.receiptFooter = receiptFooter;
     }
 
     public int getAcademicYear() {
