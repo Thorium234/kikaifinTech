@@ -14,4 +14,3 @@
 +        formScroll.getStyleClass().add("content-scroll");
 +
 +        formTab.setContent(formScroll);
-*** End Patch
