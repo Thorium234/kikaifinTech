@@ -107,13 +107,20 @@ public class MainApp extends Application {
 
             layout.show(Sidebar.DASHBOARD);
 
-            VBox root = new VBox();
-            VBox.setVgrow(layout, Priority.ALWAYS);
-            root.getChildren().addAll(titleBar, layout);
+            // remove internal top bar from MainLayout so we only have our custom TitleBar at the app top
+            layout.setTop(null);
+
+            // Use a BorderPane root so the TitleBar is fixed at the top and the MainLayout fills the center.
+            javafx.scene.layout.BorderPane root = new javafx.scene.layout.BorderPane();
+            root.setTop(titleBar);
+            root.setCenter(layout);
+            javafx.scene.layout.BorderPane.setAlignment(titleBar, javafx.geometry.Pos.CENTER_RIGHT);
 
             Scene scene = new Scene(root, 1280, 800);
             scene.getStylesheets().add(
                     Objects.requireNonNull(getClass().getResource("/styles/app.css")).toExternalForm());
+
+            // TitleBar needs the scene to attach resize/drag listeners
             titleBar.attachResizeListeners(scene);
 
             stage.setTitle("ThorCash — " + AppConfig.getInstance().getSchoolProfile().getSchoolName());
