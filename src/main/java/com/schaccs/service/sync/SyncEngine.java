@@ -102,6 +102,16 @@ public class SyncEngine {
         return !COMPOSITE_PK_TABLES.contains(table) && !TABLE_PK.containsKey(table);
     }
 
+    private static String validateIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new IllegalArgumentException("Identifier must not be blank");
+        }
+        if (!identifier.matches("[A-Za-z0-9_]+")) {
+            throw new IllegalArgumentException("Invalid identifier: " + identifier);
+        }
+        return identifier;
+    }
+
     public SyncResult validateConnectivity() {
         try {
             if (!DatasourceManager.getInstance().isOnline()) {
@@ -275,10 +285,11 @@ public class SyncEngine {
 
     private List<Map<String, Object>> readPageAfter(String table, List<String> columns, Object lastPkValue, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        String orderCol = pkColumn(table);
+        String safeTable = validateIdentifier(table);
+        String orderCol = validateIdentifier(pkColumn(table));
         String sql = lastPkValue == null
-                ? "SELECT * FROM " + table + " WHERE synced_at IS NULL ORDER BY " + orderCol + " LIMIT " + limit
-                : "SELECT * FROM " + table + " WHERE synced_at IS NULL AND " + orderCol + " > ? "
+                ? "SELECT * FROM " + safeTable + " WHERE synced_at IS NULL ORDER BY " + orderCol + " LIMIT " + limit
+                : "SELECT * FROM " + safeTable + " WHERE synced_at IS NULL AND " + orderCol + " > ? "
                         + "ORDER BY " + orderCol + " LIMIT " + limit;
         try (Connection local = Database.getInstance().getConnection();
              PreparedStatement st = local.prepareStatement(sql)) {
@@ -301,13 +312,15 @@ public class SyncEngine {
 
     private List<Map<String, Object>> readChildPage(String table, String parentTable, List<String> columns, int offset, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
+        String safeTable = validateIdentifier(table);
+        String safeParentTable = validateIdentifier(parentTable);
         String fkCol = CHILD_FK_COLUMN.get(table);
         if (fkCol == null) return rows;
-        String parentPk = pkColumn(parentTable);
-        String sql = "SELECT c.* FROM " + table + " c "
-                + "INNER JOIN " + parentTable + " p ON p." + parentPk + " = c." + fkCol
+        String parentPk = validateIdentifier(pkColumn(parentTable));
+        String sql = "SELECT c.* FROM " + safeTable + " c "
+                + "INNER JOIN " + safeParentTable + " p ON p." + parentPk + " = c." + validateIdentifier(fkCol)
                 + " WHERE p.synced_at IS NOT NULL "
-                + "ORDER BY c." + fkCol + " LIMIT " + limit + " OFFSET " + offset;
+                + "ORDER BY c." + validateIdentifier(fkCol) + " LIMIT " + limit + " OFFSET " + offset;
         try (Connection local = Database.getInstance().getConnection();
              Statement st = local.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
@@ -328,8 +341,9 @@ public class SyncEngine {
                               String upsertSql, Connection remote, SyncSummary summary) {
         if (rows.isEmpty()) return;
 
+        String safeTable = validateIdentifier(table);
         boolean isCompositePk = COMPOSITE_PK_TABLES.contains(table);
-        String pkCol = pkColumn(table);
+        String pkCol = validateIdentifier(pkColumn(table));
 
         for (int i = 0; i < rows.size(); i += BATCH_SIZE) {
             if (!running) return;
@@ -350,7 +364,7 @@ public class SyncEngine {
 
                     if (!isCompositePk) {
                         try (PreparedStatement update = localConn.prepareStatement(
-                                "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE " + pkCol + " = ?")) {
+                                "UPDATE " + safeTable + " SET synced_at = ?, updated_at = ? WHERE " + pkCol + " = ?")) {
                             String now = LocalDateTime.now().toString();
                             for (Map<String, Object> row : batch) {
                                 update.setString(1, now);
@@ -381,7 +395,8 @@ public class SyncEngine {
 
     private void retryBatchRowByRow(String table, List<Map<String, Object>> batch, List<String> columns,
                                     String upsertSql, Connection remote, SyncSummary summary, int attempt) {
-        String pkCol = pkColumn(table);
+        String safeTable = validateIdentifier(table);
+        String pkCol = validateIdentifier(pkColumn(table));
         if (attempt > MAX_RETRIES) {
             for (Map<String, Object> row : batch) {
                 summary.failed++;
@@ -411,7 +426,7 @@ public class SyncEngine {
                         ps.executeUpdate();
                     }
                     try (PreparedStatement update = localConn.prepareStatement(
-                            "UPDATE " + table + " SET synced_at = ?, updated_at = ? WHERE " + pkCol + " = ?")) {
+                            "UPDATE " + safeTable + " SET synced_at = ?, updated_at = ? WHERE " + pkCol + " = ?")) {
                         String now = LocalDateTime.now().toString();
                         update.setString(1, now);
                         update.setString(2, now);
@@ -434,16 +449,21 @@ public class SyncEngine {
     }
 
     private String buildUpsertSql(String table, List<String> columns, boolean isCompositePk) {
-        String conflictTarget = isCompositePk ? "(student_id, votehead_code, kind)" : "(" + pkColumn(table) + ")";
+        String safeTable = validateIdentifier(table);
+        String conflictTarget = isCompositePk ? "(student_id, votehead_code, kind)" : "(" + validateIdentifier(pkColumn(table)) + ")";
         String type = dbType;
+        List<String> validatedColumns = new ArrayList<>();
+        for (String column : columns) {
+            validatedColumns.add(validateIdentifier(column));
+        }
         StringBuilder sql = new StringBuilder("INSERT INTO ");
-        sql.append(table).append(" (");
-        for (int i = 0; i < columns.size(); i++) {
+        sql.append(safeTable).append(" (");
+        for (int i = 0; i < validatedColumns.size(); i++) {
             if (i > 0) sql.append(", ");
-            sql.append(columns.get(i));
+            sql.append(validatedColumns.get(i));
         }
         sql.append(") VALUES (");
-        for (int i = 0; i < columns.size(); i++) {
+        for (int i = 0; i < validatedColumns.size(); i++) {
             if (i > 0) sql.append(", ");
             sql.append("?");
         }
@@ -452,14 +472,14 @@ public class SyncEngine {
         if ("mysql".equals(type) || "mariadb".equals(type)) {
             sql.append("ON DUPLICATE KEY UPDATE ");
             boolean first = true;
-            for (String col : columns) {
+            for (String col : validatedColumns) {
                 if (first) { first = false; continue; }
                 sql.append(col).append(" = VALUES(").append(col).append(")");
             }
         } else {
             sql.append("ON CONFLICT ").append(conflictTarget).append(" DO UPDATE SET ");
             boolean first = true;
-            for (String col : columns) {
+            for (String col : validatedColumns) {
                 if (first) { first = false; continue; }
                 sql.append(col).append(" = EXCLUDED.").append(col);
             }

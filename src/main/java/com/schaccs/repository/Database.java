@@ -540,7 +540,7 @@ public final class Database {
             ps.setString(9, config.getJdbcUrl());
             ps.executeUpdate();
         } catch (SQLException e) {
-            LOG.warning("Failed to save DB config: " + e.getMessage());
+            throw new IllegalStateException("Failed to persist database configuration", e);
         }
     }
 
@@ -555,13 +555,16 @@ public final class Database {
                 config.setPort(rs.getInt("port"));
                 config.setDatabaseName(rs.getString("database_name"));
                 config.setUsername(rs.getString("username"));
-                config.setPassword(CredentialCrypto.decrypt(rs.getString("password")));
+                String encryptedPassword = rs.getString("password");
+                if (encryptedPassword != null && !encryptedPassword.isBlank()) {
+                    config.setPassword(CredentialCrypto.decrypt(encryptedPassword));
+                }
                 config.setSslMode(rs.getString("ssl_mode"));
                 config.setActive(rs.getInt("active") == 1);
                 return config;
             }
         } catch (SQLException e) {
-            LOG.warning("Failed to load DB config: " + e.getMessage());
+            throw new IllegalStateException("Failed to load database configuration", e);
         }
         return null;
     }
