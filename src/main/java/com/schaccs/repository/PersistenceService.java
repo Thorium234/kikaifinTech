@@ -751,7 +751,7 @@ public final class PersistenceService {
 
     private void loadReceiptLines(Connection conn, Receipt r) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT * FROM receipt_lines WHERE receipt_id = ?")) {
+                "SELECT * FROM receipt_lines WHERE receipt_id = ? ORDER BY rowid")) {
             ps.setString(1, r.getId());
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {

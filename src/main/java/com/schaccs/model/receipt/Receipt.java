@@ -170,32 +170,29 @@ public class Receipt {
     }
 
     public void computeVerificationHash() {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            String raw = receiptNumber + "|" + date + "|" + studentId + "|" + amount + "|" + paymentMode + "|" + bankReference + "|" + amount;
-            byte[] hashBytes = md.digest(raw.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
-            this.verificationHash = sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
+        this.verificationHash = HASH_VERSION + ":" + sha256(buildHashPayload());
     }
 
+    /**
+     * True when the stored hash matches a recomputation over the current fields.
+     * Understands both the current versioned (v2) hash and the legacy v1 format
+     * used by receipts stored before this field set was extended.
+     */
     public boolean isVerified() {
         if (verificationHash == null || verificationHash.isEmpty()) {
             return false;
         }
-        String currentHash = computeHash();
-        return verificationHash.equals(currentHash);
+        if (verificationHash.startsWith(HASH_VERSION + ":")) {
+            return verificationHash.equals(HASH_VERSION + ":" + sha256(buildHashPayload()));
+        }
+        return verificationHash.equals(sha256(buildLegacyHashPayload()));
     }
 
-    private String computeHash() {
+    private static final String HASH_VERSION = "v2";
+
+    private static String sha256(String raw) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            String raw = receiptNumber + "|" + date + "|" + studentId + "|" + amount + "|" + paymentMode + "|" + bankReference + "|" + amount;
             byte[] hashBytes = md.digest(raw.getBytes(StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder();
             for (byte b : hashBytes) {
@@ -205,6 +202,26 @@ public class Receipt {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 not available", e);
         }
+    }
+
+    private String buildHashPayload() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(receiptNumber).append('|').append(date)
+                .append('|').append(studentId)
+                .append('|').append(amount)
+                .append('|').append(paymentMode != null ? paymentMode.name() : PaymentMode.BANK_SLIP.name())
+                .append('|').append(bankReference)
+                .append('|').append(reversed)
+                .append('|').append(notes);
+        for (ReceiptLine line : lines) {
+            sb.append('|').append(line.getVoteheadCode()).append('=').append(line.getAmount());
+        }
+        return sb.toString();
+    }
+
+    private String buildLegacyHashPayload() {
+        return receiptNumber + "|" + date + "|" + studentId + "|" + amount + "|"
+                + paymentMode + "|" + bankReference + "|" + amount;
     }
 
     public ObservableList<ReceiptLine> getLines() {

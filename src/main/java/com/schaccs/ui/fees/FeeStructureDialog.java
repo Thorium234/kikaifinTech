@@ -6,8 +6,6 @@ import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
-import com.schaccs.model.fee.FeeStructureTemplate;
-import com.schaccs.model.fee.FeeStructureTemplateItem;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.FeeStructureStore;
@@ -43,7 +41,7 @@ public class FeeStructureDialog extends Stage {
     private final TextField nameField = new TextField();
     private final TextField yearField = new TextField();
     private final ComboBox<String> formClassBox = new ComboBox<>();
-    private final ComboBox<FeeStructureTemplate> templateBox = new ComboBox<>();
+    private final ComboBox<FeeStructure> sourceBox = new ComboBox<>();
     private final TableView<VoteheadRow> amountTable = new TableView<>();
     private final ObservableList<VoteheadRow> rows = FXCollections.observableArrayList();
 
@@ -59,16 +57,29 @@ public class FeeStructureDialog extends Stage {
         formClassBox.setValue("ALL");
         formClassBox.setEditable(true);
 
-        templateBox.setItems(store.getTemplates());
-        templateBox.setPromptText("Load from template...");
-        templateBox.setPrefWidth(280);
+        sourceBox.setItems(store.getStructures());
+        sourceBox.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(FeeStructure s) {
+                if (s == null) return "";
+                return s.getName() + " (" + s.getAcademicYear() + " · "
+                        + s.getBoardingStatus().getDisplayName() + ")";
+            }
 
-        Button loadTemplateBtn = new Button("Apply Template");
-        loadTemplateBtn.getStyleClass().add("secondary-button");
-        loadTemplateBtn.setOnAction(e -> applyTemplate());
+            @Override
+            public FeeStructure fromString(String s) {
+                return null;
+            }
+        });
+        sourceBox.setPromptText("Copy from an existing structure...");
+        sourceBox.setPrefWidth(280);
 
-        HBox templateRow = new HBox(8, new Label("Template:"), templateBox, loadTemplateBtn);
-        templateRow.setAlignment(Pos.CENTER_LEFT);
+        Button loadSourceBtn = new Button("Load Structure");
+        loadSourceBtn.getStyleClass().add("secondary-button");
+        loadSourceBtn.setOnAction(e -> applySourceStructure());
+
+        HBox sourceRow = new HBox(8, new Label("Copy from:"), sourceBox, loadSourceBtn);
+        sourceRow.setAlignment(Pos.CENTER_LEFT);
 
         GridPane form = new GridPane();
         form.setHgap(10);
@@ -107,7 +118,7 @@ public class FeeStructureDialog extends Stage {
 
         VBox root = new VBox(12,
                 new Label("Configure fee structure(s). Amounts are per-term per-votehead."),
-                templateRow,
+                sourceRow,
                 form,
                 new Label("Votehead Amounts per Term:"),
                 copyBtn,
@@ -167,10 +178,10 @@ public class FeeStructureDialog extends Stage {
         }
     }
 
-    private void applyTemplate() {
-        FeeStructureTemplate t = templateBox.getValue();
-        if (t == null) return;
-        for (FeeStructureTemplateItem item : t.getItems()) {
+    private void applySourceStructure() {
+        FeeStructure source = sourceBox.getValue();
+        if (source == null) return;
+        for (FeeStructureItem item : source.getItems()) {
             for (VoteheadRow row : rows) {
                 if (row.getCode().equals(item.getVoteheadCode())) {
                     row.setAmount(item.getTerm(), item.getAmount());

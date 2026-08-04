@@ -59,11 +59,11 @@ public final class PayrollCalculationEngine {
         item.setSalaryAdvanceRecovery(structure.getSalaryAdvanceRecovery());
         item.setWelfareContribution(structure.getWelfareContribution());
 
-        // Calculate gross pay
+        // Calculate gross pay. getGrossSalary() already includes otherEarnings via getTotalAllowances(),
+        // so only add variable earnings (overtime, bonus) on top.
         BigDecimal grossPay = structure.getGrossSalary()
                 .add(item.getOvertime())
-                .add(item.getBonus())
-                .add(item.getOtherEarnings());
+                .add(item.getBonus());
         item.setGrossPay(CurrencyConfig.money(grossPay));
 
         // Calculate statutory deductions

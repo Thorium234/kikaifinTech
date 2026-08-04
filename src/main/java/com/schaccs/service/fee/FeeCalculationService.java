@@ -86,11 +86,6 @@ public class FeeCalculationService {
             return;
         }
         structureFor(student).ifPresent(structure -> {
-            boolean alreadyCharged = structure.itemsForTerm(term).stream()
-                    .anyMatch(item -> ledger.getCharged(item.getVoteheadCode()).compareTo(BigDecimal.ZERO) > 0);
-            if (alreadyCharged) {
-                return;
-            }
             BigDecimal factor = siblingDiscountFactor(student);
             for (FeeStructureItem item : structure.itemsForTerm(term)) {
                 BigDecimal amount = CurrencyConfig.money(item.getAmount().multiply(factor));

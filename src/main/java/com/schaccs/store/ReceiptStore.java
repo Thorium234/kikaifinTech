@@ -30,21 +30,21 @@ public final class ReceiptStore {
         receipts.add(0, receipt);
     }
 
-    public Optional<Receipt> findByNumber(long number) {
+    public synchronized Optional<Receipt> findByNumber(long number) {
         return receipts.stream().filter(r -> r.getReceiptNumber() == number).findFirst();
     }
 
-    public Optional<Receipt> findById(String id) {
+    public synchronized Optional<Receipt> findById(String id) {
         return receipts.stream().filter(r -> r.getId().equals(id)).findFirst();
     }
 
-    public List<Receipt> forStudent(String studentId) {
+    public synchronized List<Receipt> forStudent(String studentId) {
         return receipts.stream()
                 .filter(r -> studentId.equals(r.getStudentId()))
                 .collect(Collectors.toList());
     }
 
-    public List<Receipt> forDate(LocalDate date) {
+    public synchronized List<Receipt> forDate(LocalDate date) {
         return receipts.stream()
                 .filter(r -> date.equals(r.getDate()))
                 .collect(Collectors.toList());

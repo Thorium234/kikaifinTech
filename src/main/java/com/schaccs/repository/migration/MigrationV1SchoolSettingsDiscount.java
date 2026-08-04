@@ -1,6 +1,7 @@
 package com.schaccs.repository.migration;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -23,12 +24,22 @@ public class MigrationV1SchoolSettingsDiscount implements SchemaMigration {
     }
 
     private void addColumnIfMissing(Connection connection, String table, String column, String sql) throws SQLException {
-        try (Statement st = connection.createStatement()) {
-            try {
-                st.executeQuery("SELECT " + column + " FROM " + table + " LIMIT 1").close();
-            } catch (SQLException ignored) {
+        if (!hasColumn(connection, table, column)) {
+            try (Statement st = connection.createStatement()) {
                 st.execute(sql);
             }
         }
+    }
+
+    private boolean hasColumn(Connection connection, String table, String column) throws SQLException {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

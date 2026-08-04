@@ -393,7 +393,10 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button reverseBtn = new Button("Reverse Selected");
         reverseBtn.getStyleClass().add("danger-button");
         reverseBtn.setOnAction(e -> reverseReceipt());
-        VBox previewActions = new VBox(8, exportBtn, pdfBtn, printBtn, reverseBtn, reprintPreview);
+        Button verifyBtn = new Button("Verify Selected");
+        verifyBtn.getStyleClass().add("secondary-button");
+        verifyBtn.setOnAction(e -> verifyReceipt());
+        VBox previewActions = new VBox(8, exportBtn, pdfBtn, printBtn, verifyBtn, reverseBtn, reprintPreview);
         SplitPane body = new SplitPane(reprintTable, previewActions);
         body.setDividerPositions(0.58);
         VBox.setVgrow(reprintPreview, Priority.ALWAYS);
@@ -414,6 +417,22 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
                 ReceiptPrinter.format(r), getScene() != null ? getScene().getWindow() : null);
         if (!printed) {
             AlertUtil.warn("Print cancelled", "No receipt was printed.");
+        }
+    }
+
+    private void verifyReceipt() {
+        Receipt r = reprintTable.getSelectionModel().getSelectedItem();
+        if (r == null) {
+            AlertUtil.warn("Select receipt", "Select a receipt to verify.");
+            return;
+        }
+        if (Services.getInstance().receipt().verifyReceipt(r)) {
+            AlertUtil.info("Verified", "Receipt " + r.getReceiptNumberDisplay()
+                    + " integrity hash matches its recorded fields.");
+        } else {
+            AlertUtil.warn("Not verified",
+                    "Receipt " + r.getReceiptNumberDisplay()
+                            + " has no integrity hash or its recorded fields have changed since posting.");
         }
     }
 

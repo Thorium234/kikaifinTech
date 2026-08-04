@@ -17,6 +17,8 @@ import com.schaccs.model.voucher.PaymentVoucher;
 import com.schaccs.accounting.AccountingEngine;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
+import com.schaccs.service.finance.BudgetService;
+import com.schaccs.service.finance.FiscalYearService;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.VoucherStore;
 
@@ -33,6 +35,8 @@ public class PaymentVoucherService {
     private final VoucherStore store;
     private final AccountingEngine accountingEngine;
     private final AuditService auditService;
+    private final FiscalYearService fiscalYearService = new FiscalYearService();
+    private final BudgetService budgetService = new BudgetService();
 
     public PaymentVoucherService() {
         this(VoucherStore.getInstance(), new AccountingEngine(), new AuditService());
@@ -114,9 +118,21 @@ public class PaymentVoucherService {
             return errors;
         }
 
+        LocalDate voucherDate = date != null ? date : LocalDate.now();
+        if (!fiscalYearService.isTransactionAllowed(voucherDate)) {
+            errors.add("Payment date " + voucherDate + " is outside the open fiscal year.");
+            return errors;
+        }
+
+        if (!budgetService.checkBudget(commitment.getVoteheadCode(), amount)) {
+            errors.add("Amount " + CurrencyConfig.format(amount)
+                    + " exceeds the available budget for votehead " + commitment.getVoteheadName() + ".");
+            return errors;
+        }
+
         PaymentVoucher voucher = new PaymentVoucher();
         voucher.setVoucherNumber(AppConfig.getInstance().getSchoolProfile().allocateVoucherNumber());
-        voucher.setDate(date != null ? date : LocalDate.now());
+        voucher.setDate(voucherDate);
         voucher.setCreditorId(commitment.getCreditorId());
         voucher.setCreditorName(commitment.getCreditorName());
         voucher.setCommitmentId(commitment.getId());
@@ -153,6 +169,7 @@ public class PaymentVoucherService {
                 commitment.applyPayment(amount);
             });
             store.addVoucher(voucher);
+            budgetService.recordSpend(commitment.getVoteheadCode(), amount);
             PersistenceService.getInstance().saveAll();
             auditService.log("VOUCHER_PAID", "PaymentVoucher", voucher.getId(),
                     "{\"voucherNumber\":" + voucher.getVoucherNumber()
@@ -162,7 +179,7 @@ public class PaymentVoucherService {
             return errors;
         } catch (Exception e) {
             commitment.setAmountPaid(prevAmountPaid);
-            LedgerStore.getInstance().removeByReceiptId(voucher.getId());
+            LedgerStore.getInstance().removeByVoucherId(voucher.getId());
             errors.add("Failed to post payment voucher: " + e.getMessage());
             return errors;
         }

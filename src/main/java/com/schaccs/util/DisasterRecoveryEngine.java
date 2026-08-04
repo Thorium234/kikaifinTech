@@ -30,20 +30,31 @@ public final class DisasterRecoveryEngine {
     private static final int RECEIPT_TRIGGER = 20;
     private static final int RETENTION_DAYS = 30;
 
+    private static final DisasterRecoveryEngine INSTANCE = new DisasterRecoveryEngine();
+
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private int receiptCountSinceLastBackup = 0;
+    private volatile boolean started = false;
     private final ReportService reportService;
 
-    public DisasterRecoveryEngine() {
+    private DisasterRecoveryEngine() {
         this.reportService = Services.getInstance().report();
     }
 
+    public static DisasterRecoveryEngine getInstance() {
+        return INSTANCE;
+    }
+
     public void start() {
+        started = true;
         Runtime.getRuntime().addShutdownHook(new Thread(this::backupNow));
         scheduler.scheduleAtFixedRate(this::backupNow, 1, 1, TimeUnit.HOURS);
     }
 
     public void onReceiptPosted() {
+        if (!started) {
+            return;
+        }
         receiptCountSinceLastBackup++;
         if (receiptCountSinceLastBackup >= RECEIPT_TRIGGER) {
             backupNow();

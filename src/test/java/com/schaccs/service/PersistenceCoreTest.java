@@ -29,6 +29,7 @@ class PersistenceCoreTest {
         assertTrue(history.stream().anyMatch(row -> "2".equals(row[0]) && "MigrationV2ReceiptReversed".equals(row[1])));
         assertTrue(history.stream().anyMatch(row -> "3".equals(row[0]) && "MigrationV3SchoolLogoPath".equals(row[1])));
         assertTrue(history.stream().anyMatch(row -> "4".equals(row[0]) && "MigrationV4ReceiptStampSignaturePaths".equals(row[1])));
+        assertTrue(history.stream().anyMatch(row -> "18".equals(row[0]) && "MigrationV18BackfillReceiptHashes".equals(row[1])));
     }
 
     @Test

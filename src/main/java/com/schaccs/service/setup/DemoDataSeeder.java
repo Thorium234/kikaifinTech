@@ -380,6 +380,7 @@ public final class DemoDataSeeder {
         }
 
         if (totalAllocated.compareTo(BigDecimal.ZERO) > 0) {
+            receipt.computeVerificationHash();
             receiptStore.add(receipt);
         }
     }

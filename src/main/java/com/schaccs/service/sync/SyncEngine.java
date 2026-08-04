@@ -211,7 +211,6 @@ public class SyncEngine {
     private void syncTable(String table, Connection remote, SyncSummary summary) {
         List<String> columnNames = new ArrayList<>();
         String upsertSql;
-        int offset = 0;
 
         try (Connection local = Database.getInstance().getConnection();
              Statement st = local.createStatement();
@@ -230,10 +229,14 @@ public class SyncEngine {
         boolean isCompositePk = COMPOSITE_PK_TABLES.contains(table);
         upsertSql = buildUpsertSql(table, columnNames, isCompositePk);
 
+        // Keyset pagination: OFFSET is unsafe here because processBatch marks rows
+        // as synced mid-loop, which shrinks the "synced_at IS NULL" window and can
+        // silently skip an entire page of rows when more than PAGE_SIZE are pending.
+        Object lastPkValue = null;
         while (running) {
-            List<Map<String, Object>> page = readPage(table, columnNames, offset, PAGE_SIZE);
+            List<Map<String, Object>> page = readPageAfter(table, columnNames, lastPkValue, PAGE_SIZE);
             if (page.isEmpty()) break;
-            offset += page.size();
+            lastPkValue = page.get(page.size() - 1).get(pkColumn(table));
 
             processBatch(table, page, columnNames, upsertSql, remote, summary);
         }
@@ -270,13 +273,19 @@ public class SyncEngine {
         }
     }
 
-    private List<Map<String, Object>> readPage(String table, List<String> columns, int offset, int limit) {
+    private List<Map<String, Object>> readPageAfter(String table, List<String> columns, Object lastPkValue, int limit) {
         List<Map<String, Object>> rows = new ArrayList<>();
         String orderCol = pkColumn(table);
-        String sql = "SELECT * FROM " + table + " WHERE synced_at IS NULL ORDER BY " + orderCol + " LIMIT " + limit + " OFFSET " + offset;
+        String sql = lastPkValue == null
+                ? "SELECT * FROM " + table + " WHERE synced_at IS NULL ORDER BY " + orderCol + " LIMIT " + limit
+                : "SELECT * FROM " + table + " WHERE synced_at IS NULL AND " + orderCol + " > ? "
+                        + "ORDER BY " + orderCol + " LIMIT " + limit;
         try (Connection local = Database.getInstance().getConnection();
-             Statement st = local.createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
+             PreparedStatement st = local.prepareStatement(sql)) {
+            if (lastPkValue != null) {
+                st.setObject(1, lastPkValue);
+            }
+            ResultSet rs = st.executeQuery();
             while (rs.next()) {
                 Map<String, Object> row = new LinkedHashMap<>();
                 for (String col : columns) {

@@ -21,6 +21,8 @@ import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.service.audit.AuditService;
+import com.schaccs.service.finance.FiscalYearService;
+import com.schaccs.util.DisasterRecoveryEngine;
 import com.schaccs.validation.ReceiptValidator;
 
 import java.math.BigDecimal;
@@ -42,6 +44,7 @@ public class ReceiptService {
     private final ReceiptNumberService numberService;
     private final Runnable persistenceAction;
     private final AuditService auditService;
+    private final FiscalYearService fiscalYearService = new FiscalYearService();
 
     public ReceiptService() {
         this(ReceiptStore.getInstance(), StudentStore.getInstance(), FeeStructureStore.getInstance(),
@@ -97,6 +100,12 @@ public class ReceiptService {
             return Result.failure(errors);
         }
 
+        LocalDate receiptDate = date != null ? date : LocalDate.now();
+        if (!fiscalYearService.isTransactionAllowed(receiptDate)) {
+            return Result.failure(List.of("Payment date " + receiptDate
+                    + " is outside the open fiscal year."));
+        }
+
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
         FeeStructure fs = resolveFeeStructure(student);
         List<FeeAllocation> allocations = fs != null
@@ -106,7 +115,7 @@ public class ReceiptService {
 
         Receipt receipt = new Receipt();
         receipt.setReceiptNumber(numberService.next());
-        receipt.setDate(date != null ? date : LocalDate.now());
+        receipt.setDate(receiptDate);
         receipt.setStudentId(student.getId());
         receipt.setAdmissionNumber(student.getAdmissionNumber());
         receipt.setStudentName(student.getName());
@@ -116,7 +125,6 @@ public class ReceiptService {
         receipt.setBankReference(bankReference);
         receipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
         receipt.setNotes(notes);
-        receipt.computeVerificationHash();
 
         String ref = "RCPT-" + receipt.getReceiptNumber();
 
@@ -138,6 +146,18 @@ public class ReceiptService {
                     // New overpayment recorded as carry-forward credit
                     ledger.addAdvance(alloc.getAllocated());
                 }
+                accountingEngine.postFeeReceiptLine(
+                        ref,
+                        "Fee receipt " + receipt.getReceiptNumber() + " — Advance / Credit ("
+                                + student.getAdmissionNumber() + ")",
+                        AccountType.DEFERRED_REVENUE,
+                        StudentFeeLedger.ADVANCE_CODE,
+                        alloc.getAllocated(),
+                        student.getId(),
+                        receipt.getId(),
+                        null,
+                        receipt.getDate()
+                );
                 continue;
             }
 
@@ -166,9 +186,12 @@ public class ReceiptService {
             );
         }
 
+        receipt.computeVerificationHash();
+
         try {
             receiptStore.add(receipt);
             persistenceAction.run();
+            DisasterRecoveryEngine.getInstance().onReceiptPosted();
             auditService.log("RECEIPT_CREATED", "Receipt", receipt.getId(),
                     "{\"receiptNumber\":" + receipt.getReceiptNumber()
                             + ",\"studentId\":\"" + student.getId()
@@ -285,6 +308,17 @@ public class ReceiptService {
                     } else {
                         ledger.reduceAdvance(line.getAmount());
                     }
+                    accountingEngine.postFeeReceiptLine(
+                            ref,
+                            "Reversal of receipt " + receipt.getReceiptNumberDisplay()
+                                    + " — Advance / Credit" + (reason != null ? " (" + reason + ")" : ""),
+                            AccountType.DEFERRED_REVENUE,
+                            StudentFeeLedger.ADVANCE_CODE,
+                            line.getAmount().negate(),
+                            student.getId(),
+                            receipt.getId(),
+                            null,
+                            LocalDate.now());
                     continue;
                 }
                 if ("ARREARS".equals(line.getVoteheadCode())) {
@@ -313,6 +347,7 @@ public class ReceiptService {
             } else {
                 receipt.setNotes(receipt.getNotes() + " | REVERSED" + (reason != null ? ": " + reason : ""));
             }
+            receipt.computeVerificationHash();
             persistenceAction.run();
             auditService.log("RECEIPT_REVERSED", "Receipt", receipt.getId(),
                     "{\"receiptNumber\":" + receipt.getReceiptNumber()

@@ -23,10 +23,13 @@ public final class PrintUtil {
         if (!proceed) {
             return false;
         }
-        boolean success = job.printPage(area);
-        if (success) {
-            job.endJob();
+        try {
+            return job.printPage(area) && job.endJob();
+        } finally {
+            if (job.getJobStatus() == javafx.print.PrinterJob.JobStatus.NOT_STARTED
+                    || job.getJobStatus() == javafx.print.PrinterJob.JobStatus.PRINTING) {
+                job.cancelJob();
+            }
         }
-        return success;
     }
 }

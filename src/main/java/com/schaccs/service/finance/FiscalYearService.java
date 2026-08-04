@@ -58,9 +58,12 @@ public class FiscalYearService {
     }
 
     public boolean isTransactionAllowed(LocalDate date) {
+        if (date == null) {
+            return true;
+        }
         return accountStore.findOpenFiscalYear()
                 .map(fy -> !date.isBefore(fy.getStartDate()) && !date.isAfter(fy.getEndDate()))
-                .orElse(false);
+                .orElse(true);
     }
 
     public void closeFiscalYear(FiscalYear fy) {

@@ -5,6 +5,7 @@ import com.schaccs.model.student.StudentFeeLedger;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -40,15 +41,24 @@ public final class StudentStore {
     }
 
     public synchronized void remove(Student student) {
+        StudentFeeLedger ledger = ledgers.get(student.getId());
+        if (ledger != null && (ledger.getTotalPaid().compareTo(BigDecimal.ZERO) > 0
+                || ledger.getAdvance().compareTo(BigDecimal.ZERO) > 0
+                || ledger.getArrears().compareTo(BigDecimal.ZERO) > 0)) {
+            throw new IllegalStateException("Cannot delete student with financial records.");
+        }
+        if (!ReceiptStore.getInstance().forStudent(student.getId()).isEmpty()) {
+            throw new IllegalStateException("Cannot delete student with receipts.");
+        }
         students.remove(student);
         ledgers.remove(student.getId());
     }
 
-    public Optional<Student> findById(String id) {
+    public synchronized Optional<Student> findById(String id) {
         return students.stream().filter(s -> s.getId().equals(id)).findFirst();
     }
 
-    public Optional<Student> findByAdmissionNumber(String admissionNumber) {
+    public synchronized Optional<Student> findByAdmissionNumber(String admissionNumber) {
         if (admissionNumber == null) {
             return Optional.empty();
         }
@@ -58,18 +68,18 @@ public final class StudentStore {
                 .findFirst();
     }
 
-    public ObservableList<Student> search(String query) {
+    public synchronized ObservableList<Student> search(String query) {
         if (query == null || query.isBlank()) {
             return students;
         }
         return students.filtered(s -> s.matchesSearch(query));
     }
 
-    public StudentFeeLedger getLedger(String studentId) {
+    public synchronized StudentFeeLedger getLedger(String studentId) {
         return ledgers.computeIfAbsent(studentId, StudentFeeLedger::new);
     }
 
-    public Map<String, StudentFeeLedger> getLedgers() {
+    public synchronized Map<String, StudentFeeLedger> getLedgers() {
         return ledgers;
     }
 

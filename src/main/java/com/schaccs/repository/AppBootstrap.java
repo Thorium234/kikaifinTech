@@ -24,7 +24,7 @@ public final class AppBootstrap {
             persistence.saveAll();
         }
         AccountStore.getInstance().seedDefaultAccounts();
-        disasterRecoveryEngine = new DisasterRecoveryEngine();
+        disasterRecoveryEngine = DisasterRecoveryEngine.getInstance();
         disasterRecoveryEngine.start();
     }
 

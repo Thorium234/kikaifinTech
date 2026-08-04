@@ -61,15 +61,15 @@ public final class LedgerStore {
         }
     }
 
-    public BigDecimal getAccountBalance(AccountType type) {
+    public synchronized BigDecimal getAccountBalance(AccountType type) {
         return accountBalances.getOrDefault(type, CurrencyConfig.zero());
     }
 
-    public Map<AccountType, BigDecimal> getAccountBalances() {
+    public synchronized Map<AccountType, BigDecimal> getAccountBalances() {
         return accountBalances;
     }
 
-    public List<FinancialTransaction> forStudent(String studentId) {
+    public synchronized List<FinancialTransaction> forStudent(String studentId) {
         return transactions.stream()
                 .filter(t -> studentId.equals(t.getStudentId()))
                 .collect(Collectors.toList());
@@ -85,6 +85,25 @@ public final class LedgerStore {
         java.util.Set<String> removedTxIds = new java.util.HashSet<>();
         transactions.removeIf(tx -> {
             if (receiptId.equals(tx.getReceiptId())) {
+                removedTxIds.add(tx.getId());
+                return true;
+            }
+            return false;
+        });
+        ledgerEntries.removeIf(e -> removedTxIds.contains(e.getTransactionId()));
+        recalculateBalances();
+    }
+
+    /**
+     * Removes all transactions and ledger entries tied to a given voucher,
+     * then recalculates account balances from the remaining entries.
+     * Used for rollback when voucher posting fails after accounting entries were posted.
+     */
+    public synchronized void removeByVoucherId(String voucherId) {
+        if (voucherId == null) return;
+        java.util.Set<String> removedTxIds = new java.util.HashSet<>();
+        transactions.removeIf(tx -> {
+            if (voucherId.equals(tx.getVoucherId())) {
                 removedTxIds.add(tx.getId());
                 return true;
             }

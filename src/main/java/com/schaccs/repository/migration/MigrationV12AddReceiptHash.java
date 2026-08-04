@@ -1,6 +1,7 @@
 package com.schaccs.repository.migration;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -18,10 +19,22 @@ public class MigrationV12AddReceiptHash implements SchemaMigration {
 
     @Override
     public void apply(Connection connection) throws SQLException {
-        try (Statement st = connection.createStatement()) {
-            st.executeUpdate("ALTER TABLE receipts ADD COLUMN verification_hash TEXT DEFAULT ''");
-        } catch (SQLException e) {
-            // Column may already exist
+        if (!hasColumn(connection, "receipts", "verification_hash")) {
+            try (Statement st = connection.createStatement()) {
+                st.executeUpdate("ALTER TABLE receipts ADD COLUMN verification_hash TEXT DEFAULT ''");
+            }
         }
+    }
+
+    private boolean hasColumn(Connection connection, String table, String column) throws SQLException {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

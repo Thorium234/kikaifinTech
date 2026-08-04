@@ -157,6 +157,7 @@ public class ReportService {
     public List<CollectionSummary> dailyCollection(LocalDate date) {
         LocalDate d = date != null ? date : LocalDate.now();
         Map<PaymentMode, List<Receipt>> grouped = receiptStore.forDate(d).stream()
+                .filter(r -> !r.isReversed())
                 .collect(Collectors.groupingBy(Receipt::getPaymentMode));
         List<CollectionSummary> result = new ArrayList<>();
         for (Map.Entry<PaymentMode, List<Receipt>> e : grouped.entrySet()) {
@@ -170,6 +171,7 @@ public class ReportService {
 
     public BigDecimal totalCollectionOn(LocalDate date) {
         return receiptStore.forDate(date).stream()
+                .filter(r -> !r.isReversed())
                 .map(Receipt::getAmount)
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
     }

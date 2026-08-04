@@ -346,6 +346,97 @@ class BugFixRegressionTest {
     }
 
     // ==========================================
+    // BUG-6: Receipt verification hash covers allocation lines
+    // ==========================================
+
+    @Test
+    void bug6_receiptHashIncludesAllocationLines() {
+        Student student = createTestStudent("ADM-HASH");
+        StudentStore.getInstance().add(student);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        ledger.charge("BOARD", CurrencyConfig.money("20000"));
+        ledger.charge("TUITION", CurrencyConfig.money("10000"));
+
+        ReceiptService service = createTestReceiptService();
+        ReceiptService.Result result = service.receivePayment(student, CurrencyConfig.money("15000"),
+                PaymentMode.BANK_SLIP, "HASH-REF", LocalDate.now(), null);
+        assertTrue(result.isSuccess());
+
+        Receipt receipt = result.getReceipt();
+        assertFalse(receipt.getLines().isEmpty(), "Receipt must have allocation lines");
+        assertTrue(receipt.isVerified(),
+                "Freshly posted receipt must be verifiable (hash computed after lines were added)");
+
+        String baseOnlyHash = sha256Legacy(receipt);
+        assertNotEquals(baseOnlyHash, receipt.getVerificationHash(),
+                "Hash must cover allocation lines, not just base fields");
+
+        receipt.getLines().getFirst().setAmount(receipt.getLines().getFirst().getAmount().add(CurrencyConfig.money("1")));
+        assertFalse(receipt.isVerified(),
+                "Changing an allocation line amount must invalidate the integrity hash");
+    }
+
+    @Test
+    void bug6_legacyV1HashStillValidates() {
+        Student student = createTestStudent("ADM-V1");
+        StudentStore.getInstance().add(student);
+
+        ReceiptService service = createTestReceiptService();
+        ReceiptService.Result result = service.receivePayment(student, CurrencyConfig.money("5000"),
+                PaymentMode.MPESA, "V1-REF", LocalDate.now(), null);
+        assertTrue(result.isSuccess());
+
+        Receipt receipt = result.getReceipt();
+        receipt.getLines().clear();
+        receipt.setVerificationHash(sha256Legacy(receipt));
+
+        assertTrue(receipt.isVerified(),
+                "Legacy v1 hashes (computed over base fields only) must still validate");
+    }
+
+    @Test
+    void bug6_reversalKeepsReceiptVerifiable() {
+        Student student = createTestStudent("ADM-RVH");
+        StudentStore.getInstance().add(student);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        ledger.charge("BOARD", CurrencyConfig.money("20000"));
+
+        ReceiptService service = createTestReceiptService();
+        ReceiptService.Result created = service.receivePayment(student, CurrencyConfig.money("8000"),
+                PaymentMode.BANK_SLIP, "RVH-REF", LocalDate.now(), null);
+        assertTrue(created.isSuccess());
+
+        ReceiptService.Result reversed = service.reverseReceipt(created.getReceipt(), "Verification test");
+        assertTrue(reversed.isSuccess());
+
+        Receipt receipt = reversed.getReceipt();
+        assertTrue(receipt.isReversed());
+        assertTrue(receipt.isVerified(),
+                "A reversed receipt must remain verifiable (hash recomputed after reversal fields)");
+
+        receipt.setNotes(receipt.getNotes() + " TAMPERED");
+        assertFalse(receipt.isVerified(),
+                "Tampering with reversal notes must invalidate the integrity hash");
+    }
+
+    private static String sha256Legacy(Receipt receipt) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            String raw = receipt.getReceiptNumber() + "|" + receipt.getDate() + "|" + receipt.getStudentId()
+                    + "|" + receipt.getAmount() + "|" + receipt.getPaymentMode() + "|"
+                    + receipt.getBankReference() + "|" + receipt.getAmount();
+            byte[] bytes = md.digest(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // ==========================================
     // BUG-8: Reversal rollback must NOT delete the original postings
     // ==========================================
 
