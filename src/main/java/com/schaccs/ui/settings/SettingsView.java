@@ -195,7 +195,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         allContent.setPadding(new Insets(0, 0, 60, 0));
         ScrollPane mainScroll = new ScrollPane(allContent);
         mainScroll.setFitToWidth(true);
-        mainScroll.setFitToHeight(false);
+        mainScroll.setFitToHeight(true);
         mainScroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(mainScroll, Priority.ALWAYS);
 

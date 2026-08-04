@@ -63,6 +63,7 @@ public class SyncStatusView extends VBox implements MainLayout.Refreshable {
 
         ScrollPane scroll = new ScrollPane(allContent);
         scroll.setFitToWidth(true);
+        scroll.setFitToHeight(true);
         scroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(scroll, Priority.ALWAYS);
         getChildren().add(scroll);

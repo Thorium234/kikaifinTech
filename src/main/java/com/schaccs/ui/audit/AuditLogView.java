@@ -84,6 +84,8 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
         card.getStyleClass().add("card");
         ScrollPane scroll = new ScrollPane(card);
         scroll.setFitToWidth(true);
+        // allow the audit log scroll pane to resize vertically with the window
+        scroll.setFitToHeight(true);
         scroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(scroll, Priority.ALWAYS);
         getChildren().add(scroll);

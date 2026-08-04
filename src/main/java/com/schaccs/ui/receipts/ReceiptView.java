@@ -175,6 +175,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         content.setPadding(new Insets(4));
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
         scrollPane.setPannable(true);
         scrollPane.getStyleClass().add("content-scroll");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
