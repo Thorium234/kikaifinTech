@@ -121,7 +121,8 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         budgetBox.setPadding(new Insets(12));
         budgetBox.setPrefWidth(300);
 
-        HBox chartsGaugeBox = new HBox(16, pieBox, budgetBox);
+        FlowPane chartsGaugeBox = new FlowPane(16, 16);
+        chartsGaugeBox.getChildren().addAll(pieBox, budgetBox);
 
         Label recentTitle = new Label("Recent Receipts");
         recentTitle.getStyleClass().add("section-title");
@@ -146,8 +147,6 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         defBox.setPrefWidth(420);
         defBox.setMinWidth(320);
 
-        VBox feeReminderSection = buildFeeReminderSection();
-
         VBox.setVgrow(tables, Priority.ALWAYS);
         ScrollPane tableScroll = new ScrollPane(tables);
         tableScroll.setFitToWidth(true);
@@ -156,7 +155,20 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         tableScroll.getStyleClass().add("inline-scroll-pane");
         VBox.setVgrow(tableScroll, Priority.ALWAYS);
 
-        getChildren().addAll(heading, integrityBanner, cards, chartBox, chartsGaugeBox, tableScroll, feeReminderSection);
+        VBox feeReminderSection = buildFeeReminderSection();
+
+        VBox allContent = new VBox(16, heading, integrityBanner, cards, chartBox, chartsGaugeBox,
+                tableScroll, feeReminderSection);
+        allContent.setPadding(new Insets(4));
+
+        ScrollPane mainScroll = new ScrollPane(allContent);
+        mainScroll.setFitToWidth(true);
+        mainScroll.setFitToHeight(true);
+        mainScroll.setPannable(true);
+        mainScroll.getStyleClass().add("content-scroll");
+        VBox.setVgrow(mainScroll, Priority.ALWAYS);
+
+        getChildren().add(mainScroll);
         refresh();
     }
 
