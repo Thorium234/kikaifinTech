@@ -5,8 +5,8 @@ import com.schaccs.model.payroll.Employee;
 import com.schaccs.model.payroll.SalaryStructure;
 import com.schaccs.service.Services;
 import com.schaccs.service.payroll.EmployeeService;
-import com.schaccs.style.AppStyles;
 import com.schaccs.ui.layout.MainLayout;
+import com.schaccs.util.AlertUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.transformation.FilteredList;
 import javafx.collections.transformation.SortedList;
@@ -24,6 +24,26 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
     private final TextField searchField = new TextField();
     private final TableView<Employee> table = new TableView<>();
     private final FilteredList<Employee> filteredList;
+    private final TabPane tabPane = new TabPane();
+    private final Tab listTab = new Tab("Employees List");
+    private final Tab formTab = new Tab("Add Employee");
+
+    private final TextField empNoField = new TextField();
+    private final TextField firstNameField = new TextField();
+    private final TextField lastNameField = new TextField();
+    private final TextField nationalIdField = new TextField();
+    private final TextField deptField = new TextField();
+    private final TextField posField = new TextField();
+    private final DatePicker empDate = new DatePicker();
+    private final TextField bankNameField = new TextField();
+    private final TextField bankBranchField = new TextField();
+    private final TextField bankAccField = new TextField();
+    private final TextField kraField = new TextField();
+    private final TextField nssfField = new TextField();
+    private final TextField shifField = new TextField();
+    private final TextField phoneField = new TextField();
+
+    private Employee editing;
 
     public EmployeeView() {
         this(Services.getInstance().employee());
@@ -37,13 +57,25 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         setPadding(new Insets(16));
 
         buildHeader();
-        buildTable();
+        buildListTab();
+        buildFormTab();
+        tabPane.getTabs().addAll(listTab, formTab);
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+
+        getChildren().addAll(tabPane);
     }
 
     private void buildHeader() {
         Label title = new Label("Employee Management");
         title.getStyleClass().add("view-title");
 
+        HBox header = new HBox(title);
+        header.setAlignment(Pos.CENTER_LEFT);
+        getChildren().add(header);
+    }
+
+    private void buildListTab() {
         searchField.setPromptText("Search employees...");
         searchField.setPrefWidth(280);
         searchField.textProperty().addListener((obs, oldVal, newVal) -> {
@@ -51,17 +83,24 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
             filteredList.setPredicate(emp -> emp.matchesSearch(q));
         });
 
-        Button addBtn = new Button("+ New Employee");
+        Button addBtn = new Button("Add Employee");
         addBtn.getStyleClass().add("btn-primary");
-        addBtn.setOnAction(e -> showAddDialog());
+        addBtn.setOnAction(e -> { clearForm(); switchToForm(); });
 
-        HBox header = new HBox(12, title, searchField, addBtn);
-        header.setAlignment(Pos.CENTER_LEFT);
+        HBox toolbar = new HBox(12, searchField, addBtn);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(searchField, Priority.ALWAYS);
-        getChildren().add(header);
+
+        setupTable();
+
+        VBox card = new VBox(12, toolbar, table);
+        card.getStyleClass().add("card");
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        listTab.setContent(card);
     }
 
-    private void buildTable() {
+    private void setupTable() {
         TableColumn<Employee, String> empNoCol = new TableColumn<>("Employee #");
         empNoCol.setCellValueFactory(data -> data.getValue().employeeNumberProperty());
         empNoCol.setPrefWidth(110);
@@ -103,7 +142,8 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
 
                 editBtn.setOnAction(e -> {
                     Employee emp = getTableView().getItems().get(getIndex());
-                    showEditDialog(emp);
+                    loadForm(emp);
+                    switchToForm();
                 });
                 salaryBtn.setOnAction(e -> {
                     Employee emp = getTableView().getItems().get(getIndex());
@@ -133,7 +173,8 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
             TableRow<Employee> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (event.getClickCount() == 2 && !row.isEmpty()) {
-                    showEditDialog(row.getItem());
+                    loadForm(row.getItem());
+                    switchToForm();
                 }
             });
             return row;
@@ -142,59 +183,176 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         SortedList<Employee> sortedList = new SortedList<>(filteredList);
         sortedList.comparatorProperty().bind(table.comparatorProperty());
         table.setItems(sortedList);
-
-        VBox.setVgrow(table, Priority.ALWAYS);
-        getChildren().add(table);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
 
-    private void showAddDialog() {
-        Dialog<Employee> dialog = new Dialog<>();
-        dialog.setTitle("Add New Employee");
-        dialog.setHeaderText("Enter employee details");
+    private void buildFormTab() {
+        empNoField.setPromptText("EMP001");
+        firstNameField.setPromptText("First Name");
+        lastNameField.setPromptText("Last Name");
+        nationalIdField.setPromptText("National ID");
+        deptField.setPromptText("Department");
+        posField.setPromptText("Position");
+        bankNameField.setPromptText("Bank Name");
+        bankBranchField.setPromptText("Branch");
+        bankAccField.setPromptText("Account Number");
+        kraField.setPromptText("KRA PIN");
+        nssfField.setPromptText("NSSF Number");
+        shifField.setPromptText("SHIF Number");
+        phoneField.setPromptText("Phone");
 
-        ButtonType saveType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveType, ButtonType.CANCEL);
+        Button saveBtn = new Button("Save Employee");
+        saveBtn.getStyleClass().add("btn-primary");
+        saveBtn.setOnAction(e -> save());
 
-        Employee emp = new Employee();
+        Button clearBtn = new Button("Clear");
+        clearBtn.getStyleClass().add("btn-secondary");
+        clearBtn.setOnAction(e -> clearForm());
 
-        GridPane grid = createFormGrid(emp);
+        HBox actions = new HBox(10, saveBtn, clearBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+        actions.setPadding(new Insets(12, 0, 0, 0));
 
-        dialog.getDialogPane().setContent(grid);
-        dialog.setResultConverter(btn -> {
-            if (btn == saveType) {
-                return emp;
-            }
-            return null;
-        });
+        GridPane grid = new GridPane();
+        grid.setHgap(20);
+        grid.setVgap(4);
+        ColumnConstraints cc = new ColumnConstraints();
+        cc.setFillWidth(true);
+        cc.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(cc, cc);
 
-        dialog.showAndWait().ifPresent(result -> {
-            if (result.getEmployeeNumber() != null && !result.getEmployeeNumber().isBlank()) {
-                service.createEmployee(result);
-                refresh();
-            }
-        });
+        grid.add(labeled("Employee Number", empNoField), 0, 0);
+        grid.add(labeled("First Name", firstNameField), 1, 0);
+        grid.add(labeled("Last Name", lastNameField), 0, 1);
+        grid.add(labeled("National ID", nationalIdField), 1, 1);
+        grid.add(labeled("Department", deptField), 0, 2);
+        grid.add(labeled("Position", posField), 1, 2);
+        grid.add(labeled("Employment Date", empDate), 0, 3);
+        grid.add(new Label(""), 1, 3);
+        grid.add(new Separator(), 0, 4, 2, 1);
+        grid.add(labeled("Bank Name", bankNameField), 0, 5);
+        grid.add(labeled("Bank Branch", bankBranchField), 1, 5);
+        grid.add(labeled("Account Number", bankAccField), 0, 6);
+        grid.add(new Label(""), 1, 6);
+        grid.add(new Separator(), 0, 7, 2, 1);
+        grid.add(labeled("KRA PIN", kraField), 0, 8);
+        grid.add(labeled("NSSF Number", nssfField), 1, 8);
+        grid.add(labeled("SHIF Number", shifField), 0, 9);
+        grid.add(labeled("Phone", phoneField), 1, 9);
+
+        VBox card = new VBox(14, grid, actions);
+        card.getStyleClass().add("card");
+        card.setMaxWidth(760);
+
+        ScrollPane formScroll = new ScrollPane(card);
+        formScroll.setFitToWidth(true);
+        formScroll.setFitToHeight(true);
+        formScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        formScroll.getStyleClass().add("content-scroll");
+
+        formTab.setContent(formScroll);
     }
 
-    private void showEditDialog(Employee emp) {
-        Dialog<Employee> dialog = new Dialog<>();
-        dialog.setTitle("Edit Employee — " + emp.getFullName());
-        dialog.setHeaderText("Update employee details");
+    private VBox labeled(String label, javafx.scene.Node field) {
+        Label lbl = new Label(label);
+        if (field instanceof Region r) r.setMaxWidth(Double.MAX_VALUE);
+        VBox box = new VBox(4, lbl, field);
+        return box;
+    }
 
-        ButtonType saveType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveType, ButtonType.CANCEL);
+    private void clearForm() {
+        editing = null;
+        empNoField.clear();
+        firstNameField.clear();
+        lastNameField.clear();
+        nationalIdField.clear();
+        deptField.clear();
+        posField.clear();
+        empDate.setValue(null);
+        bankNameField.clear();
+        bankBranchField.clear();
+        bankAccField.clear();
+        kraField.clear();
+        nssfField.clear();
+        shifField.clear();
+        phoneField.clear();
+        empNoField.setDisable(false);
+        formTab.setText("Add Employee");
+    }
 
-        GridPane grid = createFormGrid(emp);
+    private void loadForm(Employee emp) {
+        editing = emp;
+        empNoField.setText(emp.getEmployeeNumber());
+        empNoField.setDisable(true);
+        firstNameField.setText(emp.getFirstName());
+        lastNameField.setText(emp.getLastName());
+        nationalIdField.setText(emp.getNationalId());
+        deptField.setText(emp.getDepartment());
+        posField.setText(emp.getPosition());
+        empDate.setValue(emp.getEmploymentDate());
+        bankNameField.setText(emp.getBankName());
+        bankBranchField.setText(emp.getBankBranch());
+        bankAccField.setText(emp.getBankAccountNumber());
+        kraField.setText(emp.getKraPin());
+        nssfField.setText(emp.getNssfNumber());
+        shifField.setText(emp.getShifNumber());
+        phoneField.setText(emp.getPhone());
+        formTab.setText("Edit Employee");
+    }
 
-        dialog.getDialogPane().setContent(grid);
-        dialog.setResultConverter(btn -> {
-            if (btn == saveType) return emp;
-            return null;
-        });
+    private void save() {
+        String empNo = empNoField.getText().trim();
+        String firstName = firstNameField.getText().trim();
+        String lastName = lastNameField.getText().trim();
 
-        dialog.showAndWait().ifPresent(result -> {
-            service.updateEmployee(result);
-            refresh();
-        });
+        if (empNo.isEmpty() || firstName.isEmpty() || lastName.isEmpty()) {
+            AlertUtil.warn("Missing fields", "Employee number, first name, and last name are required.");
+            return;
+        }
+
+        if (editing == null) {
+            Employee emp = new Employee();
+            emp.setEmployeeNumber(empNo);
+            emp.setFirstName(firstName);
+            emp.setLastName(lastName);
+            emp.setNationalId(nationalIdField.getText().trim());
+            emp.setDepartment(deptField.getText().trim());
+            emp.setPosition(posField.getText().trim());
+            emp.setEmploymentDate(empDate.getValue());
+            emp.setBankName(bankNameField.getText().trim());
+            emp.setBankBranch(bankBranchField.getText().trim());
+            emp.setBankAccountNumber(bankAccField.getText().trim());
+            emp.setKraPin(kraField.getText().trim());
+            emp.setNssfNumber(nssfField.getText().trim());
+            emp.setShifNumber(shifField.getText().trim());
+            emp.setPhone(phoneField.getText().trim());
+            if (service.findByEmployeeNumber(empNo).isPresent()) {
+                AlertUtil.warn("Duplicate", "An employee with number " + empNo + " already exists.");
+                return;
+            }
+            service.createEmployee(emp);
+            AlertUtil.info("Saved", "Employee " + empNo + " added.");
+        } else {
+            editing.setEmployeeNumber(empNo);
+            editing.setFirstName(firstName);
+            editing.setLastName(lastName);
+            editing.setNationalId(nationalIdField.getText().trim());
+            editing.setDepartment(deptField.getText().trim());
+            editing.setPosition(posField.getText().trim());
+            editing.setEmploymentDate(empDate.getValue());
+            editing.setBankName(bankNameField.getText().trim());
+            editing.setBankBranch(bankBranchField.getText().trim());
+            editing.setBankAccountNumber(bankAccField.getText().trim());
+            editing.setKraPin(kraField.getText().trim());
+            editing.setNssfNumber(nssfField.getText().trim());
+            editing.setShifNumber(shifField.getText().trim());
+            editing.setPhone(phoneField.getText().trim());
+            service.updateEmployee(editing);
+            AlertUtil.info("Saved", "Employee details updated.");
+        }
+        table.refresh();
+        clearForm();
+        switchToList();
     }
 
     private void showSalaryDialog(Employee emp) {
@@ -282,89 +440,12 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         });
     }
 
-    private GridPane createFormGrid(Employee emp) {
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(8);
-        grid.setPadding(new Insets(16));
+    private void switchToList() {
+        tabPane.getSelectionModel().select(listTab);
+    }
 
-        TextField empNoField = new TextField(emp.getEmployeeNumber());
-        empNoField.setPromptText("EMP001");
-        TextField firstNameField = new TextField(emp.getFirstName());
-        firstNameField.setPromptText("First Name");
-        TextField lastNameField = new TextField(emp.getLastName());
-        lastNameField.setPromptText("Last Name");
-        TextField nationalIdField = new TextField(emp.getNationalId());
-        nationalIdField.setPromptText("National ID");
-        TextField deptField = new TextField(emp.getDepartment());
-        deptField.setPromptText("Department");
-        TextField posField = new TextField(emp.getPosition());
-        posField.setPromptText("Position");
-        DatePicker empDate = new DatePicker(emp.getEmploymentDate());
-        TextField bankNameField = new TextField(emp.getBankName());
-        bankNameField.setPromptText("Bank Name");
-        TextField bankBranchField = new TextField(emp.getBankBranch());
-        bankBranchField.setPromptText("Branch");
-        TextField bankAccField = new TextField(emp.getBankAccountNumber());
-        bankAccField.setPromptText("Account Number");
-        TextField kraField = new TextField(emp.getKraPin());
-        kraField.setPromptText("KRA PIN");
-        TextField nssfField = new TextField(emp.getNssfNumber());
-        nssfField.setPromptText("NSSF Number");
-        TextField shifField = new TextField(emp.getShifNumber());
-        shifField.setPromptText("SHIF Number");
-        TextField phoneField = new TextField(emp.getPhone());
-        phoneField.setPromptText("Phone");
-
-        int row = 0;
-        grid.add(new Label("Employee Number:"), 0, row);
-        grid.add(empNoField, 1, row++);
-        grid.add(new Label("First Name:"), 0, row);
-        grid.add(firstNameField, 1, row++);
-        grid.add(new Label("Last Name:"), 0, row);
-        grid.add(lastNameField, 1, row++);
-        grid.add(new Label("National ID:"), 0, row);
-        grid.add(nationalIdField, 1, row++);
-        grid.add(new Label("Department:"), 0, row);
-        grid.add(deptField, 1, row++);
-        grid.add(new Label("Position:"), 0, row);
-        grid.add(posField, 1, row++);
-        grid.add(new Label("Employment Date:"), 0, row);
-        grid.add(empDate, 1, row++);
-        grid.add(new Separator(), 0, row++, 2, 1);
-        grid.add(new Label("Bank Name:"), 0, row);
-        grid.add(bankNameField, 1, row++);
-        grid.add(new Label("Bank Branch:"), 0, row);
-        grid.add(bankBranchField, 1, row++);
-        grid.add(new Label("Account Number:"), 0, row);
-        grid.add(bankAccField, 1, row++);
-        grid.add(new Separator(), 0, row++, 2, 1);
-        grid.add(new Label("KRA PIN:"), 0, row);
-        grid.add(kraField, 1, row++);
-        grid.add(new Label("NSSF Number:"), 0, row);
-        grid.add(nssfField, 1, row++);
-        grid.add(new Label("SHIF Number:"), 0, row);
-        grid.add(shifField, 1, row++);
-        grid.add(new Label("Phone:"), 0, row);
-        grid.add(phoneField, 1, row++);
-
-        // Bind back to model on save
-        emp.setEmployeeNumber(empNoField.getText());
-        emp.setFirstName(firstNameField.getText());
-        emp.setLastName(lastNameField.getText());
-        emp.setNationalId(nationalIdField.getText());
-        emp.setDepartment(deptField.getText());
-        emp.setPosition(posField.getText());
-        emp.setEmploymentDate(empDate.getValue());
-        emp.setBankName(bankNameField.getText());
-        emp.setBankBranch(bankBranchField.getText());
-        emp.setBankAccountNumber(bankAccField.getText());
-        emp.setKraPin(kraField.getText());
-        emp.setNssfNumber(nssfField.getText());
-        emp.setShifNumber(shifField.getText());
-        emp.setPhone(phoneField.getText());
-
-        return grid;
+    private void switchToForm() {
+        tabPane.getSelectionModel().select(formTab);
     }
 
     private double parseVal(String text) {
