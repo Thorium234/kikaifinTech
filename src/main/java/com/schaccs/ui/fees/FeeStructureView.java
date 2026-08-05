@@ -1,15 +1,19 @@
 package com.schaccs.ui.fees;
 
+import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.repository.PersistenceService;
+import com.schaccs.service.export.FeeStructureExportService;
+import com.schaccs.service.export.PdfExportService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -19,15 +23,26 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.cell.ComboBoxTableCell;
+import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.util.StringConverter;
+
+import java.math.BigDecimal;
+import java.nio.file.Path;
+import java.util.List;
 
 public class FeeStructureView extends VBox implements MainLayout.Refreshable {
 
     private final FeeStructureStore store = FeeStructureStore.getInstance();
+    private final FeeStructureExportService exportService = new FeeStructureExportService();
+    private final PdfExportService pdfService = new PdfExportService();
     private final ComboBox<FeeStructure> structureBox = new ComboBox<>();
     private final ComboBox<AcademicTerm> termBox = new ComboBox<>();
+    private final ComboBox<AcademicTerm> pdfTermBox = new ComboBox<>();
     private final TableView<FeeStructureItem> itemTable = new TableView<>();
     private final TableView<Votehead> voteheadTable = new TableView<>();
     private final Label totalLabel = new Label();
@@ -96,11 +111,98 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         delStruct.getStyleClass().add("secondary-button");
         delStruct.setOnAction(e -> deleteStructure());
 
-        HBox bar = new HBox(10, newStruct, delStruct);
+        Button importBtn = new Button("Import from File");
+        importBtn.getStyleClass().add("secondary-button");
+        importBtn.setOnAction(e -> importFromFile());
+
+        Button templatesBtn = new Button("Templates");
+        templatesBtn.getStyleClass().add("secondary-button");
+        templatesBtn.setOnAction(e -> {
+            new FeeStructureTemplateDialog(store, getScene().getWindow(), structureBox.getValue()).showAndWait();
+            refresh();
+        });
+
+        Button excelBtn = new Button("Export Excel");
+        excelBtn.getStyleClass().add("secondary-button");
+        excelBtn.setOnAction(e -> exportExcel());
+
+        pdfTermBox.getItems().addAll(AcademicTerm.TERM_1, AcademicTerm.TERM_2, AcademicTerm.TERM_3);
+        pdfTermBox.setPromptText("PDF (All terms)");
+
+        Button pdfBtn = new Button("Export PDF");
+        pdfBtn.getStyleClass().add("secondary-button");
+        pdfBtn.setOnAction(e -> exportPdf());
+
+        HBox bar = new HBox(10, newStruct, delStruct, importBtn, templatesBtn, excelBtn, pdfTermBox, pdfBtn);
         bar.setAlignment(Pos.CENTER_LEFT);
+        bar.setSpacing(10);
         VBox box = new VBox(8, new Label("Structures"), bar);
         box.getStyleClass().add("card");
         return box;
+    }
+
+    private void importFromFile() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Import Fee Structure");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Spreadsheets", "*.csv", "*.xlsx"));
+        java.io.File file = chooser.showOpenDialog(getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        new FeeStructureImportDialog(store, getScene().getWindow(), file.toPath()).showAndWait();
+        refresh();
+    }
+
+    private void exportExcel() {
+        FeeStructure s = structureBox.getValue();
+        if (s == null) {
+            AlertUtil.warn("Select structure", "Select a structure to export.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export Fee Structure");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Excel Workbook", "*.xlsx"),
+                new FileChooser.ExtensionFilter("CSV", "*.csv"));
+        chooser.setInitialFileName(safeName(s.getName()) + ".xlsx");
+        java.io.File file = chooser.showSaveDialog(getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        try {
+            exportService.exportStructures(file.toPath(), List.of(s));
+            AlertUtil.info("Export complete", "Exported to " + file.getAbsolutePath());
+        } catch (Exception ex) {
+            AlertUtil.warn("Export failed", ex.getMessage());
+        }
+    }
+
+    private void exportPdf() {
+        FeeStructure s = structureBox.getValue();
+        if (s == null) {
+            AlertUtil.warn("Select structure", "Select a structure to export.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export Fee Structure as PDF");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
+        chooser.setInitialFileName(safeName(s.getName()) + ".pdf");
+        java.io.File file = chooser.showSaveDialog(getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        try {
+            pdfService.exportFeeStructurePdf(file.toPath(), s, pdfTermBox.getValue());
+            AlertUtil.info("Export complete", "Exported to " + file.getAbsolutePath());
+        } catch (Exception ex) {
+            AlertUtil.warn("Export failed", ex.getMessage());
+        }
+    }
+
+    private String safeName(String name) {
+        if (name == null) return "fee-structure";
+        return name.replaceAll("[^a-zA-Z0-9-_ ]", "").trim().replace(' ', '_');
     }
 
     private HBox buildItemToolbar() {
@@ -214,27 +316,79 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
     }
 
     private void setupItemTable() {
-        TableColumn<FeeStructureItem, String> term = new TableColumn<>("Term");
-        term.setCellValueFactory(c -> new SimpleStringProperty(
-                c.getValue().getTerm() != null ? c.getValue().getTerm().getDisplayName() : ""));
+        TableColumn<FeeStructureItem, AcademicTerm> term = new TableColumn<>("Term");
+        term.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue().getTerm()));
+        StringConverter<AcademicTerm> termConverter = new StringConverter<>() {
+            @Override
+            public String toString(AcademicTerm t) {
+                return t != null ? t.getDisplayName() : "";
+            }
+
+            @Override
+            public AcademicTerm fromString(String s) {
+                return null;
+            }
+        };
+        term.setCellFactory(ComboBoxTableCell.forTableColumn(termConverter, AcademicTerm.values()));
+        term.setOnEditCommit(e -> {
+            e.getRowValue().setTerm(e.getNewValue());
+            persist();
+        });
         term.setPrefWidth(90);
 
         TableColumn<FeeStructureItem, String> code = new TableColumn<>("Code");
         code.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getVoteheadCode()));
+        code.setCellFactory(TextFieldTableCell.forTableColumn());
+        code.setOnEditCommit(e -> {
+            e.getRowValue().setVoteheadCode(e.getNewValue());
+            persist();
+        });
         code.setPrefWidth(90);
 
         TableColumn<FeeStructureItem, String> name = new TableColumn<>("Vote Head");
         name.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getVoteheadName()));
+        name.setCellFactory(TextFieldTableCell.forTableColumn());
+        name.setOnEditCommit(e -> {
+            e.getRowValue().setVoteheadName(e.getNewValue());
+            persist();
+        });
         name.setPrefWidth(180);
 
-        TableColumn<FeeStructureItem, String> amount = new TableColumn<>("Amount");
-        amount.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAmount())));
+        StringConverter<BigDecimal> amountConverter = new StringConverter<>() {
+            @Override
+            public String toString(BigDecimal value) {
+                return value != null ? CurrencyUtil.formatPlain(value) : "";
+            }
+
+            @Override
+            public BigDecimal fromString(String s) {
+                if (s == null || s.trim().isBlank()) {
+                    return null;
+                }
+                return CurrencyConfig.money(s.trim());
+            }
+        };
+        TableColumn<FeeStructureItem, BigDecimal> amount = new TableColumn<>("Amount");
+        amount.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue().getAmount()));
+        amount.setCellFactory(TextFieldTableCell.forTableColumn(amountConverter));
+        amount.setOnEditCommit(e -> {
+            if (e.getNewValue() != null && e.getNewValue().compareTo(BigDecimal.ZERO) > 0) {
+                e.getRowValue().setAmount(e.getNewValue());
+                persist();
+            } else {
+                loadItems();
+            }
+        });
         amount.setPrefWidth(120);
 
-        @SuppressWarnings("unchecked")
-        TableColumn<FeeStructureItem, String>[] columns1 = new TableColumn[]{term, code, name, amount};
-        itemTable.getColumns().addAll(columns1);
+        itemTable.getColumns().addAll(term, code, name, amount);
+        itemTable.setEditable(true);
         itemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+    }
+
+    private void persist() {
+        PersistenceService.getInstance().saveAll();
+        loadItems();
     }
 
     private void setupVoteheadTable() {

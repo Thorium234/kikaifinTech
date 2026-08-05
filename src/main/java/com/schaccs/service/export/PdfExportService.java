@@ -7,6 +7,7 @@ import com.schaccs.service.export.PdfStampWatermarkOverlay;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
+import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.report.IncomeExpenditureRow;
@@ -34,7 +35,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 public class PdfExportService {
 
@@ -271,6 +274,140 @@ public class PdfExportService {
                                 ? stampLedger.getCurrentTerm().getDisplayName() : null);
                 PdfStampWatermarkOverlay.drawReceiptStamp(document, page, content,
                         receipt.getReceiptNumberDisplay(), receipt.getStudentName());
+            }
+            document.save(path.toFile());
+        }
+    }
+
+    /**
+     * Rich fee-structure PDF: school header, structure info, a vote-head x term
+     * grid with totals, and the school's payment details at the bottom.
+     *
+     * @param onlyTerm when non-null, only that term's rows are rendered;
+     *                 otherwise all terms are shown side by side.
+     */
+    public void exportFeeStructurePdf(Path path, FeeStructure structure, AcademicTerm onlyTerm) throws IOException {
+        try (PDDocument document = new PDDocument()) {
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            PDRectangle box = page.getMediaBox();
+            float width = box.getWidth() - (2 * MARGIN);
+
+            PDPageContentStream content = new PDPageContentStream(document, page);
+            try {
+                SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
+                float y = box.getHeight() - MARGIN;
+
+                y = drawSchoolHeader(document, content, school, box, y);
+                y = drawReceiptBanner(content, box, y, "FEE STRUCTURE");
+                y -= 8f;
+
+                String mode = onlyTerm != null ? onlyTerm.getDisplayName().toUpperCase() : "COMBINED";
+                drawInfoRowY(content, bold, regular, "Academic Year", String.valueOf(structure.getAcademicYear()),
+                        "Structure", safe(structure.getName()), width, y - 16);
+                drawInfoRowY(content, bold, regular, "Class", safe(structure.getFormClass()),
+                        "Boarding", structure.getBoardingStatus() != null ? structure.getBoardingStatus().getDisplayName() : "", width, y - 34);
+                drawInfoRowY(content, bold, regular, "Mode", mode,
+                        "Vote Heads", String.valueOf(structure.getItems().size()), width, y - 52);
+                y -= 64f;
+
+                List<FeeStructureItem> items = new ArrayList<>(structure.getItems());
+                if (onlyTerm != null) {
+                    AcademicTerm filterTerm = onlyTerm;
+                    items.removeIf(i -> i.getTerm() != filterTerm);
+                }
+                if (items.isEmpty()) {
+                    items = new ArrayList<>(structure.getItems());
+                    onlyTerm = null;
+                }
+
+                // Group amounts by vote-head code, keyed by term
+                java.util.LinkedHashMap<String, Map<AcademicTerm, BigDecimal>> grouped = new java.util.LinkedHashMap<>();
+                java.util.LinkedHashMap<String, String> names = new java.util.LinkedHashMap<>();
+                List<AcademicTerm> terms = new ArrayList<>();
+                for (FeeStructureItem item : items) {
+                    String code = safe(item.getVoteheadCode());
+                    grouped.computeIfAbsent(code, k -> new java.util.HashMap<>()).put(item.getTerm(), item.getAmount());
+                    names.putIfAbsent(code, safe(item.getVoteheadName()));
+                    if (item.getTerm() != null && !terms.contains(item.getTerm())) {
+                        terms.add(item.getTerm());
+                    }
+                }
+                terms.sort(Comparator.naturalOrder());
+
+                int columns = 2 + terms.size() + 1;
+                float[] colWidths = new float[columns];
+                colWidths[0] = width * 0.13f;
+                float each = (width - colWidths[0]) / (terms.size() + 2);
+                for (int i = 1; i < columns; i++) {
+                    colWidths[i] = each;
+                }
+
+                List<String> headers = new ArrayList<>();
+                headers.add("Code");
+                headers.add("Vote Head");
+                for (AcademicTerm term : terms) {
+                    headers.add(term.getDisplayName());
+                }
+                headers.add("Total");
+
+                y = drawHeader(content, bold, headers, colWidths, y);
+
+                BigDecimal grandTotal = ZERO;
+                Map<AcademicTerm, BigDecimal> termTotals = new java.util.HashMap<>();
+                for (AcademicTerm term : terms) {
+                    termTotals.put(term, ZERO);
+                }
+                for (Map.Entry<String, Map<AcademicTerm, BigDecimal>> entry : grouped.entrySet()) {
+                    BigDecimal rowTotal = ZERO;
+                    List<String> row = new ArrayList<>();
+                    row.add(entry.getKey());
+                    row.add(names.get(entry.getKey()));
+                    for (AcademicTerm term : terms) {
+                        BigDecimal amount = entry.getValue().get(term);
+                        BigDecimal value = amount == null ? ZERO : amount.setScale(2, RoundingMode.HALF_UP);
+                        row.add(value.compareTo(ZERO) == 0 ? "—" : CurrencyUtil.formatPlain(value));
+                        rowTotal = rowTotal.add(value).setScale(2, RoundingMode.HALF_UP);
+                        termTotals.put(term, termTotals.get(term).add(value).setScale(2, RoundingMode.HALF_UP));
+                    }
+                    row.add(CurrencyUtil.formatPlain(rowTotal));
+                    grandTotal = grandTotal.add(rowTotal).setScale(2, RoundingMode.HALF_UP);
+                    if (y - ROW_HEIGHT < MARGIN + 120) {
+                        content.close();
+                        page = new PDPage(PDRectangle.A4);
+                        document.addPage(page);
+                        box = page.getMediaBox();
+                        width = box.getWidth() - (2 * MARGIN);
+                        content = new PDPageContentStream(document, page);
+                        y = box.getHeight() - MARGIN;
+                        y = drawSchoolHeader(document, content, school, box, y);
+                        y = drawHeader(content, bold, headers, colWidths, y);
+                    }
+                    y = drawRow(content, regular, row, colWidths, y);
+                }
+
+                List<String> totalRow = new ArrayList<>();
+                totalRow.add("");
+                totalRow.add("TOTAL");
+                for (AcademicTerm term : terms) {
+                    totalRow.add(CurrencyUtil.formatPlain(termTotals.get(term)));
+                }
+                totalRow.add(CurrencyUtil.formatPlain(grandTotal));
+                content.setNonStrokingColor(TOTAL_FILL);
+                content.addRect(MARGIN, y - ROW_HEIGHT, width, ROW_HEIGHT);
+                content.fill();
+                y = drawRow(content, bold, totalRow, colWidths, y);
+                y -= 16f;
+
+                drawParagraph(content, bold, regular, "Payment Details", bankDetails(school), y, width);
+                y -= 26f;
+                drawParagraph(content, bold, regular, "Total Fee in Words", CurrencyUtil.toWords(grandTotal), y, width);
+                y -= 26f;
+                drawParagraph(content, bold, regular, "Prepared by", safe(school.getPrincipal()) + " — " + safe(school.getSchoolName()), y, width);
+            } finally {
+                content.close();
             }
             document.save(path.toFile());
         }
