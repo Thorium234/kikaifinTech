@@ -135,9 +135,9 @@ public class PdfExportService {
                 drawInfoRowY(content, bold, regular, "Student", safe(receipt.getStudentName()),
                         "Adm No", safe(receipt.getAdmissionNumber()), width, y - 52);
                 String guardianName = student != null ? safe(student.getParentName()) : "";
-                String guardianPhone = student != null ? safe(student.getGuardianPhone()) : "";
+                String phone = student != null ? safe(student.getPhone()) : "";
                 drawInfoRowY(content, bold, regular, "Guardian", guardianName,
-                        "Guardian Phone", guardianPhone, width, y - 70);
+                        "Phone", phone, width, y - 70);
                 drawInfoRowY(content, bold, regular, "Class", safe(receipt.getClassLabel()),
                         "Mode", receipt.getPaymentMode() != null ? receipt.getPaymentMode().getDisplayName() : "", width, y - 88);
                 y -= infoBoxH + 12f;
@@ -576,12 +576,8 @@ public class PdfExportService {
                     y = drawSchoolHeader(document, content, school, box, y);
 
                     String parentName = "";
-                    String guardianPhone = "";
                     Student student = studentStore.findByAdmissionNumber(def.getAdmissionNumber()).orElse(null);
-                    if (student != null) {
-                        if (student.getParentName() != null) parentName = student.getParentName();
-                        if (student.getGuardianPhone() != null) guardianPhone = student.getGuardianPhone();
-                    }
+                    if (student != null && student.getParentName() != null) parentName = student.getParentName();
                     String salutation = parentName.isBlank() ? "Dear Parent/Guardian" : "Dear " + parentName;
                     y = drawCentered(content, bold, "FEE REMINDER", 13f, page.getMediaBox().getWidth() / 2, y, Color.RED);
                     y -= 20f;
@@ -640,14 +636,6 @@ public class PdfExportService {
                     content.fill();
                     y = drawRow(content, bold, List.of("BALANCE DUE", CurrencyUtil.formatPlain(def.getBalance()), "URGENT"), colWidths, y);
 
-                    if (!guardianPhone.isBlank()) {
-                        content.beginText();
-                        content.setFont(regular, 10f);
-                        content.newLineAtOffset(MARGIN, y);
-                        content.showText("Guardian Phone: " + sanitize(guardianPhone));
-                        content.endText();
-                        y -= 16f;
-                    }
                     y -= 20f;
                     content.beginText();
                     content.setFont(regular, 10f);

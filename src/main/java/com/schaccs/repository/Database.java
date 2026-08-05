@@ -12,6 +12,7 @@ import com.schaccs.repository.migration.MigrationV12AddReceiptHash;
 import com.schaccs.repository.migration.MigrationV13AddAuditTrail;
 import com.schaccs.repository.migration.MigrationV17FeeTemplates;
 import com.schaccs.repository.migration.MigrationV18BackfillReceiptHashes;
+import com.schaccs.repository.migration.MigrationV19DropStudentFields;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -209,7 +210,8 @@ public final class Database {
                 new com.schaccs.repository.migration.MigrationV15ReceiptLineOutstandingBefore(),
                 new com.schaccs.repository.migration.MigrationV16ProcurementModule(),
                 new MigrationV17FeeTemplates(),
-                new MigrationV18BackfillReceiptHashes()
+                new MigrationV18BackfillReceiptHashes(),
+                new MigrationV19DropStudentFields()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -306,16 +308,12 @@ public final class Database {
                     CREATE TABLE IF NOT EXISTS students (
                         id TEXT PRIMARY KEY,
                         admission_number TEXT UNIQUE,
-                        upi TEXT,
                         name TEXT,
                         gender TEXT,
                         form_class TEXT,
                         stream TEXT,
                         boarding_status TEXT,
                         parent_name TEXT,
-                        guardian_phone TEXT,
-                        guardian_id TEXT,
-                        guardian_key TEXT,
                         phone TEXT,
                         avatar_path TEXT,
                         year_of_admission INTEGER,

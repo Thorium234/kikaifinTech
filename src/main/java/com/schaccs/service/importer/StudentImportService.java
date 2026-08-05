@@ -161,11 +161,7 @@ public class StudentImportService {
             student.setFormClass(value(row, "formclass", "form", "class"));
             student.setStream(value(row, "stream", "section"));
             student.setParentName(value(row, "parentname", "parent", "guardian", "guardianname"));
-            student.setGuardianPhone(value(row, "guardianphone", "guardian_phone", "parentphone"));
-            student.setGuardianId(value(row, "guardianid", "guardian_id", "guardiannationalid", "parentid"));
-            student.setGuardianKey(value(row, "guardiankey", "familykey", "siblingkey"));
             student.setPhone(value(row, "phone", "phonenumber", "contact"));
-            student.setUpi(value(row, "upi"));
             student.setBoardingStatus(parseBoardingStatus(value(row, "boardingstatus", "boarding", "status")));
             student.setStatus(parseStudentStatus(value(row, "studentstatus", "active", "recordstatus")));
             Integer academicYear = parseInteger(value(row, "academicyear", "year"));

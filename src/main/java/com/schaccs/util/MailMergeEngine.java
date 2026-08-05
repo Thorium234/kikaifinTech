@@ -24,7 +24,6 @@ public final class MailMergeEngine {
     public static Map<String, String> resolveFields(Student student, StudentBalance balance) {
         Map<String, String> fields = new HashMap<>();
         String guardianName = student != null && student.getParentName() != null ? student.getParentName() : "Parent/Guardian";
-        String guardianPhone = student != null && student.getGuardianPhone() != null ? student.getGuardianPhone() : "";
         String phone = student != null && student.getPhone() != null ? student.getPhone() : "";
         String form = student != null && student.getFormClass() != null ? student.getFormClass() : "";
         String stream = student != null && student.getStream() != null ? student.getStream() : "";
@@ -47,7 +46,6 @@ public final class MailMergeEngine {
         BigDecimal totalDue = balance.getBalance();
 
         fields.put("Guardian_Name", guardianName);
-        fields.put("Guardian_Phone", guardianPhone);
         fields.put("Student_Phone", phone);
         fields.put("Student_Name", studentName);
         fields.put("Adm_No", admission);

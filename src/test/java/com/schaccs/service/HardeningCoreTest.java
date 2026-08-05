@@ -58,13 +58,11 @@ class HardeningCoreTest {
         student.setFormClass("Form 1");
         student.setBoardingStatus(BoardingStatus.BOARDING);
         student.setPhone("99999");
-        student.setUpi("bad!");
 
         List<String> errors = new StudentValidator().validate(student, true);
 
         assertTrue(errors.stream().anyMatch(e -> e.contains("Admission number is required")));
         assertTrue(errors.stream().anyMatch(e -> e.contains("Phone number must be Kenyan format")));
-        assertTrue(errors.stream().anyMatch(e -> e.contains("UPI must be 8-20 alphanumeric characters")));
     }
 
     @Test
@@ -91,7 +89,6 @@ class HardeningCoreTest {
         badRow.put("fullname", "Bad Student");
         badRow.put("formclass", "Form 1");
         badRow.put("phone", "123");
-        badRow.put("upi", "**bad**");
 
         StudentImportService.ImportResult result = service.importRows(List.of(badRow), false);
 

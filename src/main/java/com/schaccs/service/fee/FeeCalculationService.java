@@ -45,7 +45,7 @@ public class FeeCalculationService {
      * Idempotent: does nothing if the ledger already has charges (e.g. on re-edit),
      * to avoid double-charging the same voteheads.
      * Applies a sibling discount when enabled and this student is not the first
-     * child sharing the same guardian key.
+     * child sharing the same parent/guardian name.
      */
     public void chargeAnnualFees(Student student) {
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
@@ -64,12 +64,14 @@ public class FeeCalculationService {
     /** Returns the multiplier applied to fees (1.0 normally, <1.0 for discounted siblings). */
     private BigDecimal siblingDiscountFactor(Student student) {
         SchoolProfile profile = AppConfig.getInstance().getSchoolProfile();
-        if (!profile.isSiblingDiscountEnabled() || student.getGuardianKey() == null
-                || student.getGuardianKey().trim().isEmpty()) {
+        String parentName = student.getParentName();
+        if (!profile.isSiblingDiscountEnabled() || parentName == null
+                || parentName.trim().isEmpty()) {
             return CurrencyConfig.money("1.00");
         }
+        String key = parentName.trim().toLowerCase();
         boolean isFirstSibling = studentStore.getStudents().stream()
-                .filter(s -> student.getGuardianKey().equalsIgnoreCase(s.getGuardianKey()))
+                .filter(s -> s.getParentName() != null && key.equals(s.getParentName().trim().toLowerCase()))
                 .findFirst()
                 .map(first -> first.getId().equals(student.getId()))
                 .orElse(true);

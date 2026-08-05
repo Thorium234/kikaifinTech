@@ -64,10 +64,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final ComboBox<BoardingStatus> boardingBox = new ComboBox<>();
     private final TextField phoneField = new TextField();
     private final TextField parentNameField = new TextField();
-    private final TextField guardianPhoneField = new TextField();
-    private final TextField guardianIdField = new TextField();
-    private final TextField upiField = new TextField();
-    private final TextField guardianKeyField = new TextField();
     private final Label feeStructureLabel = new Label();
 
     private Student editing;
@@ -138,10 +134,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         nameField.setPromptText("Full name");
         phoneField.setPromptText("Phone (e.g. 0712345678)");
         parentNameField.setPromptText("Parent / Guardian name");
-        guardianPhoneField.setPromptText("Guardian phone (e.g. 0712345678)");
-        guardianIdField.setPromptText("Guardian National ID");
-        upiField.setPromptText("UPI (8-20 alphanumeric)");
-        guardianKeyField.setPromptText("Family key for sibling discount (optional)");
 
         Button saveBtn = new Button("Save Student");
         saveBtn.getStyleClass().add("success-button");
@@ -171,13 +163,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         grid.add(labeled("Gender", genderBox), 0, 4);
         grid.add(labeled("Boarding Status", boardingBox), 0, 5);
 
-        // Column 2 — Contact & Guardian
+        // Column 2 — Contact & Parent/Guardian
         grid.add(labeled("Phone", phoneField), 1, 0);
         grid.add(labeled("Parent / Guardian Name", parentNameField), 1, 1);
-        grid.add(labeled("Guardian Phone", guardianPhoneField), 1, 2);
-        grid.add(labeled("Guardian National ID", guardianIdField), 1, 3);
-        grid.add(labeled("UPI", upiField), 1, 4);
-        grid.add(labeled("Guardian Key", guardianKeyField), 1, 5);
 
         feeStructureLabel.getStyleClass().add("muted");
         boardingBox.setOnAction(e -> updateFeeStructureLabel());
@@ -249,17 +237,13 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         parentCol.setCellValueFactory(c -> c.getValue().parentNameProperty());
         parentCol.setPrefWidth(150);
 
-        TableColumn<Student, String> guardianPhoneCol = new TableColumn<>("Guardian Phone");
-        guardianPhoneCol.setCellValueFactory(c -> c.getValue().guardianPhoneProperty());
-        guardianPhoneCol.setPrefWidth(130);
-
         TableColumn<Student, String> st = new TableColumn<>("Status");
         st.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().getStatus() != null ? c.getValue().getStatus().getDisplayName() : ""));
         st.setPrefWidth(90);
 
         @SuppressWarnings("unchecked")
-        var columns1 = new TableColumn[]{adm, name, cls, board, phone, parentCol, guardianPhoneCol, st};
+        var columns1 = new TableColumn[]{adm, name, cls, board, phone, parentCol, st};
         table.getColumns().addAll(columns1);
 
         st.setCellFactory(col -> new TableCell<>() {
@@ -327,10 +311,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         boardingBox.setValue(BoardingStatus.BOARDING);
         phoneField.clear();
         parentNameField.clear();
-        guardianPhoneField.clear();
-        guardianIdField.clear();
-        upiField.clear();
-        guardianKeyField.clear();
         admField.setDisable(false);
         formTab.setText("Add Student");
         updateFeeStructureLabel();
@@ -347,10 +327,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         boardingBox.setValue(s.getBoardingStatus() != null ? s.getBoardingStatus() : BoardingStatus.BOARDING);
         phoneField.setText(s.getPhone());
         parentNameField.setText(s.getParentName());
-        guardianPhoneField.setText(s.getGuardianPhone());
-        guardianIdField.setText(s.getGuardianId());
-        upiField.setText(s.getUpi());
-        guardianKeyField.setText(s.getGuardianKey());
         formTab.setText("Edit Student");
         updateFeeStructureLabel();
     }
@@ -364,10 +340,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         BoardingStatus boarding = boardingBox.getValue();
         String phone = phoneField.getText().trim();
         String parentName = parentNameField.getText().trim();
-        String guardianPhone = guardianPhoneField.getText().trim();
-        String guardianId = guardianIdField.getText().trim();
-        String upi = upiField.getText().trim();
-        String guardianKey = guardianKeyField.getText().trim();
 
         if (adm.isEmpty() || name.isEmpty() || formClass == null || gender == null || boarding == null) {
             AlertUtil.warn("Missing fields", "Admission number, name, class, gender, and boarding status are required.");
@@ -380,10 +352,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             s.setStatus(StudentStatus.ACTIVE);
             s.setAcademicYear(com.schaccs.config.AppConfig.getInstance().getAcademicYear());
             s.setParentName(parentName);
-            s.setGuardianPhone(guardianPhone);
-            s.setGuardianId(guardianId);
-            s.setUpi(upi);
-            s.setGuardianKey(guardianKey);
             List<String> errors = studentService.addStudent(s);
             if (!errors.isEmpty()) {
                 AlertUtil.warn("Validation", String.join("\n", errors));
@@ -401,10 +369,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             editing.setBoardingStatus(boarding);
             editing.setPhone(phone);
             editing.setParentName(parentName);
-            editing.setGuardianPhone(guardianPhone);
-            editing.setGuardianId(guardianId);
-            editing.setUpi(upi);
-            editing.setGuardianKey(guardianKey);
             List<String> errors = studentService.updateStudent(editing);
             if (!errors.isEmpty()) {
                 AlertUtil.warn("Validation", String.join("\n", errors));
@@ -428,13 +392,13 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         try {
-            List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Stream", "Boarding Status", "Phone", "Parent/Guardian", "Guardian Phone", "Guardian ID", "Status");
+            List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Stream", "Boarding Status", "Phone", "Parent/Guardian", "Status");
             List<List<String>> rows = studentService.getAll().stream().map(s -> List.of(
                     safe(s.getAdmissionNumber()), safe(s.getName()), safe(s.getGender()),
                     safe(s.getFormClass()), safe(s.getStream()),
                     s.getBoardingStatus() != null ? s.getBoardingStatus().getDisplayName() : "",
                     safe(s.getPhone()),
-                    safe(s.getParentName()), safe(s.getGuardianPhone()), safe(s.getGuardianId()),
+                    safe(s.getParentName()),
                     s.getStatus() != null ? s.getStatus().getDisplayName() : "")).toList();
             exportService.export(file.toPath(), "Students", headers, rows);
             AlertUtil.info("Export complete", "Students exported to:\n" + file.getAbsolutePath());

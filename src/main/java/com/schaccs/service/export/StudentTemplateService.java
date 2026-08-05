@@ -25,18 +25,14 @@ public class StudentTemplateService {
                 "Stream",
                 "Boarding Status",
                 "Parent Name",
-                "Guardian Phone",
-                "Guardian ID",
-                "Guardian Key",
                 "Phone",
-                "UPI",
                 "Academic Year",
                 "Year Of Admission",
                 "Student Status"
         );
         List<List<String>> rows = List.of(
                 List.of("2026/001", "John Doe", "Male", "Form 1", "A", "Boarding",
-                        "Jane Doe", "0712345678", "ID123456", "FAM-001", "0712345678", "UPI001", "2026", "2026", "Active")
+                        "Jane Doe", "0712345678", "2026", "2026", "Active")
         );
         exportService.export(path, "Students Template", headers, rows);
     }

@@ -252,8 +252,6 @@ public final class DemoDataSeeder {
             s.setGender(row[2]);
             s.setAcademicYear(AppConfig.getInstance().getAcademicYear());
             s.setParentName(row[7]);
-            s.setGuardianPhone(row[8]);
-            s.setGuardianId(row[9]);
             students.add(s);
         }
 

@@ -495,9 +495,9 @@ class BugFixRegressionTest {
         FeeStructureStore.getInstance().addStructure(structure);
 
         Student first = createTestStudent("ADM-SIB1");
-        first.setGuardianKey("FAM-X");
+        first.setParentName("Jane Kiptoo");
         Student second = createTestStudent("ADM-SIB2");
-        second.setGuardianKey("FAM-X");
+        second.setParentName("Jane Kiptoo");
         StudentStore.getInstance().add(first);
         StudentStore.getInstance().add(second);
 
@@ -510,15 +510,15 @@ class BugFixRegressionTest {
         StudentFeeLedger secondLedger = StudentStore.getInstance().getLedger(second.getId());
 
         assertEquals(CurrencyConfig.money("10000"), firstLedger.getCharged("BOARD"),
-                "First child with a guardian key pays the full fee");
+                "First child of a parent pays the full fee");
         assertEquals(CurrencyConfig.money("8500"), secondLedger.getCharged("BOARD"),
-                "Second child sharing the guardian key must receive the 15% sibling discount");
+                "Second child sharing the parent name must receive the 15% sibling discount");
 
         Student lone = createTestStudent("ADM-SIB3");
-        lone.setGuardianKey("FAM-Y");
+        lone.setParentName("Daniel Otieno");
         StudentStore.getInstance().add(lone);
         feeCalc.chargeTermFees(lone, AcademicTerm.TERM_1);
         assertEquals(CurrencyConfig.money("10000"), StudentStore.getInstance().getLedger(lone.getId()).getCharged("BOARD"),
-                "A single child with a guardian key and no siblings pays the full fee");
+                "A single child with no siblings pays the full fee");
     }
 }

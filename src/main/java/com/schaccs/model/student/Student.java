@@ -14,16 +14,12 @@ public class Student {
 
     private final String id;
     private final StringProperty admissionNumber = new SimpleStringProperty();
-    private final StringProperty upi = new SimpleStringProperty();
     private final StringProperty name = new SimpleStringProperty();
     private final StringProperty gender = new SimpleStringProperty();
     private final StringProperty formClass = new SimpleStringProperty();
     private final StringProperty stream = new SimpleStringProperty();
     private final ObjectProperty<BoardingStatus> boardingStatus = new SimpleObjectProperty<>(BoardingStatus.BOARDING);
     private final StringProperty parentName = new SimpleStringProperty();
-    private final StringProperty guardianPhone = new SimpleStringProperty();
-    private final StringProperty guardianId = new SimpleStringProperty();
-    private final StringProperty guardianKey = new SimpleStringProperty();
     private final StringProperty phone = new SimpleStringProperty();
     private final ObjectProperty<Integer> yearOfAdmission = new SimpleObjectProperty<>(2026);
     private final ObjectProperty<Integer> academicYear = new SimpleObjectProperty<>(2026);
@@ -68,18 +64,6 @@ public class Student {
 
     public StringProperty admissionNumberProperty() {
         return admissionNumber;
-    }
-
-    public String getUpi() {
-        return upi.get();
-    }
-
-    public void setUpi(String value) {
-        upi.set(value);
-    }
-
-    public StringProperty upiProperty() {
-        return upi;
     }
 
     public String getName() {
@@ -163,43 +147,6 @@ public class Student {
         return parentName;
     }
 
-    public String getGuardianPhone() {
-        return guardianPhone.get();
-    }
-
-    public void setGuardianPhone(String value) {
-        guardianPhone.set(value);
-    }
-
-    public StringProperty guardianPhoneProperty() {
-        return guardianPhone;
-    }
-
-    public String getGuardianId() {
-        return guardianId.get();
-    }
-
-    public void setGuardianId(String value) {
-        guardianId.set(value);
-    }
-
-    public StringProperty guardianIdProperty() {
-        return guardianId;
-    }
-
-    /** Shared key linking siblings/children of the same guardian for multi-child discounts. */
-    public String getGuardianKey() {
-        return guardianKey.get();
-    }
-
-    public void setGuardianKey(String value) {
-        guardianKey.set(value);
-    }
-
-    public StringProperty guardianKeyProperty() {
-        return guardianKey;
-    }
-
     public String getPhone() {
         return phone.get();
     }
@@ -269,9 +216,7 @@ public class Student {
                 || contains(getName(), q)
                 || contains(getClassLabel(), q)
                 || contains(getPhone(), q)
-                || contains(getParentName(), q)
-                || contains(getGuardianPhone(), q)
-                || contains(getGuardianId(), q);
+                || contains(getParentName(), q);
     }
 
     private static boolean contains(String value, String q) {

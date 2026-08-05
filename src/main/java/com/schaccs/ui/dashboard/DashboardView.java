@@ -303,10 +303,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         sb.append("=====================\n\n");
         for (StudentBalance b : defaulters) {
             var fields = MailMergeEngine.resolveFields(b);
-            String phone = fields.getOrDefault("Guardian_Phone", "");
-            if (phone.isBlank()) {
-                phone = fields.getOrDefault("Student_Phone", "NO-PHONE");
-            }
+            String phone = fields.getOrDefault("Student_Phone", "NO-PHONE");
             sb.append("To: ").append(phone).append("\n");
             String sms = MailMergeEngine.merge(
                     "Dear {Guardian_Name}, this is a reminder that KSh {Total_Due} in school fees for {Student_Name} ({Adm_No} - {Class}) remains unpaid. Kindly clear the balance to avoid disruption. Thank you.",
