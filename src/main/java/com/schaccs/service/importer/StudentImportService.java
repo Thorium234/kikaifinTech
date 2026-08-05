@@ -1,5 +1,6 @@
 package com.schaccs.service.importer;
 
+import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
@@ -73,11 +74,35 @@ public class StudentImportService {
     }
 
     private ImportResult importCsv(Path path, boolean commit) throws IOException {
+        return importRows(parseCsv(path), commit);
+    }
+
+    private ImportResult importXlsx(Path path, boolean commit) throws IOException {
+        return importRows(parseXlsx(path), commit);
+    }
+
+    /**
+     * Parse a CSV or XLSX file into raw rows (header-normalized maps) without any
+     * validation. All rows are returned, including those with mistakes, so the
+     * caller can review and correct them.
+     */
+    public List<Map<String, String>> parseFile(Path path) throws IOException {
+        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".csv")) {
+            return parseCsv(path);
+        }
+        if (name.endsWith(".xlsx")) {
+            return parseXlsx(path);
+        }
+        throw new IllegalArgumentException("Unsupported file type. Use .csv or .xlsx.");
+    }
+
+    private List<Map<String, String>> parseCsv(Path path) throws IOException {
         List<Map<String, String>> rows = new ArrayList<>();
         try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String headerLine = reader.readLine();
             if (headerLine == null) {
-                return ImportResult.failure(List.of("The selected CSV file is empty."));
+                throw new IllegalArgumentException("The selected CSV file is empty.");
             }
             List<String> headers = splitCsv(headerLine);
             String line;
@@ -95,20 +120,20 @@ public class StudentImportService {
                 rows.add(row);
             }
         }
-        return importRows(rows, commit);
+        return rows;
     }
 
-    private ImportResult importXlsx(Path path, boolean commit) throws IOException {
+    private List<Map<String, String>> parseXlsx(Path path) throws IOException {
         List<Map<String, String>> rows = new ArrayList<>();
         DataFormatter formatter = new DataFormatter();
         try (Workbook workbook = new XSSFWorkbook(Files.newInputStream(path))) {
             Sheet sheet = workbook.getNumberOfSheets() > 0 ? workbook.getSheetAt(0) : null;
             if (sheet == null) {
-                return ImportResult.failure(List.of("The selected workbook has no sheets."));
+                throw new IllegalArgumentException("The selected workbook has no sheets.");
             }
             Row headerRow = sheet.getRow(sheet.getFirstRowNum());
             if (headerRow == null) {
-                return ImportResult.failure(List.of("The selected workbook is empty."));
+                throw new IllegalArgumentException("The selected workbook is empty.");
             }
             List<String> headers = new ArrayList<>();
             for (Cell cell : headerRow) {
@@ -134,7 +159,7 @@ public class StudentImportService {
                 }
             }
         }
-        return importRows(rows, commit);
+        return rows;
     }
 
     public ImportResult importRows(List<Map<String, String>> rows) {
@@ -154,24 +179,7 @@ public class StudentImportService {
         for (int i = 0; i < rows.size(); i++) {
             Map<String, String> row = rows.get(i);
             int displayRow = i + 2;
-            Student student = new Student();
-            student.setAdmissionNumber(value(row, "admissionnumber", "admissionno", "admno", "adm", "admission"));
-            student.setName(value(row, "fullname", "name", "studentname"));
-            student.setGender(blankToDefault(value(row, "gender", "sex"), "Male"));
-            student.setFormClass(value(row, "formclass", "form", "class"));
-            student.setStream(value(row, "stream", "section"));
-            student.setParentName(value(row, "parentname", "parent", "guardian", "guardianname"));
-            student.setPhone(value(row, "phone", "phonenumber", "contact"));
-            student.setBoardingStatus(parseBoardingStatus(value(row, "boardingstatus", "boarding", "status")));
-            student.setStatus(parseStudentStatus(value(row, "studentstatus", "active", "recordstatus")));
-            Integer academicYear = parseInteger(value(row, "academicyear", "year"));
-            Integer yearOfAdmission = parseInteger(value(row, "yearofadmission", "admissionyear"));
-            if (academicYear != null) {
-                student.setAcademicYear(academicYear);
-            }
-            if (yearOfAdmission != null) {
-                student.setYearOfAdmission(yearOfAdmission);
-            }
+            Student student = toStudent(row);
 
             List<String> errors = validateCandidate(student, stagedStudents);
             if (!errors.isEmpty()) {
@@ -188,7 +196,7 @@ public class StudentImportService {
             for (Student student : stagedStudents) {
                 try {
                     studentStore.add(student);
-                    feeCalculationService.chargeTermFees(student, com.schaccs.enums.AcademicTerm.TERM_1);
+                    feeCalculationService.chargeTermFees(student, AcademicTerm.TERM_1);
                 } catch (IllegalArgumentException e) {
                     warnings.add("Skipped " + student.getAdmissionNumber() + ": " + e.getMessage());
                     imported--;
@@ -198,6 +206,64 @@ public class StudentImportService {
             PersistenceService.getInstance().saveAll();
         }
         return new ImportResult(imported, skipped, warnings, failures);
+    }
+
+    /**
+     * Map a raw imported row (header-normalized keys) to a Student, applying the
+     * same defaults the classic import path uses.
+     */
+    public Student toStudent(Map<String, String> row) {
+        Student student = new Student();
+        student.setAdmissionNumber(value(row, "admissionnumber", "admissionno", "admno", "adm", "admission"));
+        student.setName(value(row, "fullname", "name", "studentname"));
+        student.setGender(blankToDefault(value(row, "gender", "sex"), "Male"));
+        student.setFormClass(value(row, "formclass", "form", "class"));
+        student.setStream(value(row, "stream", "section"));
+        student.setParentName(value(row, "parentname", "parent", "guardian", "guardianname"));
+        student.setPhone(value(row, "phone", "phonenumber", "contact"));
+        student.setBoardingStatus(parseBoardingStatus(value(row, "boardingstatus", "boarding", "status")));
+        student.setStatus(parseStudentStatus(value(row, "studentstatus", "active", "recordstatus")));
+        Integer academicYear = parseInteger(value(row, "academicyear", "year"));
+        Integer yearOfAdmission = parseInteger(value(row, "yearofadmission", "admissionyear"));
+        if (academicYear != null) {
+            student.setAcademicYear(academicYear);
+        }
+        if (yearOfAdmission != null) {
+            student.setYearOfAdmission(yearOfAdmission);
+        }
+        return student;
+    }
+
+    /**
+     * Validate a staged row for review. Unlike the classic path (which silently
+     * drops unparsable year values), this also flags non-numeric Academic Year and
+     * Year of Admission cells so they can be corrected before committing.
+     *
+     * @param others all other rows currently staged in the same import batch
+     */
+    public List<String> validateRow(Map<String, String> row, Student student, List<Student> others) {
+        List<String> errors = new ArrayList<>(validateCandidate(student, others));
+        addYearFormatError(row, "Academic Year", errors, "academicyear", "year");
+        addYearFormatError(row, "Year of Admission", errors, "yearofadmission", "admissionyear");
+        return errors;
+    }
+
+    /**
+     * Validate and commit a single corrected row: adds the student and charges Term
+     * 1 fees, matching the manual add behaviour. Returns any validation errors.
+     */
+    public List<String> commitStudent(Student student) {
+        List<String> errors = validateCandidate(student, List.of());
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+        try {
+            studentStore.add(student);
+            feeCalculationService.chargeTermFees(student, AcademicTerm.TERM_1);
+            return List.of();
+        } catch (IllegalArgumentException e) {
+            return List.of(e.getMessage());
+        }
     }
 
     private List<String> splitCsv(String line) {
@@ -281,6 +347,16 @@ public class StudentImportService {
             return new BigDecimal(value.trim()).intValueExact();
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private void addYearFormatError(Map<String, String> row, String label, List<String> errors, String... keys) {
+        if (row == null) {
+            return;
+        }
+        String raw = value(row, keys);
+        if (raw != null && !raw.isBlank() && parseInteger(raw) == null) {
+            errors.add(label + " must be a number (e.g. 2026), got \"" + raw + "\".");
         }
     }
 

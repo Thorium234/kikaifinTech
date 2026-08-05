@@ -308,6 +308,24 @@
     -fx-background-color: #D4EFDF;
 }
 
+.import-error-cell {
+    -fx-background-color: #FDEDEC;
+    -fx-text-fill: #C0392B;
+}
+
+.import-error-cell .text {
+    -fx-fill: #C0392B;
+}
+
+.import-error-text {
+    -fx-text-fill: #C0392B;
+    -fx-font-weight: bold;
+}
+
+.import-ok-text {
+    -fx-text-fill: #229954;
+}
+
 .muted {
     -fx-text-fill: #5D6D7E;
 }

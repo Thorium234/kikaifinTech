@@ -19,9 +19,7 @@ import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.ScrollPane;
@@ -41,6 +39,8 @@ import javafx.stage.FileChooser;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class StudentView extends VBox implements MainLayout.Refreshable {
 
@@ -433,44 +433,33 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 new FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
         File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
-        StudentImportService.ImportResult preview = importService.previewFile(file.toPath());
-        if (!showImportPreviewDialog(preview)) return;
-        StudentImportService.ImportResult result = importService.importFile(file.toPath());
-        table.refresh();
-        if (result.getImported() > 0) AlertUtil.info("Import complete", "Imported " + result.getImported() + " students.");
-        else AlertUtil.warn("Import finished", buildImportMessage(result, false));
-    }
-
-    private boolean showImportPreviewDialog(StudentImportService.ImportResult result) {
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Import Preview");
-        dialog.setHeaderText("Review student import before commit");
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
-        Label summary = new Label(buildImportMessage(result, true));
-        summary.setWrapText(true);
-        TableView<String> warningTable = new TableView<>();
-        TableColumn<String, String> warningColumn = new TableColumn<>("Validation details");
-        warningColumn.setCellValueFactory(c -> new SimpleStringProperty(c.getValue()));
-        warningTable.getColumns().add(warningColumn);
-        warningTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        warningTable.getItems().setAll(result.getWarnings());
-        warningTable.setPrefHeight(260);
-        VBox content = new VBox(10, summary, warningTable);
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().lookupButton(ButtonType.OK).setDisable(result.getImported() <= 0);
-        return dialog.showAndWait().filter(ButtonType.OK::equals).isPresent();
-    }
-
-    private String buildImportMessage(StudentImportService.ImportResult result, boolean preview) {
-        StringBuilder msg = new StringBuilder();
-        msg.append(preview ? "Ready to import: " : "Imported: ").append(result.getImported()).append("\n");
-        msg.append("Skipped: ").append(result.getSkipped());
-        if (result.hasWarnings()) {
-            msg.append("\n\nDetails:\n");
-            result.getWarnings().stream().limit(12).forEach(w -> msg.append("- ").append(w).append("\n"));
-            if (result.getWarnings().size() > 12) msg.append("...and ").append(result.getWarnings().size() - 12).append(" more");
+        try {
+            List<Map<String, String>> rows = importService.parseFile(file.toPath());
+            if (rows.isEmpty()) {
+                AlertUtil.warn("Nothing to import", "The selected file has no data rows.");
+                return;
+            }
+            List<Student> students = rows.stream()
+                    .map(importService::toStudent)
+                    .collect(Collectors.toList());
+            StudentImportReviewDialog dialog = new StudentImportReviewDialog(rows, students, importService);
+            dialog.showAndWait();
+            if (dialog.getImportedCount() > 0) {
+                table.refresh();
+                int remaining = dialog.getRemainingCount();
+                if (remaining > 0) {
+                    AlertUtil.warn("Import partially complete",
+                            "Imported " + dialog.getImportedCount() + " student(s). " + remaining
+                                    + " row(s) were not saved because they still have errors.");
+                } else {
+                    AlertUtil.info("Import complete", "Imported " + dialog.getImportedCount() + " student(s).");
+                }
+            }
+        } catch (java.io.IOException e) {
+            AlertUtil.error("Import failed", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            AlertUtil.error("Import failed", e.getMessage());
         }
-        return msg.toString().trim();
     }
 
     private void switchToList() {

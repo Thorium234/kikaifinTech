@@ -8,6 +8,7 @@ import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.finance.Votehead;
+import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.service.export.SpreadsheetExportService;
 import com.schaccs.service.export.StudentTemplateService;
@@ -101,5 +102,61 @@ class ImportExportCoreTest {
         Path template = Files.createTempFile("student-template", ".xlsx");
         new StudentTemplateService(exportService).generateTemplate(template);
         assertTrue(Files.size(template) > 0);
+    }
+
+    @Test
+    void parseFileReturnsEveryRowEvenWithMistakes() throws Exception {
+        StudentImportService importService = new StudentImportService();
+        Path csv = Files.createTempFile("students-import", ".csv");
+        Files.writeString(csv, String.join("\n",
+                "Admission Number,Full Name,Gender,Form Class,Stream,Boarding Status,Parent Name,Phone,Academic Year,Year Of Admission,Student Status",
+                "2026/100,Jane Doe,Male,Form 1,A,Boarding,John Doe,0712345678,2026,2026,Active",
+                "2026/100,John Doe,Male,Form 1,A,Boarding,John Doe,123,abc,2026,Active"));
+
+        List<Map<String, String>> rows = importService.parseFile(csv);
+
+        assertEquals(2, rows.size(), "All rows must be returned for review, even the bad ones");
+    }
+
+    @Test
+    void validateRowFlagsDuplicateAdmissionBadPhoneAndBadYear() throws Exception {
+        StudentImportService importService = new StudentImportService();
+        Path csv = Files.createTempFile("students-review", ".csv");
+        Files.writeString(csv, String.join("\n",
+                "Admission Number,Full Name,Gender,Form Class,Stream,Boarding Status,Parent Name,Phone,Academic Year,Year Of Admission,Student Status",
+                "2026/100,Jane Doe,Male,Form 1,A,Boarding,John Doe,0712345678,2026,2026,Active",
+                "2026/100,John Doe,Male,Form 1,A,Boarding,John Doe,123,abc,2026,Active"));
+
+        List<Map<String, String>> rows = importService.parseFile(csv);
+        Student first = importService.toStudent(rows.get(0));
+        Student second = importService.toStudent(rows.get(1));
+
+        List<String> firstErrors = importService.validateRow(rows.get(0), first, List.of(second));
+        assertTrue(firstErrors.stream().anyMatch(e -> e.contains("duplicated in the import file")),
+                "Duplicate admission must be flagged on the first row too");
+
+        List<String> secondErrors = importService.validateRow(rows.get(1), second, List.of(first));
+        assertTrue(secondErrors.stream().anyMatch(e -> e.contains("duplicated in the import file")));
+        assertTrue(secondErrors.stream().anyMatch(e -> e.contains("Phone number must be Kenyan format")),
+                "Bad phone format must be flagged");
+        assertTrue(secondErrors.stream().anyMatch(e -> e.contains("Academic Year must be a number")),
+                "Non-numeric Academic Year must be flagged");
+    }
+
+    @Test
+    void commitStudentCommitsValidRowAndRejectsDuplicate() {
+        StudentImportService importService = new StudentImportService(
+                new com.schaccs.service.student.StudentService(), new FeeCalculationService());
+        String admission = "TEST-COMMIT-" + UUID.randomUUID();
+        Student valid = new Student(admission, "Commit Test", "Form 2", "A", BoardingStatus.BOARDING, "0712345678");
+
+        assertTrue(importService.commitStudent(valid).isEmpty());
+        assertTrue(StudentStore.getInstance().findByAdmissionNumber(admission).isPresent());
+
+        Student duplicate = new Student(admission, "Duplicate", "Form 2", "A", BoardingStatus.BOARDING, "0712345678");
+        List<String> errors = importService.commitStudent(duplicate);
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("Admission number")),
+                "Duplicate commit must be rejected");
     }
 }
