@@ -330,6 +330,17 @@
     -fx-text-fill: #5D6D7E;
 }
 
+.pay-label {
+    -fx-text-fill: #5D6D7E;
+    -fx-font-size: 12px;
+}
+
+.pay-value {
+    -fx-text-fill: #1B4F72;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+
 .policy-banner {
     -fx-background-color: #FDEBD0;
     -fx-text-fill: #7E5109;

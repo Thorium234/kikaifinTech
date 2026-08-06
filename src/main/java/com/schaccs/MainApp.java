@@ -10,6 +10,7 @@ import com.schaccs.ui.fees.FeeStructureView;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
 import com.schaccs.ui.layout.TitleBar;
+import com.schaccs.ui.payments.PayView;
 import com.schaccs.ui.audit.AuditLogView;
 import com.schaccs.ui.banking.BankReconciliationView;
 import com.schaccs.ui.receipts.ReceiptView;
@@ -89,6 +90,7 @@ public class MainApp extends Application {
             layout.register(Sidebar.STUDENTS, Sidebar.STUDENTS, StudentView::new);
             layout.register(Sidebar.TRANSITIONS, Sidebar.TRANSITIONS, StudentTransitionView::new);
             layout.register(Sidebar.FEES, Sidebar.FEES, FeeStructureView::new);
+            layout.register(Sidebar.PAY, Sidebar.PAY, () -> new PayView(layout));
             layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);
             layout.register(Sidebar.VOUCHERS, Sidebar.VOUCHERS, VoucherView::new);
             layout.register(Sidebar.REPORTS, Sidebar.REPORTS, ReportsView::new);

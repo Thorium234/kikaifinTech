@@ -260,6 +260,22 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         studentTable.refresh();
     }
 
+    /**
+     * Entry point used by the Pay view: jump straight to this student with the
+     * search pre-filled and the learner selected. Does not alter receipting
+     * behaviour in any way.
+     */
+    public void preselect(Student student) {
+        if (student == null) {
+            return;
+        }
+        searchBar.getField().setText(student.getAdmissionNumber());
+        studentTable.getItems().setAll(studentStore.search(student.getAdmissionNumber()));
+        studentTable.getSelectionModel().select(student);
+        selectStudent(student);
+        studentTable.scrollTo(student);
+    }
+
     private void previewAllocation() {
         if (selected == null) {
             return;

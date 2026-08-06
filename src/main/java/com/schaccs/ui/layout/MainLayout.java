@@ -8,6 +8,7 @@ import javafx.scene.layout.VBox;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class MainLayout extends BorderPane {
@@ -36,6 +37,10 @@ public class MainLayout extends BorderPane {
     }
 
     public void show(String key) {
+        show(key, null);
+    }
+
+    public void show(String key, Consumer<Node> afterShow) {
         Node node = cache.computeIfAbsent(key, k -> {
             Supplier<Node> factory = factories.get(k);
             Node view = factory != null ? factory.get() : new javafx.scene.control.Label("Missing view: " + k);
@@ -49,6 +54,9 @@ public class MainLayout extends BorderPane {
         sidebar.setActive(key);
         topBar.setTitle(titles.getOrDefault(key, key));
         statusBar.setMessage("Viewing " + titles.getOrDefault(key, key));
+        if (afterShow != null) {
+            afterShow.accept(node);
+        }
     }
 
     private Node wrapForResponsiveLayout(Node view) {
