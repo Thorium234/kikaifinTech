@@ -40,7 +40,6 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -394,12 +393,14 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private void exportStudents() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Export Students");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("CSV files", "*.csv"),
-                new FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
+        FileChooser.ExtensionFilter csv = new FileChooser.ExtensionFilter("CSV files", "*.csv");
+        FileChooser.ExtensionFilter excel = new FileChooser.ExtensionFilter("Excel files", "*.xlsx");
+        chooser.getExtensionFilters().addAll(csv, excel);
+        chooser.setSelectedExtensionFilter(csv);
         chooser.setInitialFileName("students-export.csv");
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        File target = withChosenExtension(file, chooser);
         try {
             List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Stream", "Boarding Status", "Phone", "Parent/Guardian", "Status");
             List<List<String>> rows = studentService.getAll().stream().map(s -> List.of(
@@ -409,28 +410,41 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                     safe(s.getPhone()),
                     safe(s.getParentName()),
                     s.getStatus() != null ? s.getStatus().getDisplayName() : "")).toList();
-            exportService.export(file.toPath(), "Students", headers, rows);
-            AlertUtil.info("Export complete", "Students exported to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Export failed", e.getMessage());
+            exportService.export(target.toPath(), "Students", headers, rows);
+            AlertUtil.info("Export complete", "Students exported to:\n" + target.getAbsolutePath());
+        } catch (Exception e) {
+            AlertUtil.error("Export failed", "The students could not be exported.\n\n" + e.getMessage());
         }
     }
 
     private void downloadTemplate() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Save Student Import Template");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("CSV files", "*.csv"),
-                new FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
+        FileChooser.ExtensionFilter excel = new FileChooser.ExtensionFilter("Excel files", "*.xlsx");
+        FileChooser.ExtensionFilter csv = new FileChooser.ExtensionFilter("CSV files", "*.csv");
+        chooser.getExtensionFilters().addAll(excel, csv);
+        chooser.setSelectedExtensionFilter(excel);
         chooser.setInitialFileName("student-import-template.xlsx");
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        File target = withChosenExtension(file, chooser);
         try {
-            new com.schaccs.service.export.StudentTemplateService(exportService).generateTemplate(file.toPath());
-            AlertUtil.info("Template saved", "Template saved to:\n" + file.getAbsolutePath());
-        } catch (IOException e) {
-            AlertUtil.error("Template failed", e.getMessage());
+            new com.schaccs.service.export.StudentTemplateService(exportService).generateTemplate(target.toPath());
+            AlertUtil.info("Template saved", "Template saved to:\n" + target.getAbsolutePath());
+        } catch (Exception e) {
+            AlertUtil.error("Template failed", "The student template could not be saved.\n\n" + e.getMessage());
         }
+    }
+
+    private File withChosenExtension(File file, FileChooser chooser) {
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".csv") || name.endsWith(".xlsx")) {
+            return file;
+        }
+        FileChooser.ExtensionFilter chosen = chooser.getSelectedExtensionFilter();
+        String ext = chosen == null || chosen.getExtensions().isEmpty()
+                ? ".xlsx" : chosen.getExtensions().get(0).replace("*", "");
+        return new File(file.getParentFile(), file.getName() + ext);
     }
 
     private void importStudents() {
