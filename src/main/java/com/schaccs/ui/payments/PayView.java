@@ -3,6 +3,7 @@ package com.schaccs.ui.payments;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.service.student.PayPreviewService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.StudentStore;
@@ -32,6 +33,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -46,6 +48,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
     private static final String ALL_STREAMS = "All Streams";
 
     private final StudentStore studentStore = StudentStore.getInstance();
+    private final PayPreviewService payPreview = new PayPreviewService();
     private final MainLayout layout;
 
     private final ComboBox<String> formBox = new ComboBox<>();
@@ -69,11 +72,13 @@ public class PayView extends VBox implements MainLayout.Refreshable {
     private final Label yearValue = new Label();
     private final Label academicYearValue = new Label();
 
+    private final Label expectedValue = new Label();
     private final Label chargedValue = new Label();
     private final Label paidValue = new Label();
     private final Label balanceValue = new Label();
     private final Label arrearsValue = new Label();
     private final Label advanceValue = new Label();
+    private final Label feeHint = new Label();
 
     private final TableView<VoteheadRow> voteheadTable = new TableView<>();
 
@@ -95,6 +100,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
 
         populateFilters();
         setupTable();
+        searchBar.textProperty().addListener((obs, o, q) -> applyFilters());
 
         Button clearFilters = new Button("Clear Filters");
         clearFilters.getStyleClass().add("secondary-button");
@@ -137,6 +143,9 @@ public class PayView extends VBox implements MainLayout.Refreshable {
     }
 
     private void populateFilters() {
+        String currentForm = formBox.getValue();
+        String currentStream = streamBox.getValue();
+
         formBox.getItems().clear();
         streamBox.getItems().clear();
         formBox.getItems().add(ALL_FORMS);
@@ -158,12 +167,11 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         formBox.getItems().addAll(forms);
         streamBox.getItems().addAll(streams);
 
-        formBox.setValue(ALL_FORMS);
-        streamBox.setValue(ALL_STREAMS);
+        formBox.setValue(currentForm != null && formBox.getItems().contains(currentForm) ? currentForm : ALL_FORMS);
+        streamBox.setValue(currentStream != null && streamBox.getItems().contains(currentStream) ? currentStream : ALL_STREAMS);
 
         formBox.setOnAction(e -> applyFilters());
         streamBox.setOnAction(e -> applyFilters());
-        searchBar.textProperty().addListener((obs, o, q) -> applyFilters());
     }
 
     private void setupTable() {
@@ -230,7 +238,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         HBox.setHgrow(cancelBtn, Priority.ALWAYS);
 
         previewContent.getChildren().addAll(previewTitle, previewHint, new Separator(),
-                detailsGrid(), new Separator(), feeSummaryGrid(), voteheadTable, actions);
+                detailsGrid(), new Separator(), feeSummaryGrid(), feeHint, voteheadTable, actions);
         previewContent.setSpacing(10);
 
         previewStack.getChildren().setAll(placeholder, previewContent);
@@ -255,11 +263,16 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         parentValue.getStyleClass().add("pay-value");
         yearValue.getStyleClass().add("pay-value");
         academicYearValue.getStyleClass().add("pay-value");
+        expectedValue.getStyleClass().add("pay-value");
         chargedValue.getStyleClass().add("pay-value");
         paidValue.getStyleClass().add("pay-value");
         balanceValue.getStyleClass().add("pay-value");
         arrearsValue.getStyleClass().add("pay-value");
         advanceValue.getStyleClass().add("pay-value");
+        feeHint.getStyleClass().add("muted");
+        feeHint.setWrapText(true);
+        feeHint.setVisible(false);
+        feeHint.setManaged(false);
     }
 
     private GridPane detailsGrid() {
@@ -290,11 +303,12 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         GridPane grid = new GridPane();
         grid.setHgap(16);
         grid.setVgap(6);
-        addFeeRow(grid, 0, "Should Pay (Charged)", chargedValue);
-        addFeeRow(grid, 1, "Amount Paid", paidValue);
-        addFeeRow(grid, 2, "Balance Due", balanceValue);
-        addFeeRow(grid, 3, "Arrears", arrearsValue);
-        addFeeRow(grid, 4, "Advance / Credit", advanceValue);
+        addFeeRow(grid, 0, "Expected Term Fee (Structure)", expectedValue);
+        addFeeRow(grid, 1, "Should Pay (Charged)", chargedValue);
+        addFeeRow(grid, 2, "Amount Paid", paidValue);
+        addFeeRow(grid, 3, "Balance Due", balanceValue);
+        addFeeRow(grid, 4, "Arrears", arrearsValue);
+        addFeeRow(grid, 5, "Advance / Credit", advanceValue);
         return grid;
     }
 
@@ -308,21 +322,25 @@ public class PayView extends VBox implements MainLayout.Refreshable {
     private void setupVoteheadTable() {
         TableColumn<VoteheadRow, String> code = new TableColumn<>("Vote Head");
         code.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().name()));
-        code.setPrefWidth(170);
+        code.setPrefWidth(140);
+
+        TableColumn<VoteheadRow, String> expected = new TableColumn<>("Expected");
+        expected.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().expected())));
+        expected.setPrefWidth(85);
 
         TableColumn<VoteheadRow, String> charged = new TableColumn<>("Charged");
         charged.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().charged())));
-        charged.setPrefWidth(90);
+        charged.setPrefWidth(85);
 
         TableColumn<VoteheadRow, String> paid = new TableColumn<>("Paid");
         paid.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().paid())));
-        paid.setPrefWidth(90);
+        paid.setPrefWidth(85);
 
         TableColumn<VoteheadRow, String> outstanding = new TableColumn<>("Outstanding");
         outstanding.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().outstanding())));
-        outstanding.setPrefWidth(100);
+        outstanding.setPrefWidth(90);
 
-        voteheadTable.getColumns().addAll(code, charged, paid, outstanding);
+        voteheadTable.getColumns().addAll(code, expected, charged, paid, outstanding);
         voteheadTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         voteheadTable.setPrefHeight(170);
     }
@@ -345,13 +363,23 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         yearValue.setText(s.getYearOfAdmission() != null ? String.valueOf(s.getYearOfAdmission()) : "");
         academicYearValue.setText(s.getAcademicYear() != null ? String.valueOf(s.getAcademicYear()) : "");
 
-        chargedValue.setText(CurrencyUtil.format(ledger.getTotalCharged()));
-        paidValue.setText(CurrencyUtil.format(ledger.getTotalPaid()));
-        balanceValue.setText(CurrencyUtil.format(ledger.getBalance()));
-        arrearsValue.setText(CurrencyUtil.format(ledger.getArrears()));
-        advanceValue.setText(CurrencyUtil.format(ledger.getAdvance()));
+        PayPreviewService.FeeStatus status = payPreview.feeStatus(s);
+        expectedValue.setText(CurrencyUtil.format(status.expectedTerm()));
+        chargedValue.setText(CurrencyUtil.format(status.charged()));
+        paidValue.setText(CurrencyUtil.format(status.paid()));
+        balanceValue.setText(CurrencyUtil.format(status.balance()));
+        arrearsValue.setText(CurrencyUtil.format(status.arrears()));
+        advanceValue.setText(CurrencyUtil.format(status.advance()));
 
-        voteheadTable.getItems().setAll(voteheadRows(ledger));
+        boolean hasStructure = payPreview.hasStructure(s);
+        feeHint.setText("No fee structure configured for "
+                + (s.getAcademicYear() != null ? s.getAcademicYear() : "this year")
+                + " \u2014 " + (s.getBoardingStatus() != null ? s.getBoardingStatus().getDisplayName() : "?")
+                + ". Expected fees are unavailable until a structure is set.");
+        feeHint.setVisible(!hasStructure);
+        feeHint.setManaged(!hasStructure);
+
+        voteheadTable.getItems().setAll(voteheadRows(ledger, status.expectedByVotehead()));
 
         placeholder.setVisible(false);
         placeholder.setManaged(false);
@@ -386,18 +414,21 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         });
     }
 
-    private List<VoteheadRow> voteheadRows(StudentFeeLedger ledger) {
+    private List<VoteheadRow> voteheadRows(StudentFeeLedger ledger, Map<String, BigDecimal> expected) {
         Set<String> codes = new LinkedHashSet<>();
+        codes.addAll(expected.keySet());
         codes.addAll(ledger.getChargedByVotehead().keySet());
         codes.addAll(ledger.getPaidByVotehead().keySet());
         List<VoteheadRow> rows = new ArrayList<>();
         for (String code : codes) {
+            BigDecimal e = expected.getOrDefault(code, BigDecimal.ZERO);
             BigDecimal c = ledger.getCharged(code);
             BigDecimal p = ledger.getPaid(code);
-            if (c.compareTo(BigDecimal.ZERO) <= 0 && p.compareTo(BigDecimal.ZERO) <= 0) {
+            if (e.compareTo(BigDecimal.ZERO) <= 0 && c.compareTo(BigDecimal.ZERO) <= 0
+                    && p.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            rows.add(new VoteheadRow(voteheadDisplayName(code), c, p, c.subtract(p).max(BigDecimal.ZERO)));
+            rows.add(new VoteheadRow(voteheadDisplayName(code), e, c, p, c.subtract(p).max(BigDecimal.ZERO)));
         }
         return rows;
     }
@@ -449,6 +480,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         table.refresh();
     }
 
-    private record VoteheadRow(String name, BigDecimal charged, BigDecimal paid, BigDecimal outstanding) {
+    private record VoteheadRow(String name, BigDecimal expected, BigDecimal charged, BigDecimal paid,
+                               BigDecimal outstanding) {
     }
 }
