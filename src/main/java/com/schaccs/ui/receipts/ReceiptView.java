@@ -208,6 +208,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         var columns1 = new TableColumn[]{adm, name, cls, bal};
         studentTable.getColumns().addAll(columns1);
         studentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        studentTable.setPlaceholder(new Label("No students found. Clear the search box or add students in the Students view."));
         studentTable.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> selectStudent(s));
     }
 
@@ -262,15 +263,16 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
     /**
      * Entry point used by the Pay view: jump straight to this student with the
-     * search pre-filled and the learner selected. Does not alter receipting
-     * behaviour in any way.
+     * learner pre-selected. Clears any stale search filter so the full student
+     * list is shown again with the handed-off learner selected. Does not alter
+     * receipting behaviour in any way.
      */
     public void preselect(Student student) {
         if (student == null) {
             return;
         }
-        searchBar.getField().setText(student.getAdmissionNumber());
-        studentTable.getItems().setAll(studentStore.search(student.getAdmissionNumber()));
+        searchBar.getField().setText("");
+        studentTable.getItems().setAll(studentStore.getStudents());
         studentTable.getSelectionModel().select(student);
         selectStudent(student);
         studentTable.scrollTo(student);

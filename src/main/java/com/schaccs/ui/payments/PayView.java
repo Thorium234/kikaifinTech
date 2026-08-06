@@ -1,28 +1,38 @@
 package com.schaccs.ui.payments;
 
+import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.finance.Votehead;
+import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.service.student.PayPreviewService;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.StudentStore;
+import com.schaccs.ui.component.CurrencyField;
 import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
 import com.schaccs.ui.receipts.ReceiptView;
+import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
+import com.schaccs.util.PrintUtil;
+import com.schaccs.util.ReceiptPrinter;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -30,6 +40,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,6 +60,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
 
     private final StudentStore studentStore = StudentStore.getInstance();
     private final PayPreviewService payPreview = new PayPreviewService();
+    private final ReceiptService receiptService = com.schaccs.service.Services.getInstance().receipt();
     private final MainLayout layout;
 
     private final ComboBox<String> formBox = new ComboBox<>();
@@ -79,6 +91,12 @@ public class PayView extends VBox implements MainLayout.Refreshable {
     private final Label arrearsValue = new Label();
     private final Label advanceValue = new Label();
     private final Label feeHint = new Label();
+
+    private final CurrencyField amountField = new CurrencyField();
+    private final ComboBox<PaymentMode> modeBox = new ComboBox<>();
+    private final TextField refField = new TextField();
+    private final DatePicker datePicker = new DatePicker(LocalDate.now());
+    private final Label paymentHint = new Label();
 
     private final TableView<VoteheadRow> voteheadTable = new TableView<>();
 
@@ -223,8 +241,24 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         styleValues();
         setupVoteheadTable();
 
+        modeBox.getItems().setAll(PaymentMode.allowedModes());
+        modeBox.setValue(PaymentMode.BANK_SLIP);
+        refField.setPromptText("Bank slip / M-Pesa / cheque reference");
+        amountField.setPrefWidth(150);
+        modeBox.setPrefWidth(150);
+        refField.setPrefWidth(150);
+        datePicker.setPrefWidth(150);
+        paymentHint.getStyleClass().add("muted");
+        paymentHint.setWrapText(true);
+        paymentHint.setText("Enter the amount received, then Receive & Print to post the official receipt.");
+
+        Button receiveBtn = new Button("Receive & Print Receipt");
+        receiveBtn.getStyleClass().add("success-button");
+        receiveBtn.setMaxWidth(Double.MAX_VALUE);
+        receiveBtn.setOnAction(e -> receiveAndPrint());
+
         Button proceedBtn = new Button("Proceed to Receipting");
-        proceedBtn.getStyleClass().add("success-button");
+        proceedBtn.getStyleClass().add("primary-button");
         proceedBtn.setMaxWidth(Double.MAX_VALUE);
         proceedBtn.setOnAction(e -> proceedToReceipting());
 
@@ -233,12 +267,10 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         cancelBtn.setMaxWidth(Double.MAX_VALUE);
         cancelBtn.setOnAction(e -> cancelPreview());
 
-        HBox actions = new HBox(10, proceedBtn, cancelBtn);
-        HBox.setHgrow(proceedBtn, Priority.ALWAYS);
-        HBox.setHgrow(cancelBtn, Priority.ALWAYS);
-
         previewContent.getChildren().addAll(previewTitle, previewHint, new Separator(),
-                detailsGrid(), new Separator(), feeSummaryGrid(), feeHint, voteheadTable, actions);
+                detailsGrid(), new Separator(), feeSummaryGrid(), feeHint,
+                new Label("Collect Payment:"), paymentForm(), paymentHint, receiveBtn,
+                new Separator(), voteheadTable, proceedBtn, cancelBtn);
         previewContent.setSpacing(10);
 
         previewStack.getChildren().setAll(placeholder, previewContent);
@@ -292,7 +324,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         return grid;
     }
 
-    private void addDetailRow(GridPane grid, int row, String label, Label value) {
+    private void addDetailRow(GridPane grid, int row, String label, Node value) {
         Label l = new Label(label);
         l.getStyleClass().add("pay-label");
         grid.add(l, 0, row);
@@ -394,6 +426,62 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         placeholder.setManaged(true);
         previewContent.setVisible(false);
         previewContent.setManaged(false);
+    }
+
+    private GridPane paymentForm() {
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(6);
+        addDetailRow(grid, 0, "Amount (KSh)", amountField);
+        addDetailRow(grid, 1, "Payment Mode", modeBox);
+        addDetailRow(grid, 2, "Reference", refField);
+        addDetailRow(grid, 3, "Date", datePicker);
+        return grid;
+    }
+
+    private void receiveAndPrint() {
+        if (selected == null) {
+            AlertUtil.warn("No student", "Select a student first.");
+            return;
+        }
+        BigDecimal amount = amountField.getAmount();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            AlertUtil.warn("Invalid amount", "Enter the amount received.");
+            return;
+        }
+        PaymentMode mode = modeBox.getValue();
+        if (mode == null) {
+            AlertUtil.warn("Payment mode", "Select the payment mode.");
+            return;
+        }
+        ReceiptService.Result result = receiptService.receivePayment(
+                selected, amount, mode, refField.getText(), datePicker.getValue(), null);
+
+        if (!result.isSuccess()) {
+            AlertUtil.warn("Cannot receive payment", String.join("\n", result.getErrors()));
+            return;
+        }
+
+        Receipt receipt = result.getReceipt();
+        amountField.clear();
+        refField.clear();
+        datePicker.setValue(LocalDate.now());
+
+        AlertUtil.info("Payment received",
+                "Receipt No. " + receipt.getReceiptNumberDisplay() + " for "
+                        + CurrencyUtil.format(receipt.getAmount()) + " posted successfully.");
+
+        boolean printed = PrintUtil.printText("Official Fee Receipt — " + receipt.getReceiptNumberDisplay(),
+                ReceiptPrinter.format(receipt),
+                getScene() != null ? getScene().getWindow() : null);
+        if (!printed) {
+            AlertUtil.info("Not printed",
+                    "The receipt was posted but printing was cancelled. Use Receipting or Reports to re-print it.");
+        }
+
+        showPreview(selected);
+        applyFilters();
+        table.refresh();
     }
 
     private void cancelPreview() {
