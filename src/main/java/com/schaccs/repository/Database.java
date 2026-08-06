@@ -15,6 +15,7 @@ import com.schaccs.repository.migration.MigrationV18BackfillReceiptHashes;
 import com.schaccs.repository.migration.MigrationV19DropStudentFields;
 import com.schaccs.repository.migration.MigrationV20AcademicCalendar;
 import com.schaccs.repository.migration.MigrationV22MidTermEnrollments;
+import com.schaccs.repository.migration.MigrationV23RecycleBin;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -215,7 +216,8 @@ public final class Database {
                 new MigrationV18BackfillReceiptHashes(),
                 new MigrationV19DropStudentFields(),
                 new MigrationV20AcademicCalendar(),
-                new MigrationV22MidTermEnrollments()
+                new MigrationV22MidTermEnrollments(),
+                new MigrationV23RecycleBin()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {

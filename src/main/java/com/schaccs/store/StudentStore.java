@@ -5,7 +5,6 @@ import com.schaccs.model.student.StudentFeeLedger;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -41,15 +40,6 @@ public final class StudentStore {
     }
 
     public synchronized void remove(Student student) {
-        StudentFeeLedger ledger = ledgers.get(student.getId());
-        if (ledger != null && (ledger.getTotalPaid().compareTo(BigDecimal.ZERO) > 0
-                || ledger.getAdvance().compareTo(BigDecimal.ZERO) > 0
-                || ledger.getArrears().compareTo(BigDecimal.ZERO) > 0)) {
-            throw new IllegalStateException("Cannot delete student with financial records.");
-        }
-        if (!ReceiptStore.getInstance().forStudent(student.getId()).isEmpty()) {
-            throw new IllegalStateException("Cannot delete student with receipts.");
-        }
         students.remove(student);
         ledgers.remove(student.getId());
     }

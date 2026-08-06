@@ -15,6 +15,7 @@ import com.schaccs.service.student.StudentTransitionService;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.SearchBar;
+import com.schaccs.ui.component.TypeToConfirmDialog;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.FileDialogMemory;
@@ -27,6 +28,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -39,10 +41,14 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class StudentView extends VBox implements MainLayout.Refreshable {
@@ -94,7 +100,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private void buildListTab() {
         Label badge = new Label("Student Registry");
         badge.getStyleClass().add("student-header-badge");
-        Label sub = new Label("Browse, search, and select a student to edit. Import students from CSV/XLSX.");
+        Label sub = new Label("Double-click a student to edit. Use Ctrl/Shift to select several, then Delete moves them to the Recycle Bin.");
         sub.getStyleClass().add("muted");
 
         Button importBtn = new Button("Import CSV/XLSX");
@@ -111,7 +117,12 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         addBtn.getStyleClass().add("primary-button");
         addBtn.setOnAction(e -> { clearForm(); switchToForm(); });
 
-        HBox toolbar = new HBox(10, searchBar, addBtn, importBtn, exportBtn, templateBtn);
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.getStyleClass().add("danger-button");
+        deleteBtn.setGraphic(new FontIcon(FontAwesomeSolid.TRASH));
+        deleteBtn.setOnAction(e -> deleteSelected());
+
+        HBox toolbar = new HBox(10, searchBar, addBtn, deleteBtn, importBtn, exportBtn, templateBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
@@ -268,24 +279,28 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
         table.setItems(filtered);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        table.setRowFactory(tv -> new TableRow<>() {
-            @Override
-            protected void updateItem(Student item, boolean empty) {
-                super.updateItem(item, empty);
-                getStyleClass().removeAll("student-row-active", "student-row-inactive");
-                if (!empty && item != null && item.getStatus() != null) {
-                    switch (item.getStatus()) {
-                        case ACTIVE -> getStyleClass().add("student-row-active");
-                        case INACTIVE -> getStyleClass().add("student-row-inactive");
+        table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        table.setRowFactory(tv -> {
+            TableRow<Student> row = new TableRow<>() {
+                @Override
+                protected void updateItem(Student item, boolean empty) {
+                    super.updateItem(item, empty);
+                    getStyleClass().removeAll("student-row-active", "student-row-inactive");
+                    if (!empty && item != null && item.getStatus() != null) {
+                        switch (item.getStatus()) {
+                            case ACTIVE -> getStyleClass().add("student-row-active");
+                            case INACTIVE -> getStyleClass().add("student-row-inactive");
+                        }
                     }
                 }
-            }
-        });
-        table.getSelectionModel().selectedItemProperty().addListener((obs, o, s) -> {
-            if (s != null) {
-                loadForm(s);
-                switchToForm();
-            }
+            };
+            row.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && !row.isEmpty() && row.getItem() != null) {
+                    loadForm(row.getItem());
+                    switchToForm();
+                }
+            });
+            return row;
         });
     }
 
@@ -389,6 +404,35 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         table.refresh();
         clearForm();
         switchToList();
+    }
+
+    private void deleteSelected() {
+        List<Student> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
+        if (selected.isEmpty()) {
+            AlertUtil.warn("No selection", "Select one or more students, then click Delete.");
+            return;
+        }
+        String detail = selected.stream()
+                .map(s -> "• " + safe(s.getAdmissionNumber()) + " — " + safe(s.getName()))
+                .collect(Collectors.joining("\n"));
+        TypeToConfirmDialog dialog = new TypeToConfirmDialog(
+                "Delete Students",
+                "This will move " + selected.size() + " student(s) to the Recycle Bin and remove them "
+                        + "from the school financial records.\n\n" + detail,
+                "DELETE", "Delete");
+        Optional<Boolean> result = dialog.showAndWait();
+        if (!result.isPresent() || !result.get()) {
+            return;
+        }
+        studentService.deleteToRecycleBin(selected);
+        if (editing != null && selected.contains(editing)) {
+            clearForm();
+        }
+        switchToList();
+        table.refresh();
+        AlertUtil.info("Deleted",
+                selected.size() + " student(s) moved to the Recycle Bin. "
+                        + "Restore or purge them from the Recycle Bin anytime.");
     }
 
     private void exportStudents() {

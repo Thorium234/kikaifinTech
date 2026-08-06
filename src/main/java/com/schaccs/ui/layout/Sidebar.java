@@ -18,6 +18,7 @@ public class Sidebar extends VBox {
 
     public static final String DASHBOARD = "Dashboard";
     public static final String STUDENTS = "Students";
+    public static final String RECYCLE_BIN = "Recycle Bin";
     public static final String MID_TERM_ENROLLMENTS = "Mid-Term Enrollments";
     public static final String TRANSITIONS = "Student Transitions";
     public static final String CALENDAR = "Calendar";
@@ -60,6 +61,7 @@ public class Sidebar extends VBox {
 
         addNav(navContent, DASHBOARD, "Dashboard", FontAwesomeSolid.TACHOMETER_ALT);
         addNav(navContent, STUDENTS, "Students", FontAwesomeSolid.USER_GRADUATE);
+        addNav(navContent, RECYCLE_BIN, "Recycle Bin", FontAwesomeSolid.TRASH);
         addNav(navContent, MID_TERM_ENROLLMENTS, "Mid-Term Enrollments",
                 FontAwesomeSolid.USER_PLUS);
         addNav(navContent, TRANSITIONS, "Student Transitions", FontAwesomeSolid.EXCHANGE_ALT);

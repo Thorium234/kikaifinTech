@@ -42,6 +42,7 @@ import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.model.student.MidTermStudent;
+import com.schaccs.model.student.DeletedStudent;
 import com.schaccs.model.voucher.Commitment;
 import com.schaccs.model.voucher.Creditor;
 import com.schaccs.model.voucher.PaymentVoucher;
@@ -71,6 +72,7 @@ import com.schaccs.store.MidTermEnrollmentStore;
 import com.schaccs.store.EmployeeStore;
 import com.schaccs.store.PayrollStore;
 import com.schaccs.store.ProcurementStore;
+import com.schaccs.store.RecycleBinStore;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -80,7 +82,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Snapshot save/load of in-memory stores. Existing UI and engines stay unchanged.
@@ -131,6 +135,7 @@ public final class PersistenceService {
         EmployeeStore.getInstance().clear();
         PayrollStore.getInstance().clear();
         ProcurementStore.getInstance().clear();
+        RecycleBinStore.getInstance().clear();
     }
 
     public synchronized void saveAll() {
@@ -154,6 +159,7 @@ public final class PersistenceService {
             saveSchoolCustom(conn);
             saveAcademicCalendar(conn);
             saveMidTermEnrollments(conn);
+            saveRecycleBin(conn);
             saveAccountStoreEntities(conn);
             saveEmployees(conn);
             saveSalaryStructures(conn);
@@ -187,6 +193,7 @@ public final class PersistenceService {
             EmployeeStore.getInstance().clear();
             PayrollStore.getInstance().clear();
             ProcurementStore.getInstance().clear();
+            RecycleBinStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
             loadFeeStructures(conn);
@@ -205,6 +212,7 @@ public final class PersistenceService {
             loadSchoolCustom(conn);
             loadAcademicCalendar(conn);
             loadMidTermEnrollments(conn);
+            loadRecycleBin(conn);
             loadAccountStoreEntities(conn);
             loadEmployees(conn);
             loadSalaryStructures(conn);
@@ -268,6 +276,7 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM school_streams");
             st.executeUpdate("DELETE FROM academic_calendar");
             st.executeUpdate("DELETE FROM mid_term_enrollments");
+            st.executeUpdate("DELETE FROM recycle_bin");
             st.executeUpdate("DELETE FROM depreciation_schedules");
             st.executeUpdate("DELETE FROM assets");
             st.executeUpdate("DELETE FROM asset_categories");
@@ -545,6 +554,35 @@ public final class PersistenceService {
 
     private void saveStudents(Connection conn) throws SQLException {
         StudentStore store = StudentStore.getInstance();
+        // Purge rows belonging to students that no longer exist in the registry
+        // (moved to the recycle bin). FK order: ledger lines -> ledgers -> students.
+        Set<String> current = new HashSet<>();
+        for (Student s : store.getStudents()) {
+            current.add(s.getId());
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT id FROM students");
+             PreparedStatement delLines = conn.prepareStatement(
+                     "DELETE FROM student_ledger_lines WHERE student_id = ?");
+             PreparedStatement delLed = conn.prepareStatement(
+                     "DELETE FROM student_ledgers WHERE student_id = ?");
+             PreparedStatement delStu = conn.prepareStatement(
+                     "DELETE FROM students WHERE id = ?")) {
+            while (rs.next()) {
+                String id = rs.getString("id");
+                if (!current.contains(id)) {
+                    delLines.setString(1, id);
+                    delLines.addBatch();
+                    delLed.setString(1, id);
+                    delLed.addBatch();
+                    delStu.setString(1, id);
+                    delStu.addBatch();
+                }
+            }
+            delLines.executeBatch();
+            delLed.executeBatch();
+            delStu.executeBatch();
+        }
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO students (id, admission_number, name, gender, form_class, stream,
                     boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status)
@@ -1450,6 +1488,71 @@ public final class PersistenceService {
                 e.setMidTermFee(parseMoney(rs.getString("mid_term_fee")));
                 e.setStatus(rs.getString("status"));
                 store.add(e);
+            }
+        }
+    }
+
+    private void saveRecycleBin(Connection conn) throws SQLException {
+        RecycleBinStore store = RecycleBinStore.getInstance();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO recycle_bin (id, admission_number, name, gender, form_class, stream, "
+                        + "boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status, deleted_at) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET admission_number=excluded.admission_number, "
+                        + "name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, "
+                        + "stream=excluded.stream, boarding_status=excluded.boarding_status, "
+                        + "parent_name=excluded.parent_name, phone=excluded.phone, avatar_path=excluded.avatar_path, "
+                        + "year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, "
+                        + "status=excluded.status, deleted_at=excluded.deleted_at")) {
+            for (DeletedStudent d : store.getItems()) {
+                ps.setString(1, d.getId());
+                ps.setString(2, d.getAdmissionNumber());
+                ps.setString(3, d.getName());
+                ps.setString(4, d.getGender());
+                ps.setString(5, d.getFormClass());
+                ps.setString(6, d.getStream());
+                ps.setString(7, enumName(d.getBoardingStatus()));
+                ps.setString(8, d.getParentName());
+                ps.setString(9, d.getPhone());
+                ps.setString(10, d.getAvatarPath());
+                ps.setObject(11, d.getYearOfAdmission());
+                ps.setObject(12, d.getAcademicYear());
+                ps.setString(13, enumName(d.getStatus()));
+                ps.setString(14, dateTime(d.getDeletedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadRecycleBin(Connection conn) throws SQLException {
+        RecycleBinStore store = RecycleBinStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM recycle_bin ORDER BY deleted_at")) {
+            while (rs.next()) {
+                String id = rs.getString("id");
+                String board = rs.getString("boarding_status");
+                String status = rs.getString("status");
+                Integer yearOfAdmission = rs.getObject("year_of_admission") == null
+                        ? null : rs.getInt("year_of_admission");
+                Integer academicYear = rs.getObject("academic_year") == null
+                        ? null : rs.getInt("academic_year");
+                String deletedAt = rs.getString("deleted_at");
+                store.add(DeletedStudent.restore(
+                        id,
+                        rs.getString("admission_number"),
+                        rs.getString("name"),
+                        rs.getString("gender"),
+                        rs.getString("form_class"),
+                        rs.getString("stream"),
+                        board != null ? BoardingStatus.valueOf(board) : null,
+                        rs.getString("parent_name"),
+                        rs.getString("phone"),
+                        rs.getString("avatar_path"),
+                        yearOfAdmission,
+                        academicYear,
+                        status != null ? StudentStatus.valueOf(status) : null,
+                        deletedAt != null ? LocalDateTime.parse(deletedAt) : LocalDateTime.now()));
             }
         }
     }
