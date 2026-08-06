@@ -13,6 +13,7 @@ import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
+import com.schaccs.util.FileDialogMemory;
 import com.schaccs.util.MailMergeEngine;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -201,11 +202,13 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
             return;
         }
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Fee Reminders PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
         chooser.setInitialFileName("fee-reminders.pdf");
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        FileDialogMemory.remember(file);
         File finalFile = file;
         List<StudentBalance> defs = List.copyOf(defaulters);
         CompletableFuture.runAsync(() -> {

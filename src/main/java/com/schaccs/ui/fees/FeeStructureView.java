@@ -13,6 +13,7 @@ import com.schaccs.store.FeeStructureStore;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
+import com.schaccs.util.FileDialogMemory;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
@@ -143,6 +144,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
 
     private void importFromFile() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Import Fee Structure");
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Spreadsheets", "*.csv", "*.xlsx"));
@@ -150,6 +152,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
+        FileDialogMemory.remember(file);
         new FeeStructureImportDialog(store, getScene().getWindow(), file.toPath()).showAndWait();
         refresh();
     }
@@ -161,6 +164,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
             return;
         }
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Fee Structure");
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Excel Workbook", "*.xlsx"),
@@ -170,6 +174,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
+        FileDialogMemory.remember(file);
         try {
             exportService.exportStructures(file.toPath(), List.of(s));
             AlertUtil.info("Export complete", "Exported to " + file.getAbsolutePath());
@@ -185,6 +190,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
             return;
         }
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Fee Structure as PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
         chooser.setInitialFileName(safeName(s.getName()) + ".pdf");
@@ -192,6 +198,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
+        FileDialogMemory.remember(file);
         try {
             pdfService.exportFeeStructurePdf(file.toPath(), s, pdfTermBox.getValue());
             AlertUtil.info("Export complete", "Exported to " + file.getAbsolutePath());

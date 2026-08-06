@@ -27,6 +27,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
+import com.schaccs.util.FileDialogMemory;
 import com.schaccs.util.PrintUtil;
 import com.schaccs.util.ReceiptPrinter;
 import javafx.application.Platform;
@@ -1149,6 +1150,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
 
     private void exportReportPack() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Full Report Pack");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
         chooser.setInitialFileName("report-pack.xlsx");
@@ -1156,6 +1158,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
+        FileDialogMemory.remember(file);
         File finalFile = file;
         CompletableFuture.runAsync(() -> {
             try {
@@ -1201,21 +1204,27 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
 
     private File choosePdfFile(String title, String initialFileName) {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle(title);
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
         chooser.setInitialFileName(initialFileName);
-        return chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        FileDialogMemory.remember(file);
+        return file;
     }
 
     private File chooseSaveFile(String title, String initialFileName) {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle(title);
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("CSV files", "*.csv"),
                 new FileChooser.ExtensionFilter("Excel files", "*.xlsx")
         );
         chooser.setInitialFileName(initialFileName);
-        return chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        FileDialogMemory.remember(file);
+        return file;
     }
 
     @Override

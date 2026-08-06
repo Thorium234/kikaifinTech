@@ -7,6 +7,7 @@ import com.schaccs.store.AuditStore;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.DateUtil;
+import com.schaccs.util.FileDialogMemory;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -111,6 +112,7 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
     @SuppressWarnings("unchecked")
     private void exportAuditLog() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Audit Log");
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("CSV files", "*.csv"),
@@ -118,6 +120,7 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
         chooser.setInitialFileName("audit-log.csv");
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        FileDialogMemory.remember(file);
         try {
             List<String> headers = List.of("Timestamp", "Action", "Entity", "Entity ID", "Field", "Old Value", "New Value", "Performed By");
             List<List<String>> rows = table.getItems().stream().map(e -> List.of(
@@ -137,11 +140,13 @@ public class AuditLogView extends VBox implements MainLayout.Refreshable {
     @SuppressWarnings("unchecked")
     private void exportAuditLogPdf() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Audit Log PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
         chooser.setInitialFileName("audit-log.pdf");
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        FileDialogMemory.remember(file);
         try {
             List<String> headers = List.of("Timestamp", "Action", "Entity", "Entity ID", "Field", "Old Value", "New Value", "Performed By");
             List<List<String>> rows = table.getItems().stream().map(e -> List.of(

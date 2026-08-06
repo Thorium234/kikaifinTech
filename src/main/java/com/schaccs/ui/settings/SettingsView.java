@@ -13,6 +13,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.update.UpdateService;
 import com.schaccs.update.UpdateSettingsView;
 import com.schaccs.util.AlertUtil;
+import com.schaccs.util.FileDialogMemory;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.beans.property.SimpleStringProperty;
@@ -566,6 +567,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
     private void chooseImage(TextField field, ImageView preview, ImageView mockPreview, String title) {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle(title);
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp"),
@@ -574,6 +576,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
         if (file != null) {
             field.setText(file.getAbsolutePath());
+            FileDialogMemory.remember(file);
         }
     }
 
@@ -712,6 +715,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
     private void exportMigrationHistoryPdf() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Migration History PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
         chooser.setInitialFileName("migration-history.pdf");
@@ -719,6 +723,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
+        FileDialogMemory.remember(file);
         try {
             List<String> headers = List.of("Version", "Migration", "Description", "Checksum", "Applied At");
             List<List<String>> rows = migrationTable.getItems().stream()

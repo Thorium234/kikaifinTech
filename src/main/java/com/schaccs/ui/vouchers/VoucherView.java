@@ -19,6 +19,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
+import com.schaccs.util.FileDialogMemory;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -660,6 +661,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
 
     private void exportPdfTable(String title, String initialName, List<String> headers, List<List<String>> rows) {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle(title);
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
         chooser.setInitialFileName(initialName);
@@ -667,6 +669,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         if (file == null) {
             return;
         }
+        FileDialogMemory.remember(file);
         try {
             pdfExportService.exportTable(file.toPath(), title, headers, rows);
             AlertUtil.info("Export complete", "PDF exported to:\n" + file.getAbsolutePath());
@@ -825,13 +828,16 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
 
     private File chooseSaveFile(String title, String initialName) {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle(title);
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("CSV files", "*.csv"),
                 new FileChooser.ExtensionFilter("Excel files", "*.xlsx")
         );
         chooser.setInitialFileName(initialName);
-        return chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        FileDialogMemory.remember(file);
+        return file;
     }
 
     private String safe(String value) {

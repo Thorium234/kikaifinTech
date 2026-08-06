@@ -17,6 +17,7 @@ import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
+import com.schaccs.util.FileDialogMemory;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
@@ -392,6 +393,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
     private void exportStudents() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Students");
         FileChooser.ExtensionFilter csv = new FileChooser.ExtensionFilter("CSV files", "*.csv");
         FileChooser.ExtensionFilter excel = new FileChooser.ExtensionFilter("Excel files", "*.xlsx");
@@ -400,6 +402,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         chooser.setInitialFileName("students-export.csv");
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        FileDialogMemory.remember(file);
         File target = withChosenExtension(file, chooser);
         try {
             List<String> headers = List.of("Admission Number", "Full Name", "Gender", "Class", "Stream", "Boarding Status", "Phone", "Parent/Guardian", "Status");
@@ -419,6 +422,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
     private void downloadTemplate() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Save Student Import Template");
         FileChooser.ExtensionFilter excel = new FileChooser.ExtensionFilter("Excel files", "*.xlsx");
         FileChooser.ExtensionFilter csv = new FileChooser.ExtensionFilter("CSV files", "*.csv");
@@ -427,6 +431,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         chooser.setInitialFileName("student-import-template.xlsx");
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        FileDialogMemory.remember(file);
         File target = withChosenExtension(file, chooser);
         try {
             new com.schaccs.service.export.StudentTemplateService(exportService).generateTemplate(target.toPath());
@@ -449,6 +454,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
 
     private void importStudents() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Import Students");
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Spreadsheet files", "*.csv", "*.xlsx"),
@@ -456,6 +462,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 new FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
         File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
+        FileDialogMemory.remember(file);
         try {
             List<Map<String, String>> rows = importService.parseFile(file.toPath());
             if (rows.isEmpty()) {
