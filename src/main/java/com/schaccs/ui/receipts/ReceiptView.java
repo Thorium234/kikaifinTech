@@ -19,6 +19,7 @@ import com.schaccs.util.PrintUtil;
 import javafx.application.Platform;
 import com.schaccs.util.ReceiptPrinter;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -42,6 +43,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public class ReceiptView extends VBox implements MainLayout.Refreshable {
@@ -52,6 +54,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
     private final SearchBar searchBar = new SearchBar("Search student by admission no or name…");
     private final TableView<Student> studentTable = new TableView<>();
+    private final FilteredList<Student> studentFilteredList;
     private final Label studentSummary = new Label("Select a student");
     private final Label balanceLabel = new Label();
     private final CurrencyField amountField = new CurrencyField();
@@ -70,6 +73,9 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         setSpacing(12);
         setPadding(new Insets(4));
 
+        studentFilteredList = new FilteredList<>(studentStore.getStudents(), s -> true);
+        studentTable.setItems(studentFilteredList);
+
         Label heading = new Label("Receipting — Automatic Votehead Allocation");
         heading.getStyleClass().add("section-title");
         Label badge = new Label("Student Fee Collection Workspace");
@@ -83,7 +89,15 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         policy.setMaxWidth(Double.MAX_VALUE);
 
         setupStudentTable();
-        searchBar.textProperty().addListener((obs, o, q) -> filterStudents(q));
+        searchBar.textProperty().addListener((obs, o, q) -> {
+            filterStudents(q);
+            if (q != null && !q.isBlank() && studentFilteredList.size() == 1) {
+                Student single = studentFilteredList.get(0);
+                selectStudent(single);
+                studentTable.getSelectionModel().select(single);
+            }
+        });
+        searchBar.getField().setOnAction(e -> searchAction());
 
         Label searchTitle = new Label("Student Search & Selection");
         searchTitle.getStyleClass().add("section-title");
@@ -237,7 +251,34 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
     }
 
     private void filterStudents(String q) {
-        studentTable.setItems(studentStore.search(q));
+        String query = q == null ? "" : q.trim();
+        studentFilteredList.setPredicate(s -> query.isEmpty() || s.matchesSearch(query));
+    }
+
+    private void searchAction() {
+        String q = searchBar.getText();
+        if (q == null || q.isBlank()) {
+            return;
+        }
+        Optional<Student> exact = studentStore.findByAdmissionNumber(q);
+        if (exact.isPresent()) {
+            pickStudent(exact.get());
+            return;
+        }
+        if (studentFilteredList.size() == 1) {
+            pickStudent(studentFilteredList.get(0));
+        } else if (studentFilteredList.isEmpty()) {
+            AlertUtil.warn("No match", "No student found for \"" + q + "\".");
+        } else {
+            AlertUtil.warn("Select a student", "Multiple students match \"" + q + "\". Pick one from the list.");
+        }
+    }
+
+    private void pickStudent(Student s) {
+        selectStudent(s);
+        studentTable.getSelectionModel().select(s);
+        studentTable.scrollTo(s);
+        amountField.requestFocus();
     }
 
     private void selectStudent(Student s) {
@@ -272,7 +313,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
             return;
         }
         searchBar.getField().setText("");
-        studentTable.getItems().setAll(studentStore.getStudents());
+        filterStudents("");
         studentTable.getSelectionModel().select(student);
         selectStudent(student);
         studentTable.scrollTo(student);
