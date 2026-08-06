@@ -4,13 +4,16 @@ import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
+import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.Services;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.export.SpreadsheetExportService;
 import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.service.student.StudentService;
+import com.schaccs.service.student.StudentTransitionService;
 import com.schaccs.store.SchoolCustomStore;
+import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.SearchBar;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
@@ -361,14 +364,20 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             PersistenceService.getInstance().saveAll();
             AlertUtil.info("Saved", "Student " + adm + " added with Term 1 fees charged.");
         } else {
+            BoardingStatus previousStatus = editing.getBoardingStatus();
             editing.setAdmissionNumber(adm);
             editing.setName(name);
             editing.setFormClass(formClass);
             editing.setStream(stream);
             editing.setGender(gender);
-            editing.setBoardingStatus(boarding);
             editing.setPhone(phone);
             editing.setParentName(parentName);
+            if (previousStatus != boarding) {
+                StudentFeeLedger ledger = StudentStore.getInstance().getLedger(editing.getId());
+                new StudentTransitionService().apply(editing, boarding, ledger.getCurrentTerm());
+            } else {
+                editing.setBoardingStatus(boarding);
+            }
             List<String> errors = studentService.updateStudent(editing);
             if (!errors.isEmpty()) {
                 AlertUtil.warn("Validation", String.join("\n", errors));

@@ -16,6 +16,7 @@ public class Sidebar extends VBox {
 
     public static final String DASHBOARD = "Dashboard";
     public static final String STUDENTS = "Students";
+    public static final String TRANSITIONS = "Student Transitions";
     public static final String FEES = "Fee Structure";
     public static final String RECEIPTS = "Receipting";
     public static final String VOUCHERS = "Payment Vouchers";
@@ -54,6 +55,7 @@ public class Sidebar extends VBox {
 
         addNav(navContent, DASHBOARD, "Dashboard");
         addNav(navContent, STUDENTS, "Students");
+        addNav(navContent, TRANSITIONS, "Student Transitions");
         addNav(navContent, FEES, "Fee Structure");
         addNav(navContent, RECEIPTS, "Receipting");
         addNav(navContent, VOUCHERS, "Payment Vouchers");

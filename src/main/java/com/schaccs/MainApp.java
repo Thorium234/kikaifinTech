@@ -19,6 +19,7 @@ import com.schaccs.ui.assets.FixedAssetView;
 import com.schaccs.ui.settings.SettingsView;
 import com.schaccs.ui.sync.SyncStatusView;
 import com.schaccs.ui.students.StudentView;
+import com.schaccs.ui.students.StudentTransitionView;
 import com.schaccs.ui.vouchers.VoucherView;
 import com.schaccs.ui.payroll.EmployeeView;
 import com.schaccs.ui.payroll.PayrollView;
@@ -86,6 +87,7 @@ public class MainApp extends Application {
             MainLayout layout = new MainLayout();
             layout.register(Sidebar.DASHBOARD, Sidebar.DASHBOARD, DashboardView::new);
             layout.register(Sidebar.STUDENTS, Sidebar.STUDENTS, StudentView::new);
+            layout.register(Sidebar.TRANSITIONS, Sidebar.TRANSITIONS, StudentTransitionView::new);
             layout.register(Sidebar.FEES, Sidebar.FEES, FeeStructureView::new);
             layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);
             layout.register(Sidebar.VOUCHERS, Sidebar.VOUCHERS, VoucherView::new);

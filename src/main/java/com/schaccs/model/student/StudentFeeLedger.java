@@ -81,6 +81,20 @@ public class StudentFeeLedger {
         chargedByVotehead.merge(voteheadCode, CurrencyConfig.money(amount), BigDecimal::add);
     }
 
+    /**
+     * Reduces a previously charged amount (e.g. when a student's boarding status
+     * is downgraded), floored at zero so charges can never go negative.
+     */
+    public void reduceCharge(String voteheadCode, BigDecimal amount) {
+        BigDecimal current = getCharged(voteheadCode);
+        BigDecimal next = current.subtract(CurrencyConfig.money(amount));
+        if (next.compareTo(BigDecimal.ZERO) <= 0) {
+            chargedByVotehead.remove(voteheadCode);
+        } else {
+            chargedByVotehead.put(voteheadCode, CurrencyConfig.money(next));
+        }
+    }
+
     public void pay(String voteheadCode, BigDecimal amount) {
         paidByVotehead.merge(voteheadCode, CurrencyConfig.money(amount), BigDecimal::add);
     }

@@ -13,7 +13,9 @@ import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.StudentStore;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class FeeCalculationService {
@@ -97,8 +99,27 @@ public class FeeCalculationService {
         });
     }
 
-    public BigDecimal expectedAnnualFee(BoardingStatus status) {
-        return feeStore.findStructure(AppConfig.getInstance().getAcademicYear(), status)
+    /**
+     * Per-votehead amounts billed for a single term under a given boarding status
+     * (sibling discount already applied). Used to compute the fee impact of a
+     * Day ↔ Boarding transition so only the billed term is adjusted.
+     */
+    public Map<String, BigDecimal> termAmountsFor(Student student, BoardingStatus status, AcademicTerm term) {
+        Map<String, BigDecimal> amounts = new LinkedHashMap<>();
+        int year = student.getAcademicYear() != null
+                ? student.getAcademicYear()
+                : AppConfig.getInstance().getAcademicYear();
+        feeStore.findStructure(year, status).ifPresent(structure -> {
+            BigDecimal factor = siblingDiscountFactor(student);
+            for (FeeStructureItem item : structure.itemsForTerm(term)) {
+                amounts.merge(item.getVoteheadCode(),
+                        CurrencyConfig.money(item.getAmount().multiply(factor)), BigDecimal::add);
+            }
+        });
+        return amounts;
+    }
+
+    public BigDecimal expectedAnnualFee(BoardingStatus status) {        return feeStore.findStructure(AppConfig.getInstance().getAcademicYear(), status)
                 .map(FeeStructure::grandTotal)
                 .orElse(CurrencyConfig.zero());
     }
