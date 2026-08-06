@@ -105,6 +105,19 @@ class ImportExportCoreTest {
     }
 
     @Test
+    void exportedTemplateRoundTripsThroughImporter() throws Exception {
+        Path template = Files.createTempFile("student-template-roundtrip", ".xlsx");
+        new StudentTemplateService(new SpreadsheetExportService()).generateTemplate(template);
+
+        StudentImportService importService = new StudentImportService();
+        List<Map<String, String>> rows = importService.parseFile(template);
+
+        assertEquals(1, rows.size(), "The exported template's sample row must be readable back");
+        assertEquals("2026/001", rows.get(0).get("admissionnumber"));
+        assertEquals("John Doe", rows.get(0).get("fullname"));
+    }
+
+    @Test
     void parseFileReturnsEveryRowEvenWithMistakes() throws Exception {
         StudentImportService importService = new StudentImportService();
         Path csv = Files.createTempFile("students-import", ".csv");

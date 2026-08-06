@@ -25,6 +25,7 @@ import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -67,7 +68,8 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         setTitle("Review Import");
         initModality(Modality.APPLICATION_MODAL);
         setHeaderText("All " + staged.size() + " row(s) from the file are staged below. "
-                + "Red cells contain mistakes (e.g. duplicate admission number, number format). "
+                + "Red cells contain mistakes (e.g. duplicate admission number, number format, "
+                + "Academic Year / Year of Admission). "
                 + "Edit them directly in the table, then click Save Valid Rows.");
         getDialogPane().getButtonTypes().addAll(CANCEL_TYPE, SAVE_TYPE);
 
@@ -82,7 +84,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         VBox content = new VBox(10, summaryLabel, table, hint);
         content.setPadding(new Insets(8));
         getDialogPane().setContent(content);
-        getDialogPane().setPrefSize(1180, 620);
+        getDialogPane().setPrefSize(1480, 620);
 
         Button saveButton = (Button) getDialogPane().lookupButton(SAVE_TYPE);
         saveButton.getStyleClass().add("primary-button");
@@ -108,6 +110,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         adm.setOnEditCommit(e -> {
             e.getRowValue().setAdmissionNumber(e.getNewValue());
+            syncRaw(e.getRowValue(), "admissionnumber", e.getNewValue());
             revalidate();
         });
         adm.setPrefWidth(110);
@@ -123,9 +126,10 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         name.setOnEditCommit(e -> {
             e.getRowValue().setName(e.getNewValue());
+            syncRaw(e.getRowValue(), "fullname", e.getNewValue());
             revalidate();
         });
-        name.setPrefWidth(180);
+        name.setPrefWidth(170);
 
         TableColumn<Student, String> gender = new TableColumn<>("Gender");
         gender.setCellValueFactory(c -> c.getValue().genderProperty());
@@ -138,9 +142,10 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         gender.setOnEditCommit(e -> {
             e.getRowValue().setGender(e.getNewValue());
+            syncRaw(e.getRowValue(), "gender", e.getNewValue());
             revalidate();
         });
-        gender.setPrefWidth(90);
+        gender.setPrefWidth(80);
 
         TableColumn<Student, String> cls = new TableColumn<>("Form Class");
         cls.setCellValueFactory(c -> c.getValue().formClassProperty());
@@ -153,9 +158,10 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         cls.setOnEditCommit(e -> {
             e.getRowValue().setFormClass(e.getNewValue());
+            syncRaw(e.getRowValue(), "formclass", e.getNewValue());
             revalidate();
         });
-        cls.setPrefWidth(110);
+        cls.setPrefWidth(100);
 
         TableColumn<Student, String> stream = new TableColumn<>("Stream");
         stream.setCellValueFactory(c -> c.getValue().streamProperty());
@@ -168,9 +174,10 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         stream.setOnEditCommit(e -> {
             e.getRowValue().setStream(e.getNewValue());
+            syncRaw(e.getRowValue(), "stream", e.getNewValue());
             revalidate();
         });
-        stream.setPrefWidth(80);
+        stream.setPrefWidth(70);
 
         TableColumn<Student, BoardingStatus> boarding = new TableColumn<>("Boarding");
         boarding.setCellValueFactory(c -> c.getValue().boardingStatusProperty());
@@ -183,9 +190,11 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         boarding.setOnEditCommit(e -> {
             e.getRowValue().setBoardingStatus(e.getNewValue());
+            syncRaw(e.getRowValue(), "boardingstatus",
+                    e.getNewValue() == null ? "" : e.getNewValue().getDisplayName());
             revalidate();
         });
-        boarding.setPrefWidth(100);
+        boarding.setPrefWidth(95);
 
         TableColumn<Student, String> phone = new TableColumn<>("Phone");
         phone.setCellValueFactory(c -> c.getValue().phoneProperty());
@@ -198,9 +207,10 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         phone.setOnEditCommit(e -> {
             e.getRowValue().setPhone(e.getNewValue());
+            syncRaw(e.getRowValue(), "phone", e.getNewValue());
             revalidate();
         });
-        phone.setPrefWidth(130);
+        phone.setPrefWidth(120);
 
         TableColumn<Student, String> parent = new TableColumn<>("Parent/Guardian");
         parent.setCellValueFactory(c -> c.getValue().parentNameProperty());
@@ -213,9 +223,10 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         parent.setOnEditCommit(e -> {
             e.getRowValue().setParentName(e.getNewValue());
+            syncRaw(e.getRowValue(), "parentname", e.getNewValue());
             revalidate();
         });
-        parent.setPrefWidth(140);
+        parent.setPrefWidth(130);
 
         TableColumn<Student, StudentStatus> status = new TableColumn<>("Status");
         status.setCellValueFactory(c -> c.getValue().statusProperty());
@@ -228,9 +239,47 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         status.setOnEditCommit(e -> {
             e.getRowValue().setStatus(e.getNewValue());
+            syncRaw(e.getRowValue(), "studentstatus",
+                    e.getNewValue() == null ? "" : e.getNewValue().getDisplayName());
             revalidate();
         });
-        status.setPrefWidth(100);
+        status.setPrefWidth(90);
+
+        TableColumn<Student, String> academicYear = new TableColumn<>("Academic Year");
+        academicYear.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().getAcademicYear() == null ? "" : String.valueOf(c.getValue().getAcademicYear())));
+        academicYear.setCellFactory(c -> new TextFieldTableCell<>() {
+            @Override
+            public void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                applyHighlight(this, "academicYear", empty);
+            }
+        });
+        academicYear.setOnEditCommit(e -> {
+            String value = e.getNewValue() == null ? "" : e.getNewValue().trim();
+            e.getRowValue().setAcademicYear(parseYear(value));
+            syncRaw(e.getRowValue(), "academicyear", value);
+            revalidate();
+        });
+        academicYear.setPrefWidth(110);
+
+        TableColumn<Student, String> yearOfAdmission = new TableColumn<>("Year of Admission");
+        yearOfAdmission.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().getYearOfAdmission() == null ? "" : String.valueOf(c.getValue().getYearOfAdmission())));
+        yearOfAdmission.setCellFactory(c -> new TextFieldTableCell<>() {
+            @Override
+            public void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                applyHighlight(this, "yearOfAdmission", empty);
+            }
+        });
+        yearOfAdmission.setOnEditCommit(e -> {
+            String value = e.getNewValue() == null ? "" : e.getNewValue().trim();
+            e.getRowValue().setYearOfAdmission(parseYear(value));
+            syncRaw(e.getRowValue(), "yearofadmission", value);
+            revalidate();
+        });
+        yearOfAdmission.setPrefWidth(110);
 
         TableColumn<Student, String> errorsCol = new TableColumn<>("Errors to Fix");
         errorsCol.setCellValueFactory(c -> new SimpleStringProperty(allErrors(c.getValue())));
@@ -253,7 +302,8 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         errorsCol.setPrefWidth(220);
 
         @SuppressWarnings("unchecked")
-        var columns = new TableColumn[]{adm, name, gender, cls, stream, boarding, phone, parent, status, errorsCol};
+        var columns = new TableColumn[]{adm, name, gender, cls, stream, boarding, phone, parent, status,
+                academicYear, yearOfAdmission, errorsCol};
         table.getColumns().addAll(columns);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setItems(staged);
@@ -273,6 +323,28 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         if (messages != null && !messages.isEmpty()) {
             cell.getStyleClass().add("import-error-cell");
             cell.setTooltip(new Tooltip(String.join("\n", messages)));
+        }
+    }
+
+    /**
+     * Keep the original imported row in sync with inline edits so revalidation
+     * always inspects the values currently shown in the table.
+     */
+    private void syncRaw(Student student, String key, String value) {
+        int index = staged.indexOf(student);
+        if (index >= 0 && index < rawRows.size()) {
+            rawRows.get(index).put(key, value == null ? "" : value);
+        }
+    }
+
+    private Integer parseYear(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value.trim()).intValueExact();
+        } catch (Exception ex) {
+            return null;
         }
     }
 
