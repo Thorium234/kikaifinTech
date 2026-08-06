@@ -108,6 +108,12 @@
     -fx-font-size: 13px;
     -fx-background-radius: 0;
     -fx-border-width: 0;
+    -fx-graphic-text-gap: 10;
+}
+
+.nav-button .ikonli-font-icon {
+    -fx-icon-color: #D5D8DC;
+    -fx-icon-size: 15;
 }
 
 .nav-button:hover {
@@ -115,10 +121,18 @@
     -fx-text-fill: white;
 }
 
+.nav-button:hover .ikonli-font-icon {
+    -fx-icon-color: white;
+}
+
 .nav-button-active {
     -fx-background-color: #1ABC9C;
     -fx-text-fill: white;
     -fx-font-weight: bold;
+}
+
+.nav-button-active .ikonli-font-icon {
+    -fx-icon-color: white;
 }
 
 .top-bar {

@@ -7,7 +7,6 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.javafx.FontIcon;
 
@@ -59,30 +58,31 @@ public class Sidebar extends VBox {
 
         navContent.getChildren().addAll(title, sub);
 
-        addNav(navContent, DASHBOARD, "Dashboard");
-        addNav(navContent, STUDENTS, "Students");
+        addNav(navContent, DASHBOARD, "Dashboard", FontAwesomeSolid.TACHOMETER_ALT);
+        addNav(navContent, STUDENTS, "Students", FontAwesomeSolid.USER_GRADUATE);
         addNav(navContent, MID_TERM_ENROLLMENTS, "Mid-Term Enrollments",
-                new FontIcon(FontAwesomeSolid.USER_PLUS));
-        addNav(navContent, TRANSITIONS, "Student Transitions");
-        addNav(navContent, CALENDAR, "Calendar");
-        addNav(navContent, FEES, "Fee Structure");
-        addNav(navContent, PAY, "Pay");
-        addNav(navContent, RECEIPTS, "Receipting");
-        addNav(navContent, VOUCHERS, "Payment Vouchers");
-        addNav(navContent, REPORTS, "Reports");
-        addNav(navContent, FEE_REMINDER, "Fee Reminder");
-        addNav(navContent, AUDIT_LOG, "Audit Log");
-        addNav(navContent, BANK_RECONCILIATION, "Bank Reconciliation");
-        addNav(navContent, SYNC, "Sync");
-        addNav(navContent, FIXED_ASSETS, "Fixed Assets");
-        addNav(navContent, EMPLOYEES, "Employees");
-        addNav(navContent, PAYROLL, "Payroll");
-        addNav(navContent, PROCUREMENT, "Procurement");
-        addNav(navContent, TENDERS, "Tenders");
-        addNav(navContent, SUPPLIERS, "Suppliers");
-        addNav(navContent, CONTRACTS, "Contracts");
-        addNav(navContent, SCHOOL_CUSTOM, "School Custom");
-        addNav(navContent, SETTINGS, "Settings");
+                FontAwesomeSolid.USER_PLUS);
+        addNav(navContent, TRANSITIONS, "Student Transitions", FontAwesomeSolid.EXCHANGE_ALT);
+        addNav(navContent, CALENDAR, "Calendar", FontAwesomeSolid.CALENDAR_ALT);
+        addNav(navContent, FEES, "Fee Structure", FontAwesomeSolid.MONEY_BILL_ALT);
+        addNav(navContent, PAY, "Pay", FontAwesomeSolid.CREDIT_CARD);
+        addNav(navContent, RECEIPTS, "Receipting", FontAwesomeSolid.RECEIPT);
+        addNav(navContent, VOUCHERS, "Payment Vouchers", FontAwesomeSolid.FILE_INVOICE_DOLLAR);
+        addNav(navContent, REPORTS, "Reports", FontAwesomeSolid.CHART_BAR);
+        addNav(navContent, FEE_REMINDER, "Fee Reminder", FontAwesomeSolid.BELL);
+        addNav(navContent, AUDIT_LOG, "Audit Log", FontAwesomeSolid.CLIPBOARD_LIST);
+        addNav(navContent, BANK_RECONCILIATION, "Bank Reconciliation",
+                FontAwesomeSolid.LANDMARK);
+        addNav(navContent, SYNC, "Sync", FontAwesomeSolid.SYNC_ALT);
+        addNav(navContent, FIXED_ASSETS, "Fixed Assets", FontAwesomeSolid.BOX);
+        addNav(navContent, EMPLOYEES, "Employees", FontAwesomeSolid.USER_TIE);
+        addNav(navContent, PAYROLL, "Payroll", FontAwesomeSolid.WALLET);
+        addNav(navContent, PROCUREMENT, "Procurement", FontAwesomeSolid.SHOPPING_CART);
+        addNav(navContent, TENDERS, "Tenders", FontAwesomeSolid.GAVEL);
+        addNav(navContent, SUPPLIERS, "Suppliers", FontAwesomeSolid.TRUCK);
+        addNav(navContent, CONTRACTS, "Contracts", FontAwesomeSolid.FILE_CONTRACT);
+        addNav(navContent, SCHOOL_CUSTOM, "School Custom", FontAwesomeSolid.SLIDERS_H);
+        addNav(navContent, SETTINGS, "Settings", FontAwesomeSolid.COGS);
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
@@ -108,11 +108,10 @@ public class Sidebar extends VBox {
         addNav(parent, key, label, null);
     }
 
-    private void addNav(VBox parent, String key, String label, FontIcon icon) {
+    private void addNav(VBox parent, String key, String label, FontAwesomeSolid code) {
         Button btn = new Button(label);
-        if (icon != null) {
-            icon.setIconColor(Color.web("#D5D8DC"));
-            btn.setGraphic(icon);
+        if (code != null) {
+            btn.setGraphic(new FontIcon(code));
         }
         btn.getStyleClass().add("nav-button");
         btn.setMaxWidth(Double.MAX_VALUE);
