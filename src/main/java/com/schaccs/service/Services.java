@@ -14,6 +14,7 @@ import com.schaccs.service.report.ReportService;
 import com.schaccs.service.school.AcademicCalendarService;
 import com.schaccs.service.school.SchoolCustomService;
 import com.schaccs.service.student.StudentService;
+import com.schaccs.service.student.MidTermEnrollmentService;
 import com.schaccs.service.sync.SyncEngine;
 import com.schaccs.service.sync.SyncReportService;
 import com.schaccs.service.voucher.PaymentVoucherService;
@@ -35,6 +36,7 @@ public final class Services {
     private static final Services INSTANCE = new Services();
 
     private final StudentService studentService = new StudentService();
+    private final MidTermEnrollmentService midTermEnrollmentService = new MidTermEnrollmentService();
     private final FeeCalculationService feeCalculationService = new FeeCalculationService();
     private final FeeAllocationService feeAllocationService = new FeeAllocationService();
     private final ArrearsService arrearsService = new ArrearsService();
@@ -67,6 +69,10 @@ public final class Services {
 
     public StudentService student() {
         return studentService;
+    }
+
+    public MidTermEnrollmentService midTermEnrollment() {
+        return midTermEnrollmentService;
     }
 
     public FeeCalculationService feeCalculation() {

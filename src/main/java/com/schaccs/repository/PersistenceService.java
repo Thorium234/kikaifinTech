@@ -41,6 +41,7 @@ import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.model.student.MidTermStudent;
 import com.schaccs.model.voucher.Commitment;
 import com.schaccs.model.voucher.Creditor;
 import com.schaccs.model.voucher.PaymentVoucher;
@@ -66,6 +67,7 @@ import com.schaccs.store.AuditStore;
 import com.schaccs.store.BankReconciliationStore;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.VoucherStore;
+import com.schaccs.store.MidTermEnrollmentStore;
 import com.schaccs.store.EmployeeStore;
 import com.schaccs.store.PayrollStore;
 import com.schaccs.store.ProcurementStore;
@@ -125,6 +127,7 @@ public final class PersistenceService {
         BankReconciliationStore.getInstance().clear();
         SchoolCustomStore.getInstance().clear();
         AcademicCalendarStore.getInstance().clear();
+        MidTermEnrollmentStore.getInstance().clear();
         EmployeeStore.getInstance().clear();
         PayrollStore.getInstance().clear();
         ProcurementStore.getInstance().clear();
@@ -150,6 +153,7 @@ public final class PersistenceService {
             saveBankReconciliation(conn);
             saveSchoolCustom(conn);
             saveAcademicCalendar(conn);
+            saveMidTermEnrollments(conn);
             saveAccountStoreEntities(conn);
             saveEmployees(conn);
             saveSalaryStructures(conn);
@@ -179,6 +183,7 @@ public final class PersistenceService {
             AuditStore.getInstance().clear();
             BankReconciliationStore.getInstance().clear();
             SchoolCustomStore.getInstance().clear();
+            MidTermEnrollmentStore.getInstance().clear();
             EmployeeStore.getInstance().clear();
             PayrollStore.getInstance().clear();
             ProcurementStore.getInstance().clear();
@@ -199,6 +204,7 @@ public final class PersistenceService {
             loadBankReconciliation(conn);
             loadSchoolCustom(conn);
             loadAcademicCalendar(conn);
+            loadMidTermEnrollments(conn);
             loadAccountStoreEntities(conn);
             loadEmployees(conn);
             loadSalaryStructures(conn);
@@ -261,6 +267,7 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM school_form_classes");
             st.executeUpdate("DELETE FROM school_streams");
             st.executeUpdate("DELETE FROM academic_calendar");
+            st.executeUpdate("DELETE FROM mid_term_enrollments");
             st.executeUpdate("DELETE FROM depreciation_schedules");
             st.executeUpdate("DELETE FROM assets");
             st.executeUpdate("DELETE FROM asset_categories");
@@ -1401,6 +1408,48 @@ public final class PersistenceService {
                         AcademicTerm.valueOf(rs.getString("term")),
                         parseDate(rs.getString("from_date")),
                         parseDate(rs.getString("to_date"))));
+            }
+        }
+    }
+
+    private void saveMidTermEnrollments(Connection conn) throws SQLException {
+        MidTermEnrollmentStore store = MidTermEnrollmentStore.getInstance();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO mid_term_enrollments (id, student_id, admission_number, name, date_joined, "
+                        + "charge_current_term, mid_term_fee, status) VALUES (?,?,?,?,?,?,?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET student_id=excluded.student_id, "
+                        + "admission_number=excluded.admission_number, name=excluded.name, "
+                        + "date_joined=excluded.date_joined, charge_current_term=excluded.charge_current_term, "
+                        + "mid_term_fee=excluded.mid_term_fee, status=excluded.status")) {
+            for (MidTermStudent e : store.getEnrollments()) {
+                ps.setString(1, e.getId());
+                ps.setString(2, e.getStudentId());
+                ps.setString(3, e.getAdmissionNumber());
+                ps.setString(4, e.getName());
+                ps.setString(5, date(e.getDateJoined()));
+                ps.setInt(6, boolInt(e.isChargeCurrentTerm()));
+                ps.setString(7, money(e.getMidTermFee()));
+                ps.setString(8, e.getStatus());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadMidTermEnrollments(Connection conn) throws SQLException {
+        MidTermEnrollmentStore store = MidTermEnrollmentStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM mid_term_enrollments ORDER BY date_joined")) {
+            while (rs.next()) {
+                MidTermStudent e = MidTermStudent.withId(rs.getString("id"));
+                e.setStudentId(rs.getString("student_id"));
+                e.setAdmissionNumber(rs.getString("admission_number"));
+                e.setName(rs.getString("name"));
+                e.setDateJoined(parseDate(rs.getString("date_joined")));
+                e.setChargeCurrentTerm(parseBool(rs.getInt("charge_current_term")));
+                e.setMidTermFee(parseMoney(rs.getString("mid_term_fee")));
+                e.setStatus(rs.getString("status"));
+                store.add(e);
             }
         }
     }

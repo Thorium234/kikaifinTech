@@ -7,6 +7,9 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,6 +19,7 @@ public class Sidebar extends VBox {
 
     public static final String DASHBOARD = "Dashboard";
     public static final String STUDENTS = "Students";
+    public static final String MID_TERM_ENROLLMENTS = "Mid-Term Enrollments";
     public static final String TRANSITIONS = "Student Transitions";
     public static final String CALENDAR = "Calendar";
     public static final String FEES = "Fee Structure";
@@ -57,6 +61,8 @@ public class Sidebar extends VBox {
 
         addNav(navContent, DASHBOARD, "Dashboard");
         addNav(navContent, STUDENTS, "Students");
+        addNav(navContent, MID_TERM_ENROLLMENTS, "Mid-Term Enrollments",
+                new FontIcon(FontAwesomeSolid.USER_PLUS));
         addNav(navContent, TRANSITIONS, "Student Transitions");
         addNav(navContent, CALENDAR, "Calendar");
         addNav(navContent, FEES, "Fee Structure");
@@ -99,7 +105,15 @@ public class Sidebar extends VBox {
     }
 
     private void addNav(VBox parent, String key, String label) {
+        addNav(parent, key, label, null);
+    }
+
+    private void addNav(VBox parent, String key, String label, FontIcon icon) {
         Button btn = new Button(label);
+        if (icon != null) {
+            icon.setIconColor(Color.web("#D5D8DC"));
+            btn.setGraphic(icon);
+        }
         btn.getStyleClass().add("nav-button");
         btn.setMaxWidth(Double.MAX_VALUE);
         btn.setOnAction(e -> {

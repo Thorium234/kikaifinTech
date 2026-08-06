@@ -88,6 +88,18 @@
         </dependency>
 
         <!-- SLF4J binding — routes SLF4J calls to java.util.logging -->
+        <!-- Ikonli: FontAwesome5 glyph icons for sidebar navigation -->
+        <dependency>
+            <groupId>org.kordamp.ikonli</groupId>
+            <artifactId>ikonli-javafx</artifactId>
+            <version>12.3.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.kordamp.ikonli</groupId>
+            <artifactId>ikonli-fontawesome5-pack</artifactId>
+            <version>12.3.1</version>
+        </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-jdk14</artifactId>

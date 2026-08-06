@@ -7,6 +7,7 @@ import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
+import com.schaccs.service.student.MidTermEnrollmentService;
 import com.schaccs.store.AcademicCalendarStore;
 import com.schaccs.store.StudentStore;
 import javafx.collections.ObservableList;
@@ -36,18 +37,26 @@ public class AcademicCalendarService {
     private final AcademicCalendarStore store;
     private final StudentStore studentStore;
     private final AuditService auditService;
+    private final MidTermEnrollmentService midTermService;
 
     private LocalDate lastRolloverDate;
 
     public AcademicCalendarService() {
-        this(AcademicCalendarStore.getInstance(), StudentStore.getInstance(), new AuditService());
+        this(AcademicCalendarStore.getInstance(), StudentStore.getInstance(), new AuditService(),
+                new MidTermEnrollmentService());
     }
 
     public AcademicCalendarService(AcademicCalendarStore store, StudentStore studentStore,
                                    AuditService auditService) {
+        this(store, studentStore, auditService, new MidTermEnrollmentService());
+    }
+
+    public AcademicCalendarService(AcademicCalendarStore store, StudentStore studentStore,
+                                   AuditService auditService, MidTermEnrollmentService midTermService) {
         this.store = store;
         this.studentStore = studentStore;
         this.auditService = auditService;
+        this.midTermService = midTermService;
     }
 
     public ObservableList<TermPeriod> getPeriods() {
@@ -272,6 +281,9 @@ public class AcademicCalendarService {
                 }
                 ledger.clearCurrentCycle();
                 ledger.setCurrentTerm(nextTerm(current));
+                if (midTermService.isMidTermEnrolled(s.getId())) {
+                    midTermService.chargeFullFeesForCurrentTerm(s);
+                }
                 if (!movedThisStudent) {
                     studentsRolled++;
                     movedThisStudent = true;
