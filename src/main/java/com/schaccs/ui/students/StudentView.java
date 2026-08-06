@@ -472,7 +472,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             List<Student> students = rows.stream()
                     .map(importService::toStudent)
                     .collect(Collectors.toList());
-            StudentImportReviewDialog dialog = new StudentImportReviewDialog(rows, students, importService);
+            StudentImportReviewDialog dialog = new StudentImportReviewDialog(file.toPath(), rows, students, importService);
             dialog.showAndWait();
             if (dialog.getImportedCount() > 0) {
                 table.refresh();

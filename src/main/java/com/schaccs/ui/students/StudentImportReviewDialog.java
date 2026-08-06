@@ -22,10 +22,13 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.cell.ComboBoxTableCell;
 import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -49,6 +52,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
             new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
 
     private final StudentImportService importService;
+    private final Path sourcePath;
     private final ObservableList<Student> staged;
     private final List<Map<String, String>> rawRows;
     private final Map<Student, Map<String, List<String>>> errorsByStudent = new HashMap<>();
@@ -57,31 +61,42 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
     private final Label summaryLabel = new Label();
 
     private int imported;
+    private boolean dirty;
+    private boolean refreshed;
 
-    public StudentImportReviewDialog(List<Map<String, String>> rawRows,
+    public StudentImportReviewDialog(Path sourcePath,
+                                     List<Map<String, String>> rawRows,
                                      List<Student> students,
                                      StudentImportService importService) {
         this.importService = importService;
+        this.sourcePath = sourcePath;
         this.rawRows = new ArrayList<>(rawRows);
         this.staged = FXCollections.observableArrayList(students);
 
         setTitle("Review Import");
         initModality(Modality.APPLICATION_MODAL);
-        setHeaderText("All " + staged.size() + " row(s) from the file are staged below. "
-                + "Red cells contain mistakes (e.g. duplicate admission number, number format, "
-                + "Academic Year / Year of Admission). "
-                + "Edit them directly in the table, then click Save Valid Rows.");
+        updateHeader();
         getDialogPane().getButtonTypes().addAll(CANCEL_TYPE, SAVE_TYPE);
 
         buildTable();
 
         summaryLabel.getStyleClass().add("muted");
         summaryLabel.setWrapText(true);
+        summaryLabel.setMaxWidth(Double.MAX_VALUE);
         Label hint = new Label("Tip: double-click a red cell to edit it. Rows that are still in error will not be saved.");
         hint.getStyleClass().add("muted");
         hint.setWrapText(true);
 
-        VBox content = new VBox(10, summaryLabel, table, hint);
+        Button refreshButton = new Button("Refresh from File");
+        refreshButton.getStyleClass().add("secondary-button");
+        refreshButton.setTooltip(new Tooltip("Re-read the source file and reload the preview with the latest changes."));
+        refreshButton.setOnAction(e -> refreshFromFile());
+
+        HBox.setHgrow(summaryLabel, Priority.ALWAYS);
+        HBox toolbar = new HBox(10, summaryLabel, refreshButton);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(10, toolbar, table, hint);
         content.setPadding(new Insets(8));
         getDialogPane().setContent(content);
         getDialogPane().setPrefSize(1480, 620);
@@ -331,6 +346,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
      * always inspects the values currently shown in the table.
      */
     private void syncRaw(Student student, String key, String value) {
+        dirty = true;
         int index = staged.indexOf(student);
         if (index >= 0 && index < rawRows.size()) {
             rawRows.get(index).put(key, value == null ? "" : value);
@@ -345,6 +361,39 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
             return new BigDecimal(value.trim()).intValueExact();
         } catch (Exception ex) {
             return null;
+        }
+    }
+
+    private void updateHeader() {
+        setHeaderText("All " + staged.size() + " row(s) from the file are staged below"
+                + (refreshed ? " (reloaded from file)" : "") + ". "
+                + "Red cells contain mistakes (e.g. duplicate admission number, number format, "
+                + "Academic Year / Year of Admission). "
+                + "Edit them directly in the table, then click Save Valid Rows.");
+    }
+
+    private void refreshFromFile() {
+        if (dirty && !AlertUtil.confirm("Refresh from File",
+                "Reload the preview from the file? Inline edits made in the table will be discarded.")) {
+            return;
+        }
+        try {
+            List<Map<String, String>> fresh = importService.parseFile(sourcePath);
+            if (fresh.isEmpty()) {
+                AlertUtil.warn("Nothing to refresh", "The file now contains no data rows.");
+                return;
+            }
+            rawRows.clear();
+            rawRows.addAll(fresh);
+            staged.setAll(fresh.stream().map(importService::toStudent).collect(Collectors.toList()));
+            dirty = false;
+            refreshed = true;
+            imported = 0;
+            updateHeader();
+            revalidate();
+        } catch (Exception e) {
+            AlertUtil.error("Refresh failed",
+                    "The file could not be re-read.\n\n" + e.getMessage());
         }
     }
 
