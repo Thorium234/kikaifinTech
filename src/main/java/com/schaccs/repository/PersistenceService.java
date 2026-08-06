@@ -57,6 +57,7 @@ import com.schaccs.model.procurement.Contract;
 import com.schaccs.model.procurement.ContractMilestone;
 import com.schaccs.model.procurement.ProcurementApproval;
 import com.schaccs.store.AccountStore;
+import com.schaccs.store.AcademicCalendarStore;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
@@ -123,6 +124,7 @@ public final class PersistenceService {
         AuditStore.getInstance().clear();
         BankReconciliationStore.getInstance().clear();
         SchoolCustomStore.getInstance().clear();
+        AcademicCalendarStore.getInstance().clear();
         EmployeeStore.getInstance().clear();
         PayrollStore.getInstance().clear();
         ProcurementStore.getInstance().clear();
@@ -147,6 +149,7 @@ public final class PersistenceService {
             saveAuditLog(conn);
             saveBankReconciliation(conn);
             saveSchoolCustom(conn);
+            saveAcademicCalendar(conn);
             saveAccountStoreEntities(conn);
             saveEmployees(conn);
             saveSalaryStructures(conn);
@@ -195,6 +198,7 @@ public final class PersistenceService {
             loadAuditLog(conn);
             loadBankReconciliation(conn);
             loadSchoolCustom(conn);
+            loadAcademicCalendar(conn);
             loadAccountStoreEntities(conn);
             loadEmployees(conn);
             loadSalaryStructures(conn);
@@ -256,6 +260,7 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM bank_reconciliation");
             st.executeUpdate("DELETE FROM school_form_classes");
             st.executeUpdate("DELETE FROM school_streams");
+            st.executeUpdate("DELETE FROM academic_calendar");
             st.executeUpdate("DELETE FROM depreciation_schedules");
             st.executeUpdate("DELETE FROM assets");
             st.executeUpdate("DELETE FROM asset_categories");
@@ -1365,6 +1370,37 @@ public final class PersistenceService {
             while (rs.next()) {
                 store.addStream(com.schaccs.model.school.SchoolStream.withId(
                         rs.getString("id"), rs.getString("name")));
+            }
+        }
+    }
+
+    private void saveAcademicCalendar(Connection conn) throws SQLException {
+        AcademicCalendarStore store = AcademicCalendarStore.getInstance();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO academic_calendar (id, term, from_date, to_date) VALUES (?,?,?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET term=excluded.term, "
+                        + "from_date=excluded.from_date, to_date=excluded.to_date")) {
+            for (com.schaccs.model.school.TermPeriod p : store.getPeriods()) {
+                ps.setString(1, p.getId());
+                ps.setString(2, enumName(p.getTerm()));
+                ps.setString(3, date(p.getFrom()));
+                ps.setString(4, date(p.getTo()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadAcademicCalendar(Connection conn) throws SQLException {
+        AcademicCalendarStore store = AcademicCalendarStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM academic_calendar ORDER BY from_date")) {
+            while (rs.next()) {
+                store.add(com.schaccs.model.school.TermPeriod.withId(
+                        rs.getString("id"),
+                        AcademicTerm.valueOf(rs.getString("term")),
+                        parseDate(rs.getString("from_date")),
+                        parseDate(rs.getString("to_date"))));
             }
         }
     }

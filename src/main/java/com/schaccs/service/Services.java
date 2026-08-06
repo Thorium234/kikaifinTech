@@ -11,6 +11,7 @@ import com.schaccs.service.finance.BudgetService;
 import com.schaccs.service.finance.FiscalYearService;
 import com.schaccs.service.receipt.ReceiptService;
 import com.schaccs.service.report.ReportService;
+import com.schaccs.service.school.AcademicCalendarService;
 import com.schaccs.service.school.SchoolCustomService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.service.sync.SyncEngine;
@@ -47,6 +48,7 @@ public final class Services {
     private final BudgetService budgetService = new BudgetService();
     private final BackupService backupService = new BackupService();
     private final SchoolCustomService schoolCustomService = new SchoolCustomService();
+    private final AcademicCalendarService academicCalendarService = new AcademicCalendarService();
     private final SyncEngine syncEngine = SyncEngine.getInstance();
     private final SyncReportService syncReportService = SyncReportService.getInstance();
     private final EmployeeService employeeService = new EmployeeService();
@@ -117,6 +119,10 @@ public final class Services {
 
     public SchoolCustomService schoolCustom() {
         return schoolCustomService;
+    }
+
+    public AcademicCalendarService academicCalendar() {
+        return academicCalendarService;
     }
 
     public SyncEngine sync() {

@@ -6,6 +6,7 @@ import com.schaccs.update.UpdateScheduler;
 import com.schaccs.update.UpdateService;
 import com.schaccs.ui.dashboard.DashboardView;
 import com.schaccs.ui.dashboard.FeeReminderView;
+import com.schaccs.ui.calendar.CalendarView;
 import com.schaccs.ui.fees.FeeStructureView;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.ui.layout.Sidebar;
@@ -89,6 +90,7 @@ public class MainApp extends Application {
             layout.register(Sidebar.DASHBOARD, Sidebar.DASHBOARD, DashboardView::new);
             layout.register(Sidebar.STUDENTS, Sidebar.STUDENTS, StudentView::new);
             layout.register(Sidebar.TRANSITIONS, Sidebar.TRANSITIONS, StudentTransitionView::new);
+            layout.register(Sidebar.CALENDAR, Sidebar.CALENDAR, CalendarView::new);
             layout.register(Sidebar.FEES, Sidebar.FEES, FeeStructureView::new);
             layout.register(Sidebar.PAY, Sidebar.PAY, () -> new PayView(layout));
             layout.register(Sidebar.RECEIPTS, Sidebar.RECEIPTS, ReceiptView::new);

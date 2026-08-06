@@ -13,6 +13,7 @@ import com.schaccs.repository.migration.MigrationV13AddAuditTrail;
 import com.schaccs.repository.migration.MigrationV17FeeTemplates;
 import com.schaccs.repository.migration.MigrationV18BackfillReceiptHashes;
 import com.schaccs.repository.migration.MigrationV19DropStudentFields;
+import com.schaccs.repository.migration.MigrationV20AcademicCalendar;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -211,7 +212,8 @@ public final class Database {
                 new com.schaccs.repository.migration.MigrationV16ProcurementModule(),
                 new MigrationV17FeeTemplates(),
                 new MigrationV18BackfillReceiptHashes(),
-                new MigrationV19DropStudentFields()
+                new MigrationV19DropStudentFields(),
+                new MigrationV20AcademicCalendar()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
