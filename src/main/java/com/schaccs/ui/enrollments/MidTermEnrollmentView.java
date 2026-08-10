@@ -7,6 +7,7 @@ import com.schaccs.service.Services;
 import com.schaccs.service.student.MidTermEnrollmentService;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.CurrencyField;
+import com.schaccs.ui.component.StudentPicker;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
@@ -17,11 +18,9 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
@@ -173,15 +172,16 @@ public class MidTermEnrollmentView extends VBox implements MainLayout.Refreshabl
         dialog.setTitle("Enroll Mid-Term Student");
         dialog.setHeaderText("Register a student admitted mid-term");
 
-        ComboBox<Student> studentBox = studentBox(candidates);
+        StudentPicker picker = new StudentPicker(candidates);
+        picker.setPrefHeight(380);
 
         DatePicker datePicker = new DatePicker(LocalDate.now());
-        datePicker.setPrefWidth(260);
+        datePicker.setPrefWidth(280);
 
         CheckBox chargeBox = new CheckBox("Charge for Current Mid-Term?");
         CurrencyField feeField = new CurrencyField();
         feeField.setAmount(BigDecimal.ZERO);
-        feeField.setPrefWidth(260);
+        feeField.setPrefWidth(280);
         feeField.setDisable(true);
         chargeBox.selectedProperty().addListener((obs, old, val) -> {
             feeField.setDisable(!val);
@@ -197,15 +197,16 @@ public class MidTermEnrollmentView extends VBox implements MainLayout.Refreshabl
         autoHint.setWrapText(true);
 
         VBox content = new VBox(10,
-                new Label("Student:"), studentBox,
+                picker,
                 new Label("Date Joined:"), datePicker,
                 chargeBox, feeField, autoHint);
         content.setPadding(new Insets(10));
         dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().setPrefWidth(560);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
 
         dialog.showAndWait().filter(ButtonType.OK::equals).ifPresent(btn -> {
-            Student student = studentBox.getValue();
+            Student student = picker.getSelectedStudent();
             if (student == null) {
                 AlertUtil.warn("Validation", "Select a student.");
                 return;
@@ -266,28 +267,6 @@ public class MidTermEnrollmentView extends VBox implements MainLayout.Refreshabl
             }
             refresh();
         });
-    }
-
-    private ComboBox<Student> studentBox(List<Student> candidates) {
-        ComboBox<Student> box = new ComboBox<>();
-        box.getItems().addAll(candidates);
-        box.setPrefWidth(320);
-        box.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(Student item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? "" : item.getAdmissionNumber() + " — " + item.getName()
-                        + " (" + item.getClassLabel() + ")");
-            }
-        });
-        box.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(Student item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? "" : item.getAdmissionNumber() + " — " + item.getName());
-            }
-        });
-        return box;
     }
 
     @Override
