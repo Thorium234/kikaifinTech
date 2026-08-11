@@ -8,16 +8,33 @@ import com.schaccs.service.payroll.PayrollService;
 import com.schaccs.ui.layout.MainLayout;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
-import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
 import java.time.Month;
-import java.util.List;
 
+/**
+ * Payroll workspace. The workflow is:
+ * 1. Generate a Draft run for a month/year.
+ * 2. Approve the draft.
+ * 3. Post the approved run to the General Ledger.
+ * 4. Reverse a posted run to undo it.
+ * Double-click a run (or press "View Items") to see each employee's line item.
+ */
 public class PayrollView extends VBox implements MainLayout.Refreshable {
 
     private final PayrollService service;
@@ -31,28 +48,26 @@ public class PayrollView extends VBox implements MainLayout.Refreshable {
 
     public PayrollView(PayrollService service) {
         this.service = service;
-        getStyleClass().add("view-container");
         setSpacing(12);
         setPadding(new Insets(16));
 
         Label title = new Label("Payroll Management");
-        title.getStyleClass().add("view-title");
-        getChildren().add(title);
+        title.getStyleClass().add("section-title");
 
-        tabPane.getTabs().addAll(createProcessingTab(), createRunsTab(), createItemsTab());
+        Label sub = new Label("Pick a month and year, generate the payroll (Draft), approve it, then post it "
+                + "to the General Ledger. Use Reverse to undo a posted run.");
+        sub.getStyleClass().add("muted");
+        sub.setWrapText(true);
+
+        tabPane.getTabs().addAll(createProcessingTab(), createItemsTab());
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
-        getChildren().add(tabPane);
+
+        getChildren().addAll(title, sub, tabPane);
     }
 
     private Tab createProcessingTab() {
         Tab tab = new Tab("Process Payroll");
-
-        VBox content = new VBox(12);
-        content.setPadding(new Insets(12));
-
-        // Period selector
-        HBox periodBox = new HBox(10);
-        periodBox.setAlignment(Pos.CENTER_LEFT);
 
         ComboBox<Month> monthBox = new ComboBox<>();
         monthBox.getItems().addAll(Month.values());
@@ -66,87 +81,60 @@ public class PayrollView extends VBox implements MainLayout.Refreshable {
         yearBox.setPrefWidth(100);
 
         Button generateBtn = new Button("Generate Payroll");
-        generateBtn.getStyleClass().add("btn-primary");
-        generateBtn.setOnAction(e -> {
-            try {
-                PayrollRun run = service.generatePayroll(monthBox.getValue().getValue(), yearBox.getValue());
-                refresh();
-                showAlert(Alert.AlertType.INFORMATION, "Success",
-                        "Payroll generated: " + run.getRunNumber()
-                                + "\nEmployees: " + run.getEmployeeCount()
-                                + "\nTotal Net Pay: " + CurrencyConfig.format(run.getTotalNetPay()));
-            } catch (IllegalStateException ex) {
-                showAlert(Alert.AlertType.WARNING, "Error", ex.getMessage());
-            }
-        });
+        generateBtn.getStyleClass().add("primary-button");
+        generateBtn.setOnAction(e -> generate(monthBox.getValue(), yearBox.getValue()));
 
-        periodBox.getChildren().addAll(
-                new Label("Month:"), monthBox,
-                new Label("Year:"), yearBox,
-                generateBtn);
+        HBox periodBox = new HBox(10, new Label("Month:"), monthBox,
+                new Label("Year:"), yearBox, generateBtn);
+        periodBox.setAlignment(Pos.CENTER_LEFT);
 
-        content.getChildren().add(periodBox);
-
-        // Payroll runs summary table
-        buildRunsSummaryTable();
-
-        // Action buttons
-        HBox actionBox = new HBox(8);
-        actionBox.setAlignment(Pos.CENTER_LEFT);
+        setupRunsTable();
 
         Button approveBtn = new Button("Approve Selected");
-        approveBtn.getStyleClass().add("btn-success");
+        approveBtn.getStyleClass().add("success-button");
         approveBtn.setOnAction(e -> {
-            PayrollRun selected = runsTable.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                showAlert(Alert.AlertType.WARNING, "No Selection", "Please select a payroll run.");
-                return;
-            }
+            PayrollRun run = selectedRun();
+            if (run == null) return;
             try {
-                service.approvePayroll(selected.getId());
+                service.approvePayroll(run.getId());
                 refresh();
-                showAlert(Alert.AlertType.INFORMATION, "Approved", "Payroll " + selected.getRunNumber() + " approved.");
+                showAlert(Alert.AlertType.INFORMATION, "Approved",
+                        "Payroll " + run.getRunNumber() + " approved.");
             } catch (Exception ex) {
                 showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage());
             }
         });
 
         Button postBtn = new Button("Post to GL");
-        postBtn.getStyleClass().add("btn-primary");
+        postBtn.getStyleClass().add("primary-button");
         postBtn.setOnAction(e -> {
-            PayrollRun selected = runsTable.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                showAlert(Alert.AlertType.WARNING, "No Selection", "Please select a payroll run.");
-                return;
-            }
+            PayrollRun run = selectedRun();
+            if (run == null) return;
             try {
-                service.postPayroll(selected.getId());
+                service.postPayroll(run.getId());
                 refresh();
                 showAlert(Alert.AlertType.INFORMATION, "Posted",
-                        "Payroll " + selected.getRunNumber() + " posted to General Ledger.");
+                        "Payroll " + run.getRunNumber() + " posted to General Ledger.");
             } catch (Exception ex) {
                 showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage());
             }
         });
 
         Button reverseBtn = new Button("Reverse");
-        reverseBtn.getStyleClass().add("btn-danger");
+        reverseBtn.getStyleClass().add("danger-button");
         reverseBtn.setOnAction(e -> {
-            PayrollRun selected = runsTable.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                showAlert(Alert.AlertType.WARNING, "No Selection", "Please select a payroll run.");
-                return;
-            }
+            PayrollRun run = selectedRun();
+            if (run == null) return;
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-                    "Reverse payroll " + selected.getRunNumber() + "?\nThis will create reversal journal entries.",
+                    "Reverse payroll " + run.getRunNumber() + "?\nThis will create reversal journal entries.",
                     ButtonType.YES, ButtonType.NO);
             confirm.showAndWait().ifPresent(btn -> {
                 if (btn == ButtonType.YES) {
                     try {
-                        service.reversePayroll(selected.getId());
+                        service.reversePayroll(run.getId());
                         refresh();
                         showAlert(Alert.AlertType.INFORMATION, "Reversed",
-                                "Payroll " + selected.getRunNumber() + " reversed.");
+                                "Payroll " + run.getRunNumber() + " reversed.");
                     } catch (Exception ex) {
                         showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage());
                     }
@@ -155,71 +143,58 @@ public class PayrollView extends VBox implements MainLayout.Refreshable {
         });
 
         Button recalcBtn = new Button("Recalculate");
-        recalcBtn.getStyleClass().add("btn-secondary");
+        recalcBtn.getStyleClass().add("secondary-button");
         recalcBtn.setOnAction(e -> {
-            PayrollRun selected = runsTable.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                showAlert(Alert.AlertType.WARNING, "No Selection", "Please select a payroll run.");
-                return;
-            }
+            PayrollRun run = selectedRun();
+            if (run == null) return;
             try {
-                service.recalculatePayroll(selected.getId());
+                service.recalculatePayroll(run.getId());
                 refresh();
                 showAlert(Alert.AlertType.INFORMATION, "Recalculated",
-                        "Payroll " + selected.getRunNumber() + " recalculated.");
+                        "Payroll " + run.getRunNumber() + " recalculated.");
             } catch (Exception ex) {
                 showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage());
             }
         });
 
         Button viewItemsBtn = new Button("View Items");
-        viewItemsBtn.getStyleClass().add("btn-secondary");
+        viewItemsBtn.getStyleClass().add("secondary-button");
         viewItemsBtn.setOnAction(e -> {
-            PayrollRun selected = runsTable.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                showAlert(Alert.AlertType.WARNING, "No Selection", "Please select a payroll run.");
-                return;
-            }
-            loadItems(selected.getId());
-            tabPane.getSelectionModel().select(2); // Switch to Items tab
+            PayrollRun run = selectedRun();
+            if (run == null) return;
+            loadItems(run);
+            tabPane.getSelectionModel().select(1);
         });
 
-        actionBox.getChildren().addAll(approveBtn, postBtn, reverseBtn, recalcBtn, viewItemsBtn);
-        content.getChildren().addAll(runsTable, actionBox);
+        HBox actions = new HBox(8, approveBtn, postBtn, reverseBtn, recalcBtn, viewItemsBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(12, periodBox, runsTable, actions);
+        content.setPadding(new Insets(12));
+        VBox.setVgrow(runsTable, Priority.ALWAYS);
 
         tab.setContent(content);
         return tab;
     }
 
-    private Tab createRunsTab() {
-        Tab tab = new Tab("All Payroll Runs");
-        buildRunsSummaryTable();
-        VBox box = new VBox(12, runsTable);
-        box.setPadding(new Insets(12));
-        tab.setContent(box);
-        return tab;
-    }
-
     private Tab createItemsTab() {
         Tab tab = new Tab("Payroll Items");
-        buildItemsTable();
+        setupItemsTable();
         VBox box = new VBox(12, itemsTable);
         box.setPadding(new Insets(12));
+        VBox.setVgrow(itemsTable, Priority.ALWAYS);
         tab.setContent(box);
         return tab;
     }
 
-    @SuppressWarnings("unchecked")
-    private void buildRunsSummaryTable() {
-        runsTable.getColumns().clear();
-
+    private void setupRunsTable() {
         TableColumn<PayrollRun, String> runNoCol = new TableColumn<>("Run #");
         runNoCol.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getRunNumber()));
         runNoCol.setPrefWidth(140);
 
         TableColumn<PayrollRun, String> periodCol = new TableColumn<>("Period");
         periodCol.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getPeriodLabel()));
-        periodCol.setPrefWidth(90);
+        periodCol.setPrefWidth(80);
 
         TableColumn<PayrollRun, String> statusCol = new TableColumn<>("Status");
         statusCol.setCellValueFactory(d -> new SimpleStringProperty(
@@ -253,14 +228,20 @@ public class PayrollView extends VBox implements MainLayout.Refreshable {
         runsTable.getColumns().addAll(runNoCol, periodCol, statusCol, empCountCol,
                 grossCol, deductionsCol, netCol, preparedCol, postedCol);
         runsTable.setItems(service.getStore().getPayrollRuns());
-        runsTable.setPlaceholder(new Label("No payroll runs yet. Use 'Process Payroll' tab to generate."));
-        runsTable.setPrefHeight(400);
+        runsTable.setPlaceholder(new Label("No payroll runs yet. Pick a month/year above and press Generate."));
+        runsTable.setRowFactory(tv -> {
+            TableRow<PayrollRun> row = new TableRow<>();
+            row.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && !row.isEmpty()) {
+                    loadItems(row.getItem());
+                    tabPane.getSelectionModel().select(1);
+                }
+            });
+            return row;
+        });
     }
 
-    @SuppressWarnings("unchecked")
-    private void buildItemsTable() {
-        itemsTable.getColumns().clear();
-
+    private void setupItemsTable() {
         TableColumn<PayrollItem, String> empNoCol = new TableColumn<>("Emp #");
         empNoCol.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getEmployeeNumber()));
         empNoCol.setPrefWidth(90);
@@ -307,13 +288,33 @@ public class PayrollView extends VBox implements MainLayout.Refreshable {
 
         itemsTable.getColumns().addAll(empNoCol, nameCol, deptCol, basicCol, allowancesCol,
                 grossCol, payeCol, nssfCol, shifCol, totalDedCol, netCol);
-        itemsTable.setPlaceholder(new Label("Select a payroll run to view items."));
-        itemsTable.setPrefHeight(400);
+        itemsTable.setPlaceholder(new Label("Select a payroll run and press \"View Items\" to see line items."));
     }
 
-    private void loadItems(String runId) {
-        List<PayrollItem> items = service.findItemsByRunId(runId);
-        itemsTable.setItems(FXCollections.observableArrayList(items));
+    private PayrollRun selectedRun() {
+        PayrollRun run = runsTable.getSelectionModel().getSelectedItem();
+        if (run == null) {
+            showAlert(Alert.AlertType.WARNING, "No Selection", "Select a payroll run first.");
+        }
+        return run;
+    }
+
+    private void generate(Month month, Integer year) {
+        if (month == null || year == null) return;
+        try {
+            PayrollRun run = service.generatePayroll(month.getValue(), year);
+            refresh();
+            showAlert(Alert.AlertType.INFORMATION, "Success",
+                    "Payroll generated: " + run.getRunNumber()
+                            + "\nEmployees: " + run.getEmployeeCount()
+                            + "\nTotal Net Pay: " + CurrencyConfig.format(run.getTotalNetPay()));
+        } catch (IllegalStateException ex) {
+            showAlert(Alert.AlertType.WARNING, "Error", ex.getMessage());
+        }
+    }
+
+    private void loadItems(PayrollRun run) {
+        itemsTable.setItems(FXCollections.observableArrayList(service.findItemsByRunId(run.getId())));
     }
 
     private void showAlert(Alert.AlertType type, String title, String message) {

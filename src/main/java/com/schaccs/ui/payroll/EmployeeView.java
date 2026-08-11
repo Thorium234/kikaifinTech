@@ -52,7 +52,6 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
     public EmployeeView(EmployeeService service) {
         this.service = service;
         this.filteredList = new FilteredList<>(service.getStore().getEmployees());
-        getStyleClass().add("view-container");
         setSpacing(12);
         setPadding(new Insets(16));
 
@@ -68,7 +67,7 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
 
     private void buildHeader() {
         Label title = new Label("Employee Management");
-        title.getStyleClass().add("view-title");
+        title.getStyleClass().add("section-title");
 
         HBox header = new HBox(title);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -84,7 +83,7 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         });
 
         Button addBtn = new Button("Add Employee");
-        addBtn.getStyleClass().add("btn-primary");
+        addBtn.getStyleClass().add("primary-button");
         addBtn.setOnAction(e -> { clearForm(); switchToForm(); });
 
         HBox toolbar = new HBox(12, searchField, addBtn);
@@ -134,11 +133,11 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         actionCol.setCellFactory(col -> new TableCell<>() {
             {
                 Button editBtn = new Button("Edit");
-                editBtn.getStyleClass().add("btn-small");
+                editBtn.getStyleClass().add("secondary-button");
                 Button salaryBtn = new Button("Salary");
-                salaryBtn.getStyleClass().add("btn-small");
+                salaryBtn.getStyleClass().add("secondary-button");
                 Button termBtn = new Button("Terminate");
-                termBtn.getStyleClass().add("btn-small-danger");
+                termBtn.getStyleClass().add("danger-button");
 
                 editBtn.setOnAction(e -> {
                     Employee emp = getTableView().getItems().get(getIndex());
@@ -202,11 +201,11 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         phoneField.setPromptText("Phone");
 
         Button saveBtn = new Button("Save Employee");
-        saveBtn.getStyleClass().add("btn-primary");
+        saveBtn.getStyleClass().add("primary-button");
         saveBtn.setOnAction(e -> save());
 
         Button clearBtn = new Button("Clear");
-        clearBtn.getStyleClass().add("btn-secondary");
+        clearBtn.getStyleClass().add("secondary-button");
         clearBtn.setOnAction(e -> clearForm());
 
         HBox actions = new HBox(10, saveBtn, clearBtn);

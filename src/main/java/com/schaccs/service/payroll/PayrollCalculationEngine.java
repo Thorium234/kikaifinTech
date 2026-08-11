@@ -18,7 +18,13 @@ import java.math.RoundingMode;
  */
 public final class PayrollCalculationEngine {
 
-    // PAYE Tax bands (monthly) — rates stored as-is (not via CurrencyConfig.money which rounds to 2dp)
+    // PAYE monthly tax bands (Kenya). Each band is an incremental slice of
+    // income charged at that rate:
+    //   first 24,000   -> 10%
+    //   next 8,333     -> 25%
+    //   next 467,667   -> 30%
+    //   next 300,000   -> 32.5%
+    //   anything above 800,000 -> 35%
     private static final BigDecimal[][] PAYE_BANDS = {
             {CurrencyConfig.money(24000), new BigDecimal("0.10")},
             {CurrencyConfig.money(8333), new BigDecimal("0.25")},
@@ -78,7 +84,6 @@ public final class PayrollCalculationEngine {
 
         // Employer contributions (for information)
         item.setEmployerNssf(calculateEmployerNssf(grossPay));
-        item.setEmployerPension(structure.getStaffLoanRepayment().multiply(BigDecimal.ZERO)); // employer pension if applicable
 
         // Total deductions
         BigDecimal totalDeductions = paye.add(nssf).add(shif)
