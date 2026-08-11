@@ -9,6 +9,8 @@ import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.Services;
 import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.export.SpreadsheetExportService;
+import com.schaccs.service.importer.FeesBalanceImportService;
+import com.schaccs.service.importer.FeesBalanceRow;
 import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.service.student.StudentTransitionService;
@@ -106,6 +108,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         Button importBtn = new Button("Import CSV/XLSX");
         importBtn.getStyleClass().add("secondary-button");
         importBtn.setOnAction(e -> importStudents());
+        Button importBalanceBtn = new Button("Import Fees Balance");
+        importBalanceBtn.getStyleClass().add("secondary-button");
+        importBalanceBtn.setGraphic(new FontIcon(FontAwesomeSolid.COINS));
+        importBalanceBtn.setOnAction(e -> importFeesBalance());
         Button exportBtn = new Button("Export");
         exportBtn.getStyleClass().add("secondary-button");
         exportBtn.setOnAction(e -> exportStudents());
@@ -122,7 +128,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         deleteBtn.setGraphic(new FontIcon(FontAwesomeSolid.TRASH));
         deleteBtn.setOnAction(e -> deleteSelected());
 
-        HBox toolbar = new HBox(10, searchBar, addBtn, deleteBtn, importBtn, exportBtn, templateBtn);
+        HBox toolbar = new HBox(10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn, exportBtn, templateBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
@@ -532,6 +538,33 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         } catch (java.io.IOException e) {
             AlertUtil.error("Import failed", e.getMessage());
         } catch (IllegalArgumentException e) {
+            AlertUtil.error("Import failed", e.getMessage());
+        }
+    }
+
+    private void importFeesBalance() {
+        FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
+        chooser.setTitle("Import Fees Balance");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Excel workbook", "*.xlsx"));
+        File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) return;
+        FileDialogMemory.remember(file);
+        try {
+            FeesBalanceImportService service = new FeesBalanceImportService();
+            List<FeesBalanceRow> rows = service.parseWorkbook(file.toPath());
+            if (rows.isEmpty()) {
+                AlertUtil.warn("Nothing to import", "The workbook contains no recognisable student fee-balance tables.");
+                return;
+            }
+            service.scrutinize(rows);
+            FeesBalanceImportReviewDialog dialog = new FeesBalanceImportReviewDialog(service, rows);
+            dialog.showAndWait();
+            if (dialog.getImportedCount() > 0) {
+                table.refresh();
+            }
+        } catch (java.io.UncheckedIOException e) {
             AlertUtil.error("Import failed", e.getMessage());
         }
     }
