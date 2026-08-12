@@ -49,7 +49,7 @@ public class ReceiptService {
     public ReceiptService() {
         this(ReceiptStore.getInstance(), StudentStore.getInstance(), FeeStructureStore.getInstance(),
                 new ReceiptValidator(), new ReceiptAllocationEngine(), new AccountingEngine(),
-                new ReceiptNumberService(), PersistenceService.getInstance()::saveAll,
+                new ReceiptNumberService(), PersistenceService.getInstance()::saveReceiptsOnly,
                 new AuditService());
     }
 
@@ -57,7 +57,7 @@ public class ReceiptService {
                           ReceiptValidator validator, ReceiptAllocationEngine allocationEngine,
                           AccountingEngine accountingEngine, ReceiptNumberService numberService) {
         this(receiptStore, studentStore, feeStore, validator, allocationEngine,
-                accountingEngine, numberService, PersistenceService.getInstance()::saveAll,
+                accountingEngine, numberService, PersistenceService.getInstance()::saveReceiptsOnly,
                 new AuditService());
     }
 

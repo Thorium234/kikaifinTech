@@ -177,6 +177,29 @@ public final class PersistenceService {
         });
     }
 
+    /**
+     * Persist only the data a fee payment touches: the receipt itself
+     * (INSERT INTO receipts + receipt_lines), the accounting transactions, the
+     * student fee-ledger projection (charges / paid / arrears / advance), the
+     * settings (so the receipt-number counter can never regress) and the audit
+     * trail — all in one transaction.
+     * <p>Unlike {@link #saveAll()} this never rewrites the whole students table,
+     * so a unique-field conflict in the registry can never block or roll back a
+     * receipt. Student fee balances are recomputed dynamically as
+     * (Fee Structure + Arrears) − Payments, so imports and manual receipting
+     * both keep accurate real-time balances without conflicting snapshots.
+     */
+    public synchronized void saveReceiptsOnly() {
+        transactional(conn -> {
+            saveSettings(conn);
+            ensureReceiptStudents(conn);
+            saveReceipts(conn);
+            saveLedger(conn);
+            saveStudentLedgers(conn);
+            saveAuditLog(conn);
+        });
+    }
+
     public synchronized void loadAll() {
         try {
             Connection conn = Database.getInstance().getConnection();
@@ -587,20 +610,11 @@ public final class PersistenceService {
                 INSERT INTO students (id, admission_number, name, gender, form_class, stream,
                     boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(id) DO UPDATE SET admission_number=excluded.admission_number,
+                ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, stream=excluded.stream,
                     boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, phone=excluded.phone,
                     avatar_path=excluded.avatar_path, year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status
-                """);
-             PreparedStatement ledPs = conn.prepareStatement(
-                     "INSERT INTO student_ledgers (student_id, arrears, advance, current_term) VALUES (?,?,?,?) "
-                             + "ON CONFLICT(student_id) DO UPDATE SET arrears=excluded.arrears, "
-                             + "advance=excluded.advance, current_term=excluded.current_term");
-             PreparedStatement linePs = conn.prepareStatement(
-                     "INSERT INTO student_ledger_lines (student_id, votehead_code, kind, amount) VALUES (?,?,?,?) "
-                             + "ON CONFLICT(student_id, votehead_code, kind) DO UPDATE SET amount=excluded.amount");
-             PreparedStatement clearLines = conn.prepareStatement(
-                     "DELETE FROM student_ledger_lines WHERE student_id = ?")) {
+                """)) {
             for (Student s : store.getStudents()) {
                 ps.setString(1, s.getId());
                 ps.setString(2, s.getAdmissionNumber());
@@ -616,7 +630,30 @@ public final class PersistenceService {
                 ps.setObject(12, s.getAcademicYear());
                 ps.setString(13, enumName(s.getStatus()));
                 ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        saveStudentLedgers(conn);
+    }
 
+    /**
+     * Persist the per-student fee ledger projection (arrears, advance, charged
+     * and paid amounts per votehead). The balance itself is never stored as a
+     * scalar — it is always recomputed on the fly as
+     * (Fee Structure + Arrears) − Payments.
+     */
+    private void saveStudentLedgers(Connection conn) throws SQLException {
+        StudentStore store = StudentStore.getInstance();
+        try (PreparedStatement ledPs = conn.prepareStatement(
+                "INSERT INTO student_ledgers (student_id, arrears, advance, current_term) VALUES (?,?,?,?) "
+                        + "ON CONFLICT(student_id) DO UPDATE SET arrears=excluded.arrears, "
+                        + "advance=excluded.advance, current_term=excluded.current_term");
+             PreparedStatement linePs = conn.prepareStatement(
+                     "INSERT INTO student_ledger_lines (student_id, votehead_code, kind, amount) VALUES (?,?,?,?) "
+                             + "ON CONFLICT(student_id, votehead_code, kind) DO UPDATE SET amount=excluded.amount");
+             PreparedStatement clearLines = conn.prepareStatement(
+                     "DELETE FROM student_ledger_lines WHERE student_id = ?")) {
+            for (Student s : store.getStudents()) {
                 StudentFeeLedger ledger = store.getLedger(s.getId());
                 ledPs.setString(1, s.getId());
                 ledPs.setString(2, money(ledger.getArrears()));
@@ -642,10 +679,52 @@ public final class PersistenceService {
                     linePs.addBatch();
                 }
             }
-            ps.executeBatch();
             ledPs.executeBatch();
             clearLines.executeBatch();
             linePs.executeBatch();
+        }
+    }
+
+    /**
+     * FK safety net for {@link #saveReceiptsOnly()}: when a receipt references a
+     * student that is not yet in the students table (e.g. the very first payment
+     * for a brand-new student), insert only that missing student row. New-row
+     * inserts only — existing registry rows and their unique columns are never
+     * touched, and with FK enforcement enabled the receipt insert stays valid.
+     */
+    private void ensureReceiptStudents(Connection conn) throws SQLException {
+        Set<String> seen = new HashSet<>();
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO students (id, admission_number, name, gender, form_class, stream,
+                    boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO NOTHING
+                """)) {
+            for (Receipt r : ReceiptStore.getInstance().getReceipts()) {
+                String studentId = r.getStudentId();
+                if (studentId == null || !seen.add(studentId)) {
+                    continue;
+                }
+                Student s = StudentStore.getInstance().findById(studentId).orElse(null);
+                if (s == null) {
+                    continue;
+                }
+                ps.setString(1, s.getId());
+                ps.setString(2, s.getAdmissionNumber());
+                ps.setString(3, s.getName());
+                ps.setString(4, s.getGender());
+                ps.setString(5, s.getFormClass());
+                ps.setString(6, s.getStream());
+                ps.setString(7, enumName(s.getBoardingStatus()));
+                ps.setString(8, s.getParentName());
+                ps.setString(9, s.getPhone());
+                ps.setString(10, s.getAvatarPath());
+                ps.setObject(11, s.getYearOfAdmission());
+                ps.setObject(12, s.getAcademicYear());
+                ps.setString(13, enumName(s.getStatus()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
         }
     }
 
@@ -679,7 +758,13 @@ public final class PersistenceService {
                 if (status != null) {
                     s.setStatus(StudentStatus.valueOf(status));
                 }
-                store.add(s);
+                try {
+                    store.add(s);
+                } catch (IllegalArgumentException duplicateAdmission) {
+                    // Legacy/corrupted registry: admission_number is UNIQUE in the
+                    // DB but a duplicate row exists. Keep the first occurrence and
+                    // skip the later one instead of failing the whole load.
+                }
             }
         }
         try (Statement st = conn.createStatement();
