@@ -617,7 +617,7 @@ public final class PersistenceService {
                 """)) {
             for (Student s : store.getStudents()) {
                 ps.setString(1, s.getId());
-                ps.setString(2, s.getAdmissionNumber());
+                bindAdmissionNumber(ps, 2, s.getAdmissionNumber());
                 ps.setString(3, s.getName());
                 ps.setString(4, s.getGender());
                 ps.setString(5, s.getFormClass());
@@ -710,7 +710,7 @@ public final class PersistenceService {
                     continue;
                 }
                 ps.setString(1, s.getId());
-                ps.setString(2, s.getAdmissionNumber());
+                bindAdmissionNumber(ps, 2, s.getAdmissionNumber());
                 ps.setString(3, s.getName());
                 ps.setString(4, s.getGender());
                 ps.setString(5, s.getFormClass());
@@ -2227,6 +2227,21 @@ public final class PersistenceService {
 
     private static String enumName(Enum<?> e) {
         return e == null ? null : e.name();
+    }
+
+    /**
+     * Bind an admission number as SQL NULL when blank. The students table keeps
+     * admission_number UNIQUE, but SQLite treats NULLs as distinct in a UNIQUE
+     * constraint, so two blank admission numbers no longer collide and the whole
+     * transaction (and every imported fee-balance record) is not rolled back.
+     */
+    private static void bindAdmissionNumber(PreparedStatement ps, int index, String admissionNumber)
+            throws SQLException {
+        if (admissionNumber == null || admissionNumber.isBlank()) {
+            ps.setNull(index, java.sql.Types.VARCHAR);
+        } else {
+            ps.setString(index, admissionNumber.trim());
+        }
     }
 
     private static String money(BigDecimal v) {
