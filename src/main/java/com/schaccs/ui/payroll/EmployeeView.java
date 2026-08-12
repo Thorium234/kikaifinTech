@@ -27,6 +27,24 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
     private final TabPane tabPane = new TabPane();
     private final Tab listTab = new Tab("Employees List");
     private final Tab formTab = new Tab("Add Employee");
+    private final Tab detailsTab = new Tab("Employee Details");
+
+    private Employee viewing;
+
+    private final Label detailEmpNo = new Label();
+    private final Label detailName = new Label();
+    private final Label detailNationalId = new Label();
+    private final Label detailDept = new Label();
+    private final Label detailPos = new Label();
+    private final Label detailDate = new Label();
+    private final Label detailStatus = new Label();
+    private final Label detailBank = new Label();
+    private final Label detailBranch = new Label();
+    private final Label detailAcc = new Label();
+    private final Label detailKra = new Label();
+    private final Label detailNssf = new Label();
+    private final Label detailShif = new Label();
+    private final Label detailPhone = new Label();
 
     private final TextField empNoField = new TextField();
     private final TextField firstNameField = new TextField();
@@ -58,7 +76,8 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         buildHeader();
         buildListTab();
         buildFormTab();
-        tabPane.getTabs().addAll(listTab, formTab);
+        buildDetailsTab();
+        tabPane.getTabs().addAll(listTab, formTab, detailsTab);
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
 
@@ -129,31 +148,19 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         kraCol.setPrefWidth(110);
 
         TableColumn<Employee, Void> actionCol = new TableColumn<>("Actions");
-        actionCol.setPrefWidth(180);
+        actionCol.setPrefWidth(90);
         actionCol.setCellFactory(col -> new TableCell<>() {
             {
-                Button editBtn = new Button("Edit");
-                editBtn.getStyleClass().add("secondary-button");
-                Button salaryBtn = new Button("Salary");
-                salaryBtn.getStyleClass().add("secondary-button");
-                Button termBtn = new Button("Terminate");
-                termBtn.getStyleClass().add("danger-button");
+                Button viewBtn = new Button("View");
+                viewBtn.getStyleClass().add("secondary-button");
 
-                editBtn.setOnAction(e -> {
+                viewBtn.setOnAction(e -> {
                     Employee emp = getTableView().getItems().get(getIndex());
-                    loadForm(emp);
-                    switchToForm();
-                });
-                salaryBtn.setOnAction(e -> {
-                    Employee emp = getTableView().getItems().get(getIndex());
-                    showSalaryDialog(emp);
-                });
-                termBtn.setOnAction(e -> {
-                    Employee emp = getTableView().getItems().get(getIndex());
-                    confirmTerminate(emp);
+                    showDetails(emp);
                 });
 
-                HBox box = new HBox(4, editBtn, salaryBtn, termBtn);
+                HBox box = new HBox(4, viewBtn);
+                box.setAlignment(Pos.CENTER);
                 setGraphic(box);
             }
 
@@ -250,6 +257,111 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
         formScroll.getStyleClass().add("content-scroll");
 
         formTab.setContent(formScroll);
+    }
+
+    private void buildDetailsTab() {
+        Button editBtn = new Button("Edit");
+        editBtn.getStyleClass().add("secondary-button");
+        Button salaryBtn = new Button("Salary");
+        salaryBtn.getStyleClass().add("secondary-button");
+        Button termBtn = new Button("Terminate");
+        termBtn.getStyleClass().add("danger-button");
+        Button backBtn = new Button("Back to List");
+        backBtn.getStyleClass().add("secondary-button");
+
+        editBtn.setOnAction(e -> {
+            if (viewing != null) {
+                loadForm(viewing);
+                switchToForm();
+            }
+        });
+        salaryBtn.setOnAction(e -> {
+            if (viewing != null) {
+                showSalaryDialog(viewing);
+            }
+        });
+        termBtn.setOnAction(e -> {
+            if (viewing != null) {
+                confirmTerminate(viewing);
+                switchToList();
+            }
+        });
+        backBtn.setOnAction(e -> switchToList());
+
+        HBox actions = new HBox(10, editBtn, salaryBtn, termBtn, backBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+        actions.setPadding(new Insets(12, 0, 0, 0));
+
+        GridPane grid = new GridPane();
+        grid.setHgap(20);
+        grid.setVgap(10);
+        ColumnConstraints cc = new ColumnConstraints();
+        cc.setFillWidth(true);
+        cc.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(cc, cc);
+
+        grid.add(value("Employee #", detailEmpNo), 0, 0);
+        grid.add(value("Full Name", detailName), 1, 0);
+        grid.add(value("National ID", detailNationalId), 0, 1);
+        grid.add(value("Department", detailDept), 1, 1);
+        grid.add(value("Position", detailPos), 0, 2);
+        grid.add(value("Employment Date", detailDate), 1, 2);
+        grid.add(value("Employment Status", detailStatus), 0, 3);
+        grid.add(new Label(""), 1, 3);
+        grid.add(new Separator(), 0, 4, 2, 1);
+        grid.add(value("Bank Name", detailBank), 0, 5);
+        grid.add(value("Bank Branch", detailBranch), 1, 5);
+        grid.add(value("Account Number", detailAcc), 0, 6);
+        grid.add(new Label(""), 1, 6);
+        grid.add(new Separator(), 0, 7, 2, 1);
+        grid.add(value("KRA PIN", detailKra), 0, 8);
+        grid.add(value("NSSF Number", detailNssf), 1, 8);
+        grid.add(value("SHIF Number", detailShif), 0, 9);
+        grid.add(value("Phone", detailPhone), 1, 9);
+
+        VBox card = new VBox(14, grid, actions);
+        card.getStyleClass().add("card");
+        card.setMaxWidth(760);
+
+        ScrollPane detailsScroll = new ScrollPane(card);
+        detailsScroll.setFitToWidth(true);
+        detailsScroll.setFitToHeight(true);
+        detailsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        detailsScroll.getStyleClass().add("content-scroll");
+
+        detailsTab.setContent(detailsScroll);
+    }
+
+    private VBox value(String label, Label field) {
+        Label lbl = new Label(label);
+        lbl.getStyleClass().add("pay-label");
+        field.getStyleClass().add("pay-value");
+        VBox box = new VBox(4, lbl, field);
+        return box;
+    }
+
+    private void showDetails(Employee emp) {
+        viewing = emp;
+        detailEmpNo.setText(emp.getEmployeeNumber());
+        detailName.setText(emp.getFullName());
+        detailNationalId.setText(orDash(emp.getNationalId()));
+        detailDept.setText(orDash(emp.getDepartment()));
+        detailPos.setText(orDash(emp.getPosition()));
+        detailDate.setText(emp.getEmploymentDate() == null ? "—" : emp.getEmploymentDate().toString());
+        detailStatus.setText(emp.getEmploymentStatus() == null ? "—" : emp.getEmploymentStatus().getDisplayName());
+        detailBank.setText(orDash(emp.getBankName()));
+        detailBranch.setText(orDash(emp.getBankBranch()));
+        detailAcc.setText(orDash(emp.getBankAccountNumber()));
+        detailKra.setText(orDash(emp.getKraPin()));
+        detailNssf.setText(orDash(emp.getNssfNumber()));
+        detailShif.setText(orDash(emp.getShifNumber()));
+        detailPhone.setText(orDash(emp.getPhone()));
+        detailsTab.setText("Employee Details — " + emp.getFullName());
+        switchToDetails();
+    }
+
+    private String orDash(String value) {
+        return value == null || value.isBlank() ? "—" : value;
     }
 
     private VBox labeled(String label, javafx.scene.Node field) {
@@ -445,6 +557,10 @@ public class EmployeeView extends VBox implements MainLayout.Refreshable {
 
     private void switchToForm() {
         tabPane.getSelectionModel().select(formTab);
+    }
+
+    private void switchToDetails() {
+        tabPane.getSelectionModel().select(detailsTab);
     }
 
     private double parseVal(String text) {
