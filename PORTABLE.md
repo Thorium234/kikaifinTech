@@ -137,3 +137,103 @@ You can run them straight after the bat completes.
 | `src\main\installer\wix\Bundle.wxs`, `build-bootstrapper.bat` | auto — version read from the MSI filename |
 
 Then update `--app-version`, `--main-jar`, and the ZIP name in steps 4–5 above.
+
+---
+
+## Generating a new MSI installer
+
+The MSI is the Windows Installer package — the same self-contained app, but
+installable via the standard "run the installer" flow. It never needs a JVM.
+
+**Recommended:** run the one-command pipeline which builds everything (tests,
+runtime, MSI, bootstrapper EXE, checksums):
+
+```
+build-installer.bat
+```
+
+**Or, from an existing build** (when `target\runtime` and `target\installer-input`
+already exist — e.g. right after `build-installer.bat` or after the portable steps
+1–3 above), run jpackage directly:
+
+```
+"C:\Program Files\Java\jdk-26.0.2\bin\jpackage.exe" ^
+    --type msi ^
+    --runtime-image target\runtime ^
+    --dest target\installer ^
+    --name ThorCash ^
+    --app-version 1.0.0 ^
+    --input target\installer-input ^
+    --main-jar thorcash-1.0.0.jar ^
+    --main-class com.schaccs.Launcher ^
+    --icon src\main\resources\icon.ico ^
+    --vendor "Thor Technologies" ^
+    --license-file src\main\installer\eula.rtf ^
+    --win-shortcut ^
+    --win-menu ^
+    --win-dir-chooser ^
+    --java-options "-Xmx512m" ^
+    --java-options "-Dfile.encoding=UTF-8" ^
+    --java-options "-Djava.library.path=."
+```
+
+Output: `target\installer\ThorCash-1.0.0.msi` (~92 MB).
+
+### Per-user MSI (no admin rights needed)
+
+Add `--win-per-user-install`. This installs to `%LOCALAPPDATA%\ThorCash` instead of
+`Program Files` and can be installed without elevation:
+
+```
+... --type msi --win-per-user-install ...
+```
+
+> Verified: a per-user MSI built this way installed and launched on this machine
+> with no system Java (identical layout to the ZIP). Both MSI variants are
+> byte-for-byte the same app as the portable ZIP — if the ZIP runs on a machine,
+> the current MSI/EXE build runs there too.
+
+## Generating a new bootstrapper EXE
+
+The bootstrapper (`ThorCash-Setup-1.0.0.exe`) is a WiX Burn bundle that wraps the
+MSI with the license page, install-folder picker, progress bar and admin
+elevation. It is produced by `build-installer.bat` automatically. To build it
+manually after generating the MSI:
+
+```
+set "WIX=C:\Program Files (x86)\WiX Toolset v3.14\bin"
+"%WIX%\candle.exe" -nologo -out target\bootstrapper\Bundle.wixobj ^
+    -ext WixBalExtension -ext WixUtilExtension ^
+    -dProjectDir="src\main\installer\wix" ^
+    -dMsiPath="target\installer\ThorCash-1.0.0.msi" ^
+    -dVersion=1.0.0 ^
+    -dIconPath="src\main\resources\icon.ico" ^
+    src\main\installer\wix\Bundle.wxs
+"%WIX%\light.exe" -nologo -out target\bootstrapper-output\ThorCash-Setup-1.0.0.exe ^
+    -ext WixBalExtension -ext WixUtilExtension ^
+    target\bootstrapper\Bundle.wixobj
+```
+
+Output: `target\bootstrapper-output\ThorCash-Setup-1.0.0.exe` (~91 MB).
+
+## Which distribution to hand to clients
+
+| File | When to use |
+|------|-------------|
+| `ThorCash-Portable-1.0.0.zip` | **Most reliable.** No install, no admin, runs anywhere — proven working on the client machine. |
+| `ThorCash-Setup-1.0.0.exe` | Standard "run the installer" flow (EULA + shortcut, admin). Same app as the ZIP. |
+| `ThorCash-1.0.0.msi` | Enterprise deployment (GPO / Intune / silent install). |
+
+If a machine reports "Failed to launch JVM" from the installed EXE but the ZIP
+runs fine on the same machine, it is **not** the package — it is either a stale
+(pre-fix) installer being re-run, or antivirus/permission interference on the
+Program Files path. Use the ZIP there.
+
+## Windows compatibility (important)
+
+The bundled runtime is built by **JDK 26, which only runs on Windows 10/11
+(64-bit)**. On Windows 7/8/8.1 or 32-bit Windows the bundled `jvm.dll` cannot load
+and the app shows "Failed to launch JVM" — for the ZIP, MSI and EXE alike.
+Supporting those old systems would require rebuilding on JDK 8/11 and
+downgrading JavaFX (not practical for this codebase), so the honest requirement
+is **Windows 10/11 64-bit**.
