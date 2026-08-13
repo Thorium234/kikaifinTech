@@ -13,6 +13,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.update.UpdateService;
 import com.schaccs.update.UpdateSettingsView;
 import com.schaccs.util.AlertUtil;
+import com.schaccs.util.DatabaseExportUtil;
 import com.schaccs.util.FileDialogMemory;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -31,13 +32,17 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 
+import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -83,6 +88,8 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final PasswordField dbPassword = new PasswordField();
     private String dbPasswordValue = "";
     private final Label dbStatusLabel = new Label("Not connected");
+    private final Label dbLocationLabel = new Label();
+    private final Label dbExportStatus = new Label("");
 
     public SettingsView(UpdateService updateService) {
         setSpacing(14);
@@ -187,12 +194,13 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         VBox.setVgrow(migrationTable, Priority.ALWAYS);
 
         VBox dbCard = buildDatabaseConfigCard();
+        VBox dbStorageCard = buildDatabaseStorageCard();
         VBox demoCard = buildDemoDataCard();
         VBox purgeCard = buildSystemPurgeCard();
 
         UpdateSettingsView updateCard = new UpdateSettingsView(updateService);
 
-        VBox allContent = new VBox(14, heading, card, historyCard, dbCard, demoCard, purgeCard, updateCard);
+        VBox allContent = new VBox(14, heading, card, historyCard, dbCard, dbStorageCard, demoCard, purgeCard, updateCard);
         allContent.setPadding(new Insets(0, 0, 60, 0));
         ScrollPane mainScroll = new ScrollPane(allContent);
         mainScroll.setFitToWidth(true);
@@ -253,6 +261,98 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         VBox card = new VBox(10, dbHeading, dbSub, grid, statusBar);
         card.getStyleClass().add("card");
         return card;
+    }
+
+    private VBox buildDatabaseStorageCard() {
+        Label heading = new Label("Database Location & Retrieval");
+        heading.getStyleClass().add("section-title");
+        Label sub = new Label("The main ThorCash database file holds all your data. In the portable/installed "
+                + "app it lives in a 'database' folder next to the application; in developer mode it lives "
+                + "under ~/.schaccs. Export it regularly to a safe place (flash drive, shared or cloud folder) "
+                + "so it can be restored if the computer fails — restoring is just replacing the database file "
+                + "in that folder with the exported one while ThorCash is closed.");
+        sub.setWrapText(true);
+        sub.getStyleClass().add("muted");
+
+        dbLocationLabel.setWrapText(true);
+        dbLocationLabel.getStyleClass().add("muted");
+
+        Button openFolderBtn = new Button("Open Database Folder");
+        openFolderBtn.getStyleClass().add("secondary-button");
+        openFolderBtn.setOnAction(e -> openDatabaseFolder());
+
+        Button copyPathBtn = new Button("Copy Path");
+        copyPathBtn.getStyleClass().add("secondary-button");
+        copyPathBtn.setOnAction(e -> copyDatabasePath());
+
+        Button exportBtn = new Button("Export / Upload Database...");
+        exportBtn.getStyleClass().add("primary-button");
+        exportBtn.setOnAction(e -> exportDatabase(exportBtn));
+
+        HBox buttons = new HBox(8, openFolderBtn, copyPathBtn, exportBtn);
+        buttons.setAlignment(Pos.CENTER_LEFT);
+
+        dbExportStatus.getStyleClass().add("muted");
+
+        VBox card = new VBox(10, heading, sub, dbLocationLabel, buttons, dbExportStatus);
+        card.getStyleClass().add("card");
+        return card;
+    }
+
+    private void refreshDatabaseLocation() {
+        Path dbPath = Database.getInstance().getDatabasePath();
+        dbLocationLabel.setText("Database file: " + dbPath + "\nDatabase folder: " + dbPath.getParent());
+    }
+
+    private void openDatabaseFolder() {
+        Path dir = Database.getInstance().getDatabaseDirectory();
+        try {
+            Desktop.getDesktop().open(dir.toFile());
+        } catch (Exception ex) {
+            AlertUtil.error("Cannot open folder", dir + "\n" + ex.getMessage());
+        }
+    }
+
+    private void copyDatabasePath() {
+        String path = Database.getInstance().getDatabasePath().toString();
+        ClipboardContent content = new ClipboardContent();
+        content.putString(path);
+        Clipboard.getSystemClipboard().setContent(content);
+        dbExportStatus.setText("Database path copied to clipboard.");
+        dbExportStatus.setStyle("-fx-text-fill: #1a472a;");
+    }
+
+    private void exportDatabase(Button exportBtn) {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Choose a safe location for the database export");
+        File dir = chooser.showDialog(getScene() != null ? getScene().getWindow() : null);
+        if (dir == null) {
+            return;
+        }
+        exportBtn.setDisable(true);
+        dbExportStatus.setText("Exporting database...");
+        dbExportStatus.setStyle("-fx-text-fill: #e65100;");
+        CompletableFuture.runAsync(() -> {
+            try {
+                Path exported = DatabaseExportUtil.exportTo(dir.toPath());
+                Platform.runLater(() -> {
+                    exportBtn.setDisable(false);
+                    dbExportStatus.setText("Database exported to " + exported);
+                    dbExportStatus.setStyle("-fx-text-fill: #1a472a;");
+                    AlertUtil.info("Database exported",
+                            "The database was copied to:\n" + exported
+                                    + "\n\nKeep this file in a safe place. To restore it, close ThorCash and "
+                                    + "replace the database file at:\n" + Database.getInstance().getDatabasePath());
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    exportBtn.setDisable(false);
+                    dbExportStatus.setText("Export failed: " + ex.getMessage());
+                    dbExportStatus.setStyle("-fx-text-fill: #b00020;");
+                    AlertUtil.error("Database export failed", ex.getMessage());
+                });
+            }
+        });
     }
 
     private void testDbConnection() {
@@ -426,6 +526,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         refreshReceiptBrandingMockup();
         loadMigrationHistory();
         loadDbConfig();
+        refreshDatabaseLocation();
     }
 
     private void setupMigrationTable() {

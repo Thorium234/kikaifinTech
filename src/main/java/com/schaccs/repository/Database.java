@@ -21,6 +21,7 @@ import com.schaccs.util.CredentialCrypto;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -34,14 +35,23 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
- * SQLite connection + schema. Data lives under ~/.schaccs/schaccs.db
+ * SQLite connection + schema.
+ *
+ * <p>Data location (resolved once, at first use):
+ * <ul>
+ *   <li>Packaged app (jpackage): a {@code database} folder next to the application
+ *       executable, e.g. {@code C:\Program Files\ThorCash\database\schaccs.db}.
+ *       If that folder is not writable (per-machine install run by a standard
+ *       user), the app falls back to the user-home location.</li>
+ *   <li>Development / running from a jar: {@code ~/.schaccs/schaccs.db}.</li>
+ * </ul>
  */
 public final class Database {
 
     private static final Logger LOG = Logger.getLogger(Database.class.getName());
-    private static final String DB_DIR = System.getProperty("user.home") + "/.schaccs";
-    private static final String DB_URL = "jdbc:sqlite:" + DB_DIR + "/schaccs.db";
+    private static final Path DEFAULT_DATA_DIR = Path.of(System.getProperty("user.home"), ".schaccs");
 
+    private static Path resolvedDataDirectory;
     private static Database instance;
     private Connection connection;
 
@@ -57,12 +67,13 @@ public final class Database {
 
     public Connection getConnection() throws SQLException {
         if (connection == null || connection.isClosed()) {
+            Path dir = dataDirectory();
             try {
-                Files.createDirectories(Path.of(DB_DIR));
+                Files.createDirectories(dir);
             } catch (Exception e) {
-                throw new SQLException("Cannot create data directory: " + DB_DIR, e);
+                throw new SQLException("Cannot create data directory: " + dir, e);
             }
-            connection = DriverManager.getConnection(DB_URL);
+            connection = DriverManager.getConnection("jdbc:sqlite:" + dir.resolve("schaccs.db"));
             configureConnection(connection);
             connection.setAutoCommit(true);
             initSchema(connection);
@@ -71,7 +82,91 @@ public final class Database {
     }
 
     public Path getDatabasePath() {
-        return Path.of(DB_DIR, "schaccs.db");
+        return dataDirectory().resolve("schaccs.db");
+    }
+
+    /** Directory holding the main SQLite database file. */
+    public Path getDatabaseDirectory() {
+        return dataDirectory();
+    }
+
+    /**
+     * Merges the SQLite WAL journal into the main database file so that a file copy
+     * of schaccs.db alone contains the complete dataset.
+     */
+    public void checkpointWal() throws SQLException {
+        getConnection();
+        if (connection != null && !connection.isClosed()) {
+            try (Statement st = connection.createStatement()) {
+                st.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+            }
+        }
+    }
+
+    /**
+     * Resolves the data directory once. Packaged apps keep the database in a
+     * {@code database} folder next to the executable; developer runs use ~/.schaccs.
+     */
+    private static synchronized Path dataDirectory() {
+        if (resolvedDataDirectory == null) {
+            resolvedDataDirectory = resolveDataDirectory();
+            try {
+                Files.createDirectories(resolvedDataDirectory);
+                migrateFromDefaultLocationIfNeeded(resolvedDataDirectory);
+            } catch (Exception e) {
+                LOG.warning("Could not prepare database directory " + resolvedDataDirectory
+                        + ": " + e.getMessage() + " — falling back to " + DEFAULT_DATA_DIR);
+                resolvedDataDirectory = DEFAULT_DATA_DIR;
+            }
+        }
+        return resolvedDataDirectory;
+    }
+
+    private static Path resolveDataDirectory() {
+        String appPath = System.getProperty("jpackage.app-path");
+        if (appPath != null && !appPath.isBlank()) {
+            Path appDir = Path.of(appPath).toAbsolutePath().getParent();
+            if (appDir != null) {
+                Path candidate = appDir.resolve("database");
+                if (isWritable(candidate)) {
+                    LOG.info("Database folder: " + candidate);
+                    return candidate;
+                }
+                LOG.warning("Database folder not writable at " + candidate
+                        + " — falling back to " + DEFAULT_DATA_DIR);
+            }
+        }
+        return DEFAULT_DATA_DIR;
+    }
+
+    private static boolean isWritable(Path dir) {
+        try {
+            Files.createDirectories(dir);
+            Path probe = Files.createTempFile(dir, ".schaccs-probe", ".tmp");
+            Files.deleteIfExists(probe);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static void migrateFromDefaultLocationIfNeeded(Path targetDir) throws Exception {
+        if (targetDir.toAbsolutePath().normalize().equals(DEFAULT_DATA_DIR.toAbsolutePath().normalize())) {
+            return;
+        }
+        Path defaultDb = DEFAULT_DATA_DIR.resolve("schaccs.db");
+        Path targetDb = targetDir.resolve("schaccs.db");
+        if (!Files.exists(targetDb) && Files.exists(defaultDb)) {
+            Files.createDirectories(targetDir);
+            Files.copy(defaultDb, targetDb, StandardCopyOption.REPLACE_EXISTING);
+            for (String suffix : new String[]{".db-wal", ".db-shm"}) {
+                Path src = DEFAULT_DATA_DIR.resolve("schaccs" + suffix);
+                if (Files.exists(src)) {
+                    Files.copy(src, targetDir.resolve("schaccs" + suffix), StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            LOG.info("Copied existing database from " + defaultDb + " to " + targetDb);
+        }
     }
 
     public synchronized void inTransaction(SqlRunnable action) throws SQLException {

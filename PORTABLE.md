@@ -126,6 +126,12 @@ You can run them straight after the bat completes.
 3. Prove the bundled JVM works with **no system Java**:
    - In a fresh PowerShell: `$env:PATH = "C:\Windows\System32;C:\Windows"; Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue`
    - Run `.\ThorCash.exe` from the extracted folder — the app must still launch.
+4. Check the database landed beside the app: after first launch there must be a
+   `database` folder containing `schaccs.db` in the same directory as `ThorCash.exe`. Settings →
+   **Database Location & Retrieval** shows that exact path and can open the folder,
+   copy the path, or export a copy of the database for safe-keeping. The app never
+   writes to `~\.schaccs` in packaged mode (it only migrates a pre-existing
+   `~\.schaccs\schaccs.db` in on the very first packaged run).
 
 ## Version bump checklist (new release)
 
@@ -231,9 +237,40 @@ Program Files path. Use the ZIP there.
 
 ## Windows compatibility (important)
 
+### Requirements
+
 The bundled runtime is built by **JDK 26, which only runs on Windows 10/11
 (64-bit)**. On Windows 7/8/8.1 or 32-bit Windows the bundled `jvm.dll` cannot load
 and the app shows "Failed to launch JVM" — for the ZIP, MSI and EXE alike.
-Supporting those old systems would require rebuilding on JDK 8/11 and
-downgrading JavaFX (not practical for this codebase), so the honest requirement
-is **Windows 10/11 64-bit**.
+
+### 32-bit Windows is not possible (verified)
+
+32-bit Windows support is **impossible for this app** — not because of packaging,
+but because **OpenJFX (JavaFX 9+, including the 21 we use) has no 32-bit Windows
+build at all**. The `org.openjfx` artifacts on Maven Central ship exactly these
+classifiers: `linux`, `mac`, `mac-aarch64`, `win` — the `win` jars/DLLs are 64-bit
+only. No JDK (32-bit or otherwise) can load x64 JavaFX native DLLs on a 32-bit OS.
+A full Swing or web-based rewrite (~33k lines of JavaFX) would be the only path.
+
+### The cost myth — you do NOT need an expensive machine
+
+ThorCash runs fine on any 64-bit PC with 4 GB RAM, which costs **$80–400**
+(used business desktops are cheapest) — not $40,000. Before buying anything:
+
+1. Check whether the school's "old" PCs are actually 64-bit capable. On each
+   machine, run:
+   ```
+   wmic cpu get AddressWidth
+   ```
+   - `AddressWidth` = 64 → hardware is 64-bit, the PC just runs 32-bit Windows.
+     Install **64-bit Windows 10/11** (free reinstall) and the existing ZIP works
+     with zero new hardware.
+   - `AddressWidth` = 32 → genuine 32-bit hardware (pre-2006 era). No modern
+     software runs there (Chrome, Firefox, LibreOffice have all dropped 32-bit
+     Windows too), so it is not a ThorCash-specific problem.
+
+2. If any genuinely 32-bit-only machines must be used, the realistic options are:
+   - Run ThorCash on one 64-bit PC and access it remotely (Remote Desktop) from the
+     32-bit machines, or
+   - Replace the handful of 32-bit units with used 64-bit desktops (~$80 each),
+     which is far cheaper than any software workaround.
