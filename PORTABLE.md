@@ -5,7 +5,7 @@ for future versions, and how the current app-image was produced.
 
 ## What the portable ZIP is
 
-`target\dist\ThorCash-Portable-1.0.0.zip` (~91 MB) is the finished application,
+`target\dist\ThorCash-Portable-1.0.1.zip` (~91 MB) is the finished application,
 fully self-contained:
 
 - `ThorCash.exe` — the launcher
@@ -86,9 +86,9 @@ Gluon `-win` jars in `%UserProfile%\.m2` into `target\installer-input\`.
     --runtime-image target\runtime ^
     --dest target\app-image ^
     --name ThorCash ^
-    --app-version 1.0.0 ^
+    --app-version 1.0.1 ^
     --input target\installer-input ^
-    --main-jar thorcash-1.0.0.jar ^
+    --main-jar thorcash-1.0.1.jar ^
     --main-class com.schaccs.Launcher ^
     --icon src\main\resources\icon.ico ^
     --vendor "Thor Technologies" ^
@@ -102,22 +102,22 @@ Output: `target\app-image\ThorCash\` containing `ThorCash.exe`, `app\`, and `run
 Notes:
 - `--runtime-image target\runtime` makes jpackage bundle *our* jlink runtime
   (which includes `java.exe`/`javaw.exe`) instead of building its own.
-- `--main-jar thorcash-1.0.0.jar` must match the jar name in `target\installer-input\`
+- `--main-jar thorcash-1.0.1.jar` must match the jar name in `target\installer-input\`
   (it is derived from the version in `pom.xml`).
 
 ### 5. Zip the app-image
 
 ```
-powershell -NoProfile -Command "Compress-Archive -Path 'target\app-image\ThorCash\*' -DestinationPath 'target\dist\ThorCash-Portable-1.0.0.zip' -Force"
+powershell -NoProfile -Command "Compress-Archive -Path 'target\app-image\ThorCash\*' -DestinationPath 'target\dist\ThorCash-Portable-1.0.1.zip' -Force"
 ```
 
-Output: `target\dist\ThorCash-Portable-1.0.0.zip` (~91 MB) — **this is the file to hand to clients.**
+Output: `target\dist\ThorCash-Portable-1.0.1.zip` (~91 MB) — **this is the file to hand to clients.**
 
 ## Quick path for a future version
 
-If you already ran `build-installer.bat` (it performs steps 1–3 and rebuilds
-`target\runtime` + `target\installer-input`), you only need steps 4 and 5 above.
-You can run them straight after the bat completes.
+`build-installer.bat` now performs steps 1–3 **and** the ZIP (its step 7b creates the
+app-image and `target\dist\ThorCash-Portable-<version>.zip`), so the whole portable
+package is produced by the one command alongside the MSI and bootstrapper EXE.
 
 ## Smoke test (verify before shipping)
 
@@ -168,9 +168,9 @@ already exist — e.g. right after `build-installer.bat` or after the portable s
     --runtime-image target\runtime ^
     --dest target\installer ^
     --name ThorCash ^
-    --app-version 1.0.0 ^
+    --app-version 1.0.1 ^
     --input target\installer-input ^
-    --main-jar thorcash-1.0.0.jar ^
+    --main-jar thorcash-1.0.1.jar ^
     --main-class com.schaccs.Launcher ^
     --icon src\main\resources\icon.ico ^
     --vendor "Thor Technologies" ^
@@ -183,7 +183,7 @@ already exist — e.g. right after `build-installer.bat` or after the portable s
     --java-options "-Djava.library.path=."
 ```
 
-Output: `target\installer\ThorCash-1.0.0.msi` (~92 MB).
+Output: `target\installer\ThorCash-1.0.1.msi` (~92 MB).
 
 ### Per-user MSI (no admin rights needed)
 
@@ -201,7 +201,7 @@ Add `--win-per-user-install`. This installs to `%LOCALAPPDATA%\ThorCash` instead
 
 ## Generating a new bootstrapper EXE
 
-The bootstrapper (`ThorCash-Setup-1.0.0.exe`) is a WiX Burn bundle that wraps the
+The bootstrapper (`ThorCash-Setup-1.0.1.exe`) is a WiX Burn bundle that wraps the
 MSI with the license page, install-folder picker, progress bar and admin
 elevation. It is produced by `build-installer.bat` automatically. To build it
 manually after generating the MSI:
@@ -211,24 +211,24 @@ set "WIX=C:\Program Files (x86)\WiX Toolset v3.14\bin"
 "%WIX%\candle.exe" -nologo -out target\bootstrapper\Bundle.wixobj ^
     -ext WixBalExtension -ext WixUtilExtension ^
     -dProjectDir="src\main\installer\wix" ^
-    -dMsiPath="target\installer\ThorCash-1.0.0.msi" ^
-    -dVersion=1.0.0 ^
+    -dMsiPath="target\installer\ThorCash-1.0.1.msi" ^
+    -dVersion=1.0.1 ^
     -dIconPath="src\main\resources\icon.ico" ^
     src\main\installer\wix\Bundle.wxs
-"%WIX%\light.exe" -nologo -out target\bootstrapper-output\ThorCash-Setup-1.0.0.exe ^
+"%WIX%\light.exe" -nologo -out target\bootstrapper-output\ThorCash-Setup-1.0.1.exe ^
     -ext WixBalExtension -ext WixUtilExtension ^
     target\bootstrapper\Bundle.wixobj
 ```
 
-Output: `target\bootstrapper-output\ThorCash-Setup-1.0.0.exe` (~91 MB).
+Output: `target\bootstrapper-output\ThorCash-Setup-1.0.1.exe` (~91 MB).
 
 ## Which distribution to hand to clients
 
 | File | When to use |
 |------|-------------|
-| `ThorCash-Portable-1.0.0.zip` | **Most reliable.** No install, no admin, runs anywhere — proven working on the client machine. |
-| `ThorCash-Setup-1.0.0.exe` | Standard "run the installer" flow (EULA + shortcut, admin). Same app as the ZIP. |
-| `ThorCash-1.0.0.msi` | Enterprise deployment (GPO / Intune / silent install). |
+| `ThorCash-Portable-1.0.1.zip` | **Most reliable.** No install, no admin, runs anywhere — proven working on the client machine. |
+| `ThorCash-Setup-1.0.1.exe` | Standard "run the installer" flow (EULA + shortcut, admin). Same app as the ZIP. |
+| `ThorCash-1.0.1.msi` | Enterprise deployment (GPO / Intune / silent install). |
 
 If a machine reports "Failed to launch JVM" from the installed EXE but the ZIP
 runs fine on the same machine, it is **not** the package — it is either a stale

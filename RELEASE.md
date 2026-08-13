@@ -21,8 +21,9 @@ The script runs 9 stages automatically. On success, output files appear in `targ
 
 | File | Description |
 |------|-------------|
-| `target\installer\ThorCash-1.0.0.msi` | Windows Installer package (private, not shared) |
-| `target\bootstrapper-output\ThorCash-Setup-1.0.0.exe` | **Shareable installer** — single EXE with admin elevation |
+| `target\dist\ThorCash-Portable-1.0.1.zip` | **Portable package** — unzip and run, no install, no admin |
+| `target\installer\ThorCash-1.0.1.msi` | Windows Installer package (private, not shared) |
+| `target\bootstrapper-output\ThorCash-Setup-1.0.1.exe` | **Shareable installer** — single EXE with admin elevation |
 
 Intermediate artifacts:
 
@@ -34,42 +35,43 @@ Intermediate artifacts:
 ## Step 2 — Generate checksums
 
 ```
-certutil -hashfile target\installer\ThorCash-1.0.0.msi SHA256
-certutil -hashfile target\bootstrapper-output\ThorCash-Setup-1.0.0.exe SHA256
+certutil -hashfile target\installer\ThorCash-1.0.1.msi SHA256
+certutil -hashfile target\bootstrapper-output\ThorCash-Setup-1.0.1.exe SHA256
 ```
 
 Or in PowerShell:
 
 ```powershell
-Get-FileHash target\installer\ThorCash-1.0.0.msi -Algorithm SHA256
-Get-FileHash target\bootstrapper-output\ThorCash-Setup-1.0.0.exe -Algorithm SHA256
+Get-FileHash target\installer\ThorCash-1.0.1.msi -Algorithm SHA256
+Get-FileHash target\bootstrapper-output\ThorCash-Setup-1.0.1.exe -Algorithm SHA256
 ```
 
 Save each hash to a `.sha256` file:
 
 ```powershell
-(Get-FileHash target\installer\ThorCash-1.0.0.msi -Algorithm SHA256).Hash.ToLower() | Out-File target\installer\ThorCash-1.0.0.msi.sha256
-(Get-FileHash target\bootstrapper-output\ThorCash-Setup-1.0.0.exe -Algorithm SHA256).Hash.ToLower() | Out-File target\bootstrapper-output\ThorCash-Setup-1.0.0.exe.sha256
+(Get-FileHash target\installer\ThorCash-1.0.1.msi -Algorithm SHA256).Hash.ToLower() | Out-File target\installer\ThorCash-1.0.1.msi.sha256
+(Get-FileHash target\bootstrapper-output\ThorCash-Setup-1.0.1.exe -Algorithm SHA256).Hash.ToLower() | Out-File target\bootstrapper-output\ThorCash-Setup-1.0.1.exe.sha256
 ```
 
 ## Step 3 — Tag the release
 
 ```bash
-git tag -a v1.0.0 -m "ThorCash v1.0.0"
-git push origin v1.0.0
+git tag -a v1.0.1 -m "ThorCash v1.0.1"
+git push origin v1.0.1
 ```
 
 ## Step 4 — Create a GitHub Release
 
 1. Go to https://github.com/Thorium234/kikaifinTech/releases/new
-2. Select the `v1.0.0` tag
-3. Title: `ThorCash v1.0.0`
+2. Select the `v1.0.1` tag
+3. Title: `ThorCash v1.0.1`
 4. Description (paste):
 
 ```markdown
-## ThorCash v1.0.0
+## ThorCash v1.0.1
 
 ### What's New
+- Database lives in a `database` folder next to the app (portable/installed builds) and Settings shows its location with Open Folder / Copy Path / Export a copy for safe-keeping
 - Complete financial management system
 - Receipt scanning and processing
 - Procurement management with IQC inspection
@@ -77,7 +79,7 @@ git push origin v1.0.0
 - Automatic update checking via GitHub Releases
 
 ### Installation
-1. Download **ThorCash-Setup-1.0.0.exe** (bootstrapper)
+1. Download **ThorCash-Setup-1.0.1.exe** (bootstrapper)
 2. Run as Administrator
 3. Follow the installation wizard
 
@@ -91,10 +93,12 @@ git push origin v1.0.0
 
 Attach these files to the release:
 
-- `target\installer\ThorCash-1.0.0.msi`
-- `target\installer\ThorCash-1.0.0.msi.sha256`
-- `target\bootstrapper-output\ThorCash-Setup-1.0.0.exe`
-- `target\bootstrapper-output\ThorCash-Setup-1.0.0.exe.sha256`
+- `target\dist\ThorCash-Portable-1.0.1.zip`
+- `target\dist\ThorCash-Portable-1.0.1.zip.sha256`
+- `target\installer\ThorCash-1.0.1.msi`
+- `target\installer\ThorCash-1.0.1.msi.sha256`
+- `target\bootstrapper-output\ThorCash-Setup-1.0.1.exe`
+- `target\bootstrapper-output\ThorCash-Setup-1.0.1.exe.sha256`
 
 ## Step 6 — Publish
 

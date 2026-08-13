@@ -1,4 +1,4 @@
-# ThorCash v1.0.0
+# ThorCash v1.0.1
 
 **Vendor:** Thor Technologies
 
@@ -14,7 +14,7 @@
 
 ### How to Install
 
-1. Get the file `ThorCash-Setup-1.0.0.exe` from the developer.
+1. Get the file `ThorCash-Setup-1.0.1.exe` from the developer.
 2. **Double-click** it to launch the installer.
 3. Read the License Agreement and check **"I accept"**, then click **Install**.
 4. Choose where to install (or leave the default).
@@ -66,20 +66,20 @@ The script runs **9 stages**:
 
 1. **Verify** environment (JDK, Maven, WiX)
 2. **Test** — 93 unit tests
-3. **Package** — compile and produce `thorcash-1.0.0.jar` with dependencies
+3. **Package** — compile and produce `thorcash-1.0.1.jar` with dependencies
 4. **jlink** — create a custom JVM runtime (fixes "Failed to launch JVM")
 5. **Assemble input** — JARs + extracted JavaFX native DLLs
-6. **MSI** — `jpackage --runtime-image` produces `ThorCash-1.0.0.msi`
+6. **MSI** — `jpackage --runtime-image` produces `ThorCash-1.0.1.msi`
 7. **Verify** runtime executables inside the MSI
-8. **Bootstrapper** — wrap MSI into `ThorCash-Setup-1.0.0.exe`
+8. **Bootstrapper** — wrap MSI into `ThorCash-Setup-1.0.1.exe`
 9. **Checksums** — SHA-256 of MSI and EXE
 
 ### Output
 
 | File | Path | Purpose |
 |------|------|---------|
-| `ThorCash-Setup-1.0.0.exe` | `target\bootstrapper-output\` | **Shareable installer** |
-| `ThorCash-1.0.0.msi` | `target\installer\` | Intermediate MSI |
+| `ThorCash-Setup-1.0.1.exe` | `target\bootstrapper-output\` | **Shareable installer** |
+| `ThorCash-1.0.1.msi` | `target\installer\` | Intermediate MSI |
 
 ### What the installer includes
 

@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set "APP_NAME=ThorCash"
-set "APP_VERSION=1.0.0"
+set "APP_VERSION=1.0.1"
 set "APP_VENDOR=Thor Technologies"
 set "APP_MAIN_CLASS=com.schaccs.Launcher"
 set "APP_JAR=thorcash-%APP_VERSION%.jar"
@@ -367,6 +367,55 @@ echo [OK]   Bootstrapper created: %BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSI
 echo.
 
 :: ============================================================================
+:: STEP 7b/9: Build portable ZIP
+::   jpackage app-image + Compress-Archive — the client's most reliable package
+::   (no installer, no admin rights, no JVM needed).
+:: ============================================================================
+echo ============================================================================
+echo   STEP 7b/9: Build portable ZIP
+echo ============================================================================
+echo.
+set "APP_IMAGE_DIR=%WORK_DIR%\target\app-image"
+if exist "%APP_IMAGE_DIR%" rmdir /s /q "%APP_IMAGE_DIR%"
+
+"%JPACKAGE%" ^
+    --type app-image ^
+    --runtime-image "%RUNTIME_DIR%" ^
+    --dest "%APP_IMAGE_DIR%" ^
+    --name "%APP_NAME%" ^
+    --app-version "%APP_VERSION%" ^
+    --input "%INPUT_DIR%" ^
+    --main-jar "%APP_JAR%" ^
+    --main-class "%APP_MAIN_CLASS%" ^
+    --icon src\main\resources\icon.ico ^
+    --vendor "%APP_VENDOR%" ^
+    --java-options "-Xmx512m" ^
+    --java-options "-Dfile.encoding=UTF-8" ^
+    --java-options "-Djava.library.path=."
+
+if %errorlevel% neq 0 (
+    echo [FAIL] jpackage app-image failed.
+    exit /b 1
+)
+if not exist "%APP_IMAGE_DIR%\%APP_NAME%\ThorCash.exe" (
+    echo [FAIL] App image not created at %APP_IMAGE_DIR%\%APP_NAME%\ThorCash.exe
+    exit /b 1
+)
+echo [OK]   App image created
+
+set "DIST_DIR=%WORK_DIR%\target\dist"
+if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
+powershell -NoProfile -Command "Compress-Archive -Path '%APP_IMAGE_DIR%\%APP_NAME%\*' -DestinationPath '%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip' -Force"
+if not exist "%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip" (
+    echo [FAIL] Portable ZIP not created.
+    exit /b 1
+)
+for %%f in ("%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip") do set ZIP_SIZE=%%~zf
+set /a ZIP_SIZE_MB=%ZIP_SIZE%/1048576
+echo [OK]   Portable ZIP created: %DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip (%ZIP_SIZE_MB% MB)
+echo.
+
+:: ============================================================================
 :: STEP 8/9: Generate SHA-256 checksums
 ::   For release integrity verification.
 :: ============================================================================
@@ -374,7 +423,7 @@ echo ===========================================================================
 echo   STEP 8/9: Generate SHA-256 checksums
 echo ============================================================================
 echo.
-powershell -NoProfile -Command "& { $msi='%MSI_PATH%'; $exe='%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe'; $hash=(Get-FileHash $msi -Algorithm SHA256).Hash.ToLower(); Write-Host ('MSI:  '+$hash); $hash2=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower(); Write-Host ('EXE:  '+$hash2); $hash+'  '+(Get-Item $msi).Name | Out-File 'target\checksums.txt' -Encoding utf8; $hash2+'  '+(Get-Item $exe).Name | Out-File 'target\checksums.txt' -Encoding utf8 -Append }"
+powershell -NoProfile -Command "& { $msi='%MSI_PATH%'; $exe='%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe'; $zip='%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip'; $hash=(Get-FileHash $msi -Algorithm SHA256).Hash.ToLower(); Write-Host ('MSI:  '+$hash); $hash2=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower(); Write-Host ('EXE:  '+$hash2); $hash3=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLower(); Write-Host ('ZIP:  '+$hash3); $hash+'  '+(Get-Item $msi).Name | Out-File 'target\checksums.txt' -Encoding utf8; $hash2+'  '+(Get-Item $exe).Name | Out-File 'target\checksums.txt' -Encoding utf8 -Append; $hash3+'  '+(Get-Item $zip).Name | Out-File 'target\checksums.txt' -Encoding utf8 -Append }"
 
 echo [OK]   Checksums saved to target\checksums.txt
 echo.
@@ -389,6 +438,7 @@ echo.
 echo   Installers:
 echo     %MSI_PATH% (%MSI_SIZE_MB% MB)
 echo     %BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe (%BOOT_SIZE_MB% MB)
+echo     %DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip (%ZIP_SIZE_MB% MB)
 echo.
 echo   Runtime verification:
 echo     %RUNTIME_DIR%\bin\java.exe     - present

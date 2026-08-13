@@ -47,10 +47,10 @@ on:
           - quick
 
 env:
-  JAVA_VERSION: 21
-  JAVA_DISTRIBUTION: microsoft
+  JAVA_VERSION: 26
+  JAVA_DISTRIBUTION: temurin
   APP_NAME: ThorCash
-  APP_VERSION: 1.0.0
+  APP_VERSION: 1.0.1
   JAVAFX_VERSION: 21.0.6
   APP_VENDOR: Thor Technologies
   APP_MAIN_CLASS: com.schaccs.Launcher
@@ -197,25 +197,65 @@ jobs:
         run: call src\main\installer\build-bootstrapper.bat
         timeout-minutes: 10
 
+      # ---- Step E2: Build portable ZIP --------------------------------------
+      # The client's most reliable package: jpackage app-image + Compress-Archive,
+      # the same self-contained app with no installer and no JVM requirement.
+      - name: Build portable ZIP
+        shell: pwsh
+        run: |
+          $appImageDir = "target\app-image"
+          Remove-Item -Recurse -Force $appImageDir -ErrorAction SilentlyContinue
+
+          & "$env:JAVA_HOME\bin\jpackage.exe" `
+            --type app-image `
+            --runtime-image "target\runtime" `
+            --dest $appImageDir `
+            --name "$env:APP_NAME" `
+            --app-version "$env:APP_VERSION" `
+            --input "target\installer-input" `
+            --main-jar "thorcash-$env:APP_VERSION.jar" `
+            --main-class "$env:APP_MAIN_CLASS" `
+            --icon "src\main\resources\icon.ico" `
+            --vendor "$env:APP_VENDOR" `
+            --java-options "-Xmx512m" `
+            --java-options "-Dfile.encoding=UTF-8" `
+            --java-options "-Djava.library.path=."
+
+          if (-not (Test-Path "$appImageDir\$env:APP_NAME\ThorCash.exe")) {
+            throw "App image not created"
+          }
+
+          $distDir = "target\dist"
+          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+          $zipPath = "$distDir\$env:APP_NAME-Portable-$env:APP_VERSION.zip"
+          Compress-Archive -Path "$appImageDir\$env:APP_NAME\*" -DestinationPath $zipPath -Force
+          $size = (Get-Item $zipPath).Length / 1MB
+          Write-Host "ZIP created: $zipPath ($([math]::Round($size, 1)) MB)"
+
       # ---- Step F: Generate SHA-256 checksums ------------------------------
       - name: Generate checksums
         shell: pwsh
         run: |
           $msi = "target\installer\$env:APP_NAME-$env:APP_VERSION.msi"
           $exe = "target\bootstrapper-output\$env:APP_NAME-Setup-$env:APP_VERSION.exe"
+          $zip = "target\dist\$env:APP_NAME-Portable-$env:APP_VERSION.zip"
 
           $msiHash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
           $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
 
           Write-Host "MSI:  $msiHash"
           Write-Host "EXE:  $exeHash"
+          Write-Host "ZIP:  $zipHash"
 
           $msiHash | Out-File -FilePath "target\$env:APP_NAME-$env:APP_VERSION.msi.sha256" -Encoding utf8
           $exeHash | Out-File -FilePath "target\$env:APP_NAME-Setup-$env:APP_VERSION.exe.sha256" -Encoding utf8
+          $zipHash | Out-File -FilePath "target\$env:APP_NAME-Portable-$env:APP_VERSION.zip.sha256" -Encoding utf8
 
           @"
           $msiHash  $env:APP_NAME-$env:APP_VERSION.msi
           $exeHash  $env:APP_NAME-Setup-$env:APP_VERSION.exe
+          $zipHash  $env:APP_NAME-Portable-$env:APP_VERSION.zip
           "@ | Out-File -FilePath "target\checksums.txt" -Encoding utf8
 
           Get-Content "target\checksums.txt"
@@ -233,6 +273,13 @@ jobs:
         with:
           name: ThorCash-Setup
           path: target\bootstrapper-output\ThorCash-Setup-${{ env.APP_VERSION }}.exe
+          retention-days: 90
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThorCash-Portable
+          path: target\dist\ThorCash-Portable-${{ env.APP_VERSION }}.zip
           retention-days: 90
 
       - name: Upload checksums
@@ -267,6 +314,7 @@ jobs:
             ## ThorCash Financial System ${{ github.ref_name }}
 
             ### Downloads
+            - **Windows Portable (ZIP)**: ThorCash-Portable-*.zip — No install, no admin rights, most reliable
             - **Windows Installer (EXE)**: ThorCash-Setup-*.exe — Professional bootstrapper
             - **Windows Installer (MSI)**: ThorCash-*.msi — Standard Windows Installer package
 
@@ -274,9 +322,8 @@ jobs:
             See `checksums.txt` attached to this release for file integrity verification.
 
             ### Installation
-            1. Download `ThorCash-Setup-*.exe`
-            2. Run as Administrator
-            3. Follow the installation wizard
+            1. Portable: unzip anywhere and double-click `ThorCash.exe` (no install).
+            2. Or download `ThorCash-Setup-*.exe`, run as Administrator, follow the wizard.
 
             ### Silent Installation
             ```
@@ -286,6 +333,7 @@ jobs:
             ThorCash-Setup/*.exe
             ThorCash-Setup/*.sha256
             ThorCash-MSI/*.msi
+            ThorCash-Portable/*.zip
             ThorCash-Checksums/*.txt
             ThorCash-Checksums/*.sha256
           draft: false
