@@ -60,7 +60,7 @@ public class MainApp extends Application {
         splashStage.getIcons().add(new Image(Objects.requireNonNull(
                 getClass().getResourceAsStream("/icon.png"))));
         Image splashImage = new Image(Objects.requireNonNull(
-                getClass().getResourceAsStream("/Splashscreen.png")));
+                getClass().getResourceAsStream("/splashScreen.png")));
         ImageView splashView = new ImageView(splashImage);
         splashView.setFitWidth(600);
         splashView.setPreserveRatio(true);

@@ -140,7 +140,7 @@ if exist "%RUNTIME_DIR%" rmdir /s /q "%RUNTIME_DIR%"
 
 "%JLINK%" ^
     --module-path "%JAVA_HOME%\jmods" ^
-    --add-modules java.base,java.sql,java.xml,java.desktop,jdk.unsupported,java.logging,jdk.management,jdk.management.agent,jdk.zipfs,jdk.crypto.cryptoki,jdk.crypto.ec ^
+    --add-modules java.base,java.desktop,java.logging,java.management,java.naming,java.net.http,java.prefs,java.security.jgss,java.sql,java.xml,java.xml.crypto,jdk.jfr,jdk.unsupported,jdk.zipfs,jdk.crypto.cryptoki,jdk.crypto.ec,jdk.management,jdk.management.agent ^
     --no-header-files ^
     --no-man-pages ^
     --strip-debug ^

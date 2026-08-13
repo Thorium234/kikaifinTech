@@ -189,25 +189,6 @@
                         </configuration>
                     </execution>
 
-                    <!-- UNPACK JavaFX jmods (official jmods distribution) for jlink -->
-                    <execution>
-                        <id>unpack-javafx-jmods</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>unpack</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>org.openjfx</groupId>
-                                    <artifactId>javafx-jmods</artifactId>
-                                    <version>${javafx.version}</version>
-                                </artifactItem>
-                            </artifactItems>
-                            <outputDirectory>${project.build.directory}/javafx-jmods</outputDirectory>
-                        </configuration>
-                    </execution>
-
                     <!-- Copy the main artifact into installer-input -->
                     <execution>
                         <id>copy-main-jar-to-installer-input</id>
@@ -265,25 +246,31 @@
                 <configuration>
                     <output>${project.build.directory}/runtime</output>
 
-                    <!-- Add jmods module-path: the JDK jmods and the unpacked JavaFX jmods -->
+                    <!-- Add jmods module-path: the JDK jmods (JavaFX runs from its platform JARs on the classpath) -->
                     <modulePaths>
                         <modulePath>${java.home}/jmods</modulePath>
-                        <modulePath>${project.build.directory}/javafx-jmods</modulePath>
                     </modulePaths>
 
                     <addModules>
-                        <!-- JDK modules your app requires -->
+                        <!-- JDK modules your app requires (keep in sync with build-installer.bat) -->
                         <addModule>java.base</addModule>
-                        <addModule>java.sql</addModule>
-                        <addModule>java.xml</addModule>
                         <addModule>java.desktop</addModule>
                         <addModule>java.logging</addModule>
-
-                        <!-- JavaFX modules (ensure these are present in javafx-jmods) -->
-                        <addModule>javafx.controls</addModule>
-                        <addModule>javafx.fxml</addModule>
-                        <addModule>javafx.graphics</addModule>
-                        <!-- add javafx.media, javafx.web if used -->
+                        <addModule>java.management</addModule>
+                        <addModule>java.naming</addModule>
+                        <addModule>java.net.http</addModule>
+                        <addModule>java.prefs</addModule>
+                        <addModule>java.security.jgss</addModule>
+                        <addModule>java.sql</addModule>
+                        <addModule>java.xml</addModule>
+                        <addModule>java.xml.crypto</addModule>
+                        <addModule>jdk.jfr</addModule>
+                        <addModule>jdk.unsupported</addModule>
+                        <addModule>jdk.zipfs</addModule>
+                        <addModule>jdk.crypto.cryptoki</addModule>
+                        <addModule>jdk.crypto.ec</addModule>
+                        <addModule>jdk.management</addModule>
+                        <addModule>jdk.management.agent</addModule>
                     </addModules>
 
                     <noHeaderFiles>true</noHeaderFiles>
