@@ -45,6 +45,7 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -165,7 +166,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportStudentBalancesPdf(balancesTable.getItems(), "Fee Balances", "fee-balances.pdf"));
-        HBox bar = new HBox(10, new Label("Term:"), termBox, refresh, export, pdf);
+        FlowPane bar = new FlowPane(10, 10, new Label("Term:"), termBox, refresh, export, pdf);
         bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         VBox box = new VBox(10, reportSectionTitle("Fee Balances", "Review student balances by term and export as spreadsheet or PDF."), bar, balancesTable);
         box.getStyleClass().add("reports-section-card");
@@ -188,7 +189,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportStudentBalancesPdf(defaultersTable.getItems(), "Defaulters", "defaulters.pdf"));
-        HBox bar = new HBox(10, new Label("Term:"), termBox, refresh, export, pdf, rollover);
+        FlowPane bar = new FlowPane(10, 10, new Label("Term:"), termBox, refresh, export, pdf, rollover);
         bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         VBox box = new VBox(10, reportSectionTitle("Defaulters", "Track unpaid balances and optionally roll arrears forward."), bar, defaultersTable);
         box.getStyleClass().add("reports-section-card");
@@ -241,7 +242,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportDailyCollectionPdf());
-        HBox bar = new HBox(10, new Label("Date:"), dailyDate, load, export, pdf);
+        FlowPane bar = new FlowPane(10, 10, new Label("Date:"), dailyDate, load, export, pdf);
         VBox box = new VBox(10, reportSectionTitle("Daily Collection", "Summarise daily fee collections by payment mode."), bar, dailyTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
@@ -352,8 +353,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF Statement");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportStatementPdf());
-        HBox filterBar = new HBox(8, new Label("Form:"), formBox, new Label("Stream:"), streamBox, new Label("Adm:"), admField, searchBtn);
-        HBox actionBar = new HBox(10, new Label("Student:"), studentBox, load, print, export, pdf);
+        FlowPane filterBar = new FlowPane(8, 8, new Label("Form:"), formBox, new Label("Stream:"), streamBox, new Label("Adm:"), admField, searchBtn);
+        FlowPane actionBar = new FlowPane(10, 10, new Label("Student:"), studentBox, load, print, export, pdf);
         VBox box = new VBox(10, reportSectionTitle("Student Statement", "Filter by Form, Stream, and Admission Number, then search. Select a student and generate a statement."), filterBar, actionBar, statementArea);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
@@ -489,7 +490,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         pdfLedger.setOnAction(e -> exportLedgerTransactionsPdf());
         HBox dateBar = new HBox(6, new Label("From:"), trialFromDate, new Label("To:"), trialToDate);
         dateBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        VBox box = new VBox(10, reportSectionTitle("Trial Balance", "Validate ledger equality and export trial balance or ledger transaction data."), dateBar, new HBox(10, refresh, export, pdf, exportLedger, pdfLedger), trialTable);
+        VBox box = new VBox(10, reportSectionTitle("Trial Balance", "Validate ledger equality and export trial balance or ledger transaction data."), dateBar, new FlowPane(10, 10, refresh, export, pdf, exportLedger, pdfLedger), trialTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(trialTable, Priority.ALWAYS);
@@ -524,7 +525,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportCashbookPdf());
-        HBox bar = new HBox(10, new Label("From:"), cashbookFrom, new Label("To:"), cashbookTo, load, export, pdf);
+        FlowPane bar = new FlowPane(10, 10, new Label("From:"), cashbookFrom, new Label("To:"), cashbookTo, load, export, pdf);
         VBox box = new VBox(10, reportSectionTitle("Cashbook", "View all receipts and payments with running balance for a date range."), bar, cashbookTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
@@ -610,7 +611,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportCashFlowPdf());
-        HBox bar = new HBox(10, new Label("From:"), cashFlowFrom, new Label("To:"), cashFlowTo, load, export, pdf);
+        FlowPane bar = new FlowPane(10, 10, new Label("From:"), cashFlowFrom, new Label("To:"), cashFlowTo, load, export, pdf);
         VBox box = new VBox(10, reportSectionTitle("Cash Flow Statement", "Analyse cash inflows and outflows across operating, investing, and financing activities."), bar, cashFlowTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));

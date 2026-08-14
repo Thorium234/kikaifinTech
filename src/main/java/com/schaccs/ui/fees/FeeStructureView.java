@@ -70,7 +70,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         termBox.setPromptText("All terms");
         termBox.setOnAction(e -> loadItems());
 
-        HBox filters = new HBox(12,
+        FlowPane filters = new FlowPane(12, 8,
                 new Label("Structure:"), structureBox,
                 new Label("Term:"), termBox,
                 totalLabel);

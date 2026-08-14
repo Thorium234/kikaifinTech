@@ -273,7 +273,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         copyEmail.getStyleClass().add("secondary-button");
         copyEmail.setOnAction(e -> copyEmailTemplate());
 
-        HBox bar = new HBox(10, refreshBtn, exportPdf, copySms, copyEmail);
+        FlowPane bar = new FlowPane(10, 10, refreshBtn, exportPdf, copySms, copyEmail);
 
         VBox section = new VBox(10, reminderTitle, reminderSub, bar, reminderTable);
         section.getStyleClass().add("card");

@@ -20,6 +20,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -166,7 +167,7 @@ public class PayrollView extends VBox implements MainLayout.Refreshable {
             tabPane.getSelectionModel().select(1);
         });
 
-        HBox actions = new HBox(8, approveBtn, postBtn, reverseBtn, recalcBtn, viewItemsBtn);
+        FlowPane actions = new FlowPane(8, 8, approveBtn, postBtn, reverseBtn, recalcBtn, viewItemsBtn);
         actions.setAlignment(Pos.CENTER_LEFT);
 
         VBox content = new VBox(12, periodBox, runsTable, actions);

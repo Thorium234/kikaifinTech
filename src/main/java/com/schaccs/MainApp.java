@@ -135,8 +135,8 @@ public class MainApp extends Application {
 
             stage.setTitle("ThorCash — " + AppConfig.getInstance().getSchoolProfile().getSchoolName());
             stage.setScene(scene);
-            stage.setMinWidth(1100);
-            stage.setMinHeight(700);
+            stage.setMinWidth(800);
+            stage.setMinHeight(520);
             stage.setOnCloseRequest(ev -> AppBootstrap.shutdown());
             stage.show();
         });

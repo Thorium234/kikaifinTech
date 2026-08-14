@@ -19,6 +19,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -75,9 +76,8 @@ public class StudentTransitionView extends VBox implements MainLayout.Refreshabl
         toDayBtn.getStyleClass().add("secondary-button");
         toDayBtn.setOnAction(e -> transition(BoardingStatus.DAY));
 
-        HBox toolbar = new HBox(10, searchBar, new Label("Term:"), termBox, toBoardingBtn, toDayBtn);
+        FlowPane toolbar = new FlowPane(10, 10, searchBar, new Label("Term:"), termBox, toBoardingBtn, toDayBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(searchBar, Priority.ALWAYS);
 
         setupTable();
 

@@ -35,8 +35,10 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -294,7 +296,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         });
     }
 
-    private HBox buildPayBar() {
+    private Pane buildPayBar() {
         payMode.getItems().setAll(PaymentMode.allowedModes());
         payMode.setValue(PaymentMode.BANK_SLIP);
         payRef.setPromptText("Bank ref / cheque no");
@@ -316,7 +318,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
             AlertUtil.info("Paid", "Payment voucher posted to the ledger.");
         });
 
-        HBox bar = new HBox(10,
+        FlowPane bar = new FlowPane(10, 10,
                 new Label("Pay:"), payAmount,
                 new Label("Mode:"), payMode,
                 new Label("Ref:"), payRef,
@@ -400,7 +402,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         form.add(voucherFieldBox(lpoDescField, "Describe the procurement request."), 1, 4);
         form.add(voucherLabel("Date"), 0, 5);
         form.add(voucherFieldBox(lpoDate, "LPO issue date."), 1, 5);
-        HBox actions = new HBox(10, create, update, cancel, delete, exportButton("Export PDF", this::exportLposPdf));
+        FlowPane actions = new FlowPane(10, 10, create, update, cancel, delete, exportButton("Export PDF", this::exportLposPdf));
         actions.getStyleClass().add("voucher-action-bar");
         return new VBox(10, sectionTitle("LPO Management", "Create, edit, cancel, or export local purchase orders."), form, actions, new Separator(), lpoTable);
     }
@@ -461,7 +463,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         form.add(voucherFieldBox(invoiceDescField, "Short description of the invoice."), 1, 5);
         form.add(voucherLabel("Date"), 0, 6);
         form.add(voucherFieldBox(invoiceDate, "Invoice date."), 1, 6);
-        HBox actions = new HBox(10, create, update, cancel, delete, exportButton("Export PDF", this::exportInvoicesPdf));
+        FlowPane actions = new FlowPane(10, 10, create, update, cancel, delete, exportButton("Export PDF", this::exportInvoicesPdf));
         actions.getStyleClass().add("voucher-action-bar");
         return new VBox(10, sectionTitle("Invoice Management", "Capture supplier invoices and track payable status."), form, actions, new Separator(), invoiceTable);
     }
@@ -536,7 +538,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         form.add(voucherFieldBox(surrenderAmountField, "Amount surrendered back or accounted for."), 1, 5);
         form.add(voucherLabel("Surrender Date"), 0, 6);
         form.add(voucherFieldBox(surrenderDate, "Date of surrender/accountability."), 1, 6);
-        HBox actions = new HBox(10, issue, update, delete, surrender, exportButton("Export PDF", this::exportImprestsPdf));
+        FlowPane actions = new FlowPane(10, 10, issue, update, delete, surrender, exportButton("Export PDF", this::exportImprestsPdf));
         actions.getStyleClass().add("voucher-action-bar");
         return new VBox(10, sectionTitle("Imprest Management", "Issue, update, surrender, and export staff imprests."), form, actions, new Separator(), imprestTable);
     }

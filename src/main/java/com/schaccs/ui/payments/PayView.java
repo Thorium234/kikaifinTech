@@ -33,6 +33,7 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -128,10 +129,9 @@ public class PayView extends VBox implements MainLayout.Refreshable {
             searchBar.clear();
         });
 
-        HBox filterBar = new HBox(10, new Label("Form/Grade:"), formBox,
+        FlowPane filterBar = new FlowPane(10, 10, new Label("Form/Grade:"), formBox,
                 new Label("Stream:"), streamBox, searchBar, clearFilters);
         filterBar.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(searchBar, Priority.ALWAYS);
         formBox.setPrefWidth(140);
         streamBox.setPrefWidth(110);
 

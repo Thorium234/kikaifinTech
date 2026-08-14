@@ -16,6 +16,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -103,7 +104,7 @@ public class ContractView extends VBox implements MainLayout.Refreshable {
         terminateBtn.getStyleClass().add("btn-secondary");
         terminateBtn.setOnAction(e -> terminateContract());
 
-        HBox buttons = new HBox(10, createBtn, activateBtn, completeBtn, extendBtn, terminateBtn);
+        FlowPane buttons = new FlowPane(10, 10, createBtn, activateBtn, completeBtn, extendBtn, terminateBtn);
         buttons.setAlignment(Pos.CENTER_LEFT);
 
         GridPane form = new GridPane();

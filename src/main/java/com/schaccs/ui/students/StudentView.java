@@ -38,6 +38,7 @@ import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -128,9 +129,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         deleteBtn.setGraphic(new FontIcon(FontAwesomeSolid.TRASH));
         deleteBtn.setOnAction(e -> deleteSelected());
 
-        HBox toolbar = new HBox(10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn, exportBtn, templateBtn);
+        FlowPane toolbar = new FlowPane(10, 10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn, exportBtn, templateBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(searchBar, Priority.ALWAYS);
 
         setupTable();
 

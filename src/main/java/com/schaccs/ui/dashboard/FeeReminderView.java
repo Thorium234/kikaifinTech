@@ -25,6 +25,7 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -76,7 +77,7 @@ public class FeeReminderView extends VBox implements MainLayout.Refreshable {
         copyEmail.getStyleClass().add("secondary-button");
         copyEmail.setOnAction(e -> copyEmailTemplate());
 
-        HBox bar = new HBox(10, refreshBtn, exportPdf, copySms, copyEmail);
+        FlowPane bar = new FlowPane(10, 10, refreshBtn, exportPdf, copySms, copyEmail);
         bar.setPadding(new Insets(0, 0, 8, 0));
 
         VBox.setVgrow(reminderTable, Priority.ALWAYS);
