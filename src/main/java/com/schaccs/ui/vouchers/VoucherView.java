@@ -34,6 +34,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -249,8 +250,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
 
         GridPane g = new GridPane();
         g.getStyleClass().add("voucher-form-grid");
-        g.setHgap(10);
-        g.setVgap(8);
+        makeVoucherForm(g);
         g.add(voucherLabel("Creditor"), 0, 0);
         g.add(voucherFieldBox(creditorBox, "Choose the supplier to be committed."), 1, 0);
         g.add(voucherLabel("Votehead"), 0, 1);
@@ -387,8 +387,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         delete.setOnAction(e -> deleteSelectedLpo());
         GridPane form = new GridPane();
         form.getStyleClass().add("voucher-form-grid");
-        form.setHgap(10);
-        form.setVgap(8);
+        makeVoucherForm(form);
         form.add(voucherLabel("Creditor"), 0, 0);
         form.add(voucherFieldBox(lpoCreditorBox, "Supplier for the purchase order."), 1, 0);
         form.add(voucherLabel("Votehead"), 0, 1);
@@ -447,8 +446,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         delete.setOnAction(e -> deleteSelectedInvoice());
         GridPane form = new GridPane();
         form.getStyleClass().add("voucher-form-grid");
-        form.setHgap(10);
-        form.setVgap(8);
+        makeVoucherForm(form);
         form.add(voucherLabel("Creditor"), 0, 0);
         form.add(voucherFieldBox(invoiceCreditorBox, "Supplier issuing the invoice."), 1, 0);
         form.add(voucherLabel("Votehead"), 0, 1);
@@ -523,8 +521,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         delete.setOnAction(e -> deleteSelectedImprest());
         GridPane form = new GridPane();
         form.getStyleClass().add("voucher-form-grid");
-        form.setHgap(10);
-        form.setVgap(8);
+        makeVoucherForm(form);
         form.add(voucherLabel("Staff"), 0, 0);
         form.add(voucherFieldBox(imprestStaffField, "Staff member receiving the imprest."), 1, 0);
         form.add(voucherLabel("Votehead"), 0, 1);
@@ -1011,6 +1008,16 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         Label label = new Label(text);
         label.getStyleClass().add("voucher-form-label");
         return label;
+    }
+
+    private void makeVoucherForm(GridPane grid) {
+        grid.setHgap(10);
+        grid.setVgap(8);
+        ColumnConstraints labelCol = new ColumnConstraints();
+        labelCol.setPrefWidth(90);
+        ColumnConstraints fieldCol = new ColumnConstraints();
+        fieldCol.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(labelCol, fieldCol);
     }
 
     private VBox voucherFieldBox(javafx.scene.Node field, String hint) {

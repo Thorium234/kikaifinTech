@@ -145,6 +145,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
         HBox workspace = new HBox(14, tableCard, previewCard);
         workspace.setFillHeight(true);
         HBox.setHgrow(tableCard, Priority.ALWAYS);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
 
         VBox content = new VBox(12, heading, sub, workspace);
         content.setPadding(new Insets(4));

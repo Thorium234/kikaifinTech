@@ -1,6 +1,9 @@
 package com.schaccs.ui.layout;
 
 import javafx.scene.Node;
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TabPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -41,30 +44,58 @@ public class MainLayout extends BorderPane {
     }
 
     public void show(String key, Consumer<Node> afterShow) {
-        Node node = cache.computeIfAbsent(key, k -> {
+        Node view = cache.computeIfAbsent(key, k -> {
             Supplier<Node> factory = factories.get(k);
-            Node view = factory != null ? factory.get() : new javafx.scene.control.Label("Missing view: " + k);
-            return wrapForResponsiveLayout(view);
+            return factory != null ? factory.get() : new Label("Missing view: " + k);
         });
-        // refresh if view supports it
-        if (node instanceof Refreshable r) {
+        // refresh the underlying view (not the display wrapper)
+        if (view instanceof Refreshable r) {
             r.refresh();
         }
-        content.getChildren().setAll(node);
+        content.getChildren().setAll(wrapForResponsiveLayout(view));
         sidebar.setActive(key);
         topBar.setTitle(titles.getOrDefault(key, key));
         statusBar.setMessage("Viewing " + titles.getOrDefault(key, key));
         if (afterShow != null) {
-            afterShow.accept(node);
+            afterShow.accept(view);
         }
     }
 
+    /**
+     * Makes a view responsive: it fills the content area and scrolls instead of
+     * clipping when the window is too small. Views that already provide their own
+     * scrolling (a ScrollPane or TabPane at the top level) are passed through.
+     */
     private Node wrapForResponsiveLayout(Node view) {
         if (view instanceof Region region) {
             region.setMaxWidth(Double.MAX_VALUE);
             region.setMaxHeight(Double.MAX_VALUE);
         }
-        return view;
+        if (managesOwnScroll(view)) {
+            return view;
+        }
+        ScrollPane pane = new ScrollPane(view);
+        pane.setFitToWidth(true);
+        pane.setFitToHeight(true);
+        pane.setPannable(true);
+        pane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        pane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        pane.getStyleClass().add("content-scroll");
+        return pane;
+    }
+
+    private boolean managesOwnScroll(Node view) {
+        if (view instanceof ScrollPane || view instanceof TabPane) {
+            return true;
+        }
+        if (view instanceof VBox vbox) {
+            for (Node child : vbox.getChildren()) {
+                if (child instanceof ScrollPane || child instanceof TabPane) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public Sidebar getSidebar() {

@@ -26,7 +26,9 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.cell.ComboBoxTableCell;
 import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -88,14 +90,15 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         HBox body = new HBox(16, itemsCard, vhCard);
         body.setFillHeight(true);
         HBox.setHgrow(itemsCard, Priority.ALWAYS);
+        VBox.setVgrow(body, Priority.ALWAYS);
 
         VBox structureToolbar = buildStructureToolbar();
 
         Label note = new Label("Use the dialog to create Day, Boarding, or both structures side by side with per-term votehead amounts.");
         note.getStyleClass().add("muted");
 
-        itemTable.setPrefHeight(300);
-        voteheadTable.setPrefHeight(300);
+        VBox.setVgrow(itemTable, Priority.ALWAYS);
+        VBox.setVgrow(voteheadTable, Priority.ALWAYS);
         getChildren().addAll(heading, structureToolbar, filters, body, note);
         loadItems();
     }
@@ -134,9 +137,8 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         pdfBtn.getStyleClass().add("secondary-button");
         pdfBtn.setOnAction(e -> exportPdf());
 
-        HBox bar = new HBox(10, newStruct, delStruct, importBtn, templatesBtn, excelBtn, pdfTermBox, pdfBtn);
+        FlowPane bar = new FlowPane(10, 10, newStruct, delStruct, importBtn, templatesBtn, excelBtn, pdfTermBox, pdfBtn);
         bar.setAlignment(Pos.CENTER_LEFT);
-        bar.setSpacing(10);
         VBox box = new VBox(8, new Label("Structures"), bar);
         box.getStyleClass().add("card");
         return box;
@@ -212,7 +214,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         return name.replaceAll("[^a-zA-Z0-9-_ ]", "").trim().replace(' ', '_');
     }
 
-    private HBox buildItemToolbar() {
+    private Pane buildItemToolbar() {
         ComboBox<Votehead> vhBox = new ComboBox<>(store.getVoteheads());
         vhBox.setPromptText("Vote head");
         vhBox.setPrefWidth(160);
@@ -229,7 +231,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         remove.getStyleClass().add("secondary-button");
         remove.setOnAction(e -> removeItem());
 
-        HBox bar = new HBox(8, vhBox, term, amount, add, remove);
+        FlowPane bar = new FlowPane(8, 8, vhBox, term, amount, add, remove);
         bar.setAlignment(Pos.CENTER_LEFT);
         return bar;
     }

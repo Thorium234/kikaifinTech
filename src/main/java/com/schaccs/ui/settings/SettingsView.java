@@ -42,6 +42,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.ColumnConstraints;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 
@@ -107,6 +108,11 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         GridPane grid = new GridPane();
         grid.setHgap(12);
         grid.setVgap(10);
+        ColumnConstraints labelCol = new ColumnConstraints();
+        labelCol.setPrefWidth(160);
+        ColumnConstraints fieldCol = new ColumnConstraints();
+        fieldCol.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(labelCol, fieldCol);
         int r = 0;
         grid.add(new Label("School Name"), 0, r);
         grid.add(schoolName, 1, r++);
@@ -278,6 +284,11 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         GridPane grid = new GridPane();
         grid.setHgap(12);
         grid.setVgap(10);
+        ColumnConstraints dbLabelCol = new ColumnConstraints();
+        dbLabelCol.setPrefWidth(160);
+        ColumnConstraints dbFieldCol = new ColumnConstraints();
+        dbFieldCol.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(dbLabelCol, dbFieldCol);
         int r = 0;
         grid.add(new Label("JDBC URL"), 0, r);
         grid.add(jdbcUrl, 1, r++);
