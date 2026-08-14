@@ -330,8 +330,8 @@ public final class PersistenceService {
                     bank_name, bank_account, pay_bill, pay_bill_account, cash_policy,
                     academic_year, next_receipt_number, next_voucher_number, current_user,
                     sibling_discount_enabled, sibling_discount_rate, logo_path, stamp_path, signature_path,
-                    pdf_stamp_enabled)
-                VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    pdf_stamp_enabled, enabled_payment_modes)
+                VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET
                     school_name=excluded.school_name, location=excluded.location, ministry=excluded.ministry,
                     principal=excluded.principal, bank_name=excluded.bank_name, bank_account=excluded.bank_account,
@@ -343,7 +343,8 @@ public final class PersistenceService {
                     logo_path=excluded.logo_path,
                     stamp_path=excluded.stamp_path,
                     signature_path=excluded.signature_path,
-                    pdf_stamp_enabled=excluded.pdf_stamp_enabled
+                    pdf_stamp_enabled=excluded.pdf_stamp_enabled,
+                    enabled_payment_modes=excluded.enabled_payment_modes
                 """)) {
             ps.setString(1, p.getSchoolName());
             ps.setString(2, p.getLocation());
@@ -364,6 +365,9 @@ public final class PersistenceService {
             ps.setString(17, p.getStampPath());
             ps.setString(18, p.getSignaturePath());
             ps.setInt(19, p.isPdfStampEnabled() ? 1 : 0);
+            ps.setString(20, p.getEnabledPaymentModes().stream()
+                    .map(Enum::name)
+                    .collect(java.util.stream.Collectors.joining(",")));
             ps.executeUpdate();
         }
     }
@@ -401,6 +405,11 @@ public final class PersistenceService {
             p.setStampPath(rs.getString("stamp_path"));
             p.setSignaturePath(rs.getString("signature_path"));
             p.setPdfStampEnabled(rs.getInt("pdf_stamp_enabled") != 0);
+            String enabledModes = rs.getString("enabled_payment_modes");
+            if (enabledModes != null && !enabledModes.isBlank()) {
+                p.setEnabledPaymentModes(PaymentMode.fromNames(
+                        java.util.Arrays.asList(enabledModes.split(","))));
+            }
             String user = rs.getString("current_user");
             if (user != null && !user.isBlank()) {
                 AppConfig.getInstance().setCurrentUser(user);

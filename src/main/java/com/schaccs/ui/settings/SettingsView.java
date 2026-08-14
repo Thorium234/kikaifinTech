@@ -4,6 +4,7 @@ import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.config.SchoolProfile;
 import com.schaccs.config.db.DatasourceManager;
+import com.schaccs.enums.PaymentMode;
 import com.schaccs.repository.Database;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.setup.DemoDataSeeder;
@@ -20,6 +21,7 @@ import javafx.geometry.Insets;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
@@ -34,6 +36,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -48,7 +51,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class SettingsView extends VBox implements MainLayout.Refreshable {
@@ -90,6 +95,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final Label dbStatusLabel = new Label("Not connected");
     private final Label dbLocationLabel = new Label();
     private final Label dbExportStatus = new Label("");
+    private final Map<PaymentMode, CheckBox> paymentModeChecks = new EnumMap<>(PaymentMode.class);
 
     public SettingsView(UpdateService updateService) {
         setSpacing(14);
@@ -193,6 +199,8 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         historyCard.getStyleClass().add("card");
         VBox.setVgrow(migrationTable, Priority.ALWAYS);
 
+        VBox paymentModesCard = buildPaymentModesCard();
+
         VBox dbCard = buildDatabaseConfigCard();
         VBox dbStorageCard = buildDatabaseStorageCard();
         VBox demoCard = buildDemoDataCard();
@@ -200,7 +208,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
         UpdateSettingsView updateCard = new UpdateSettingsView(updateService);
 
-        VBox allContent = new VBox(14, heading, card, historyCard, dbCard, dbStorageCard, demoCard, purgeCard, updateCard);
+        VBox allContent = new VBox(14, heading, card, paymentModesCard, historyCard, dbCard, dbStorageCard, demoCard, purgeCard, updateCard);
         allContent.setPadding(new Insets(0, 0, 60, 0));
         ScrollPane mainScroll = new ScrollPane(allContent);
         mainScroll.setFitToWidth(true);
@@ -211,6 +219,50 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         setupLivePreviewListeners();
         getChildren().add(mainScroll);
         load();
+    }
+
+    private VBox buildPaymentModesCard() {
+        Label heading = new Label("Payment Modes");
+        heading.getStyleClass().add("section-title");
+        Label sub = new Label("Choose which payment modes your school accepts. "
+                + "Enabled modes appear in the payment and receipting dropdowns. "
+                + "All modes are enabled by default.");
+        sub.setWrapText(true);
+        sub.getStyleClass().add("muted");
+
+        FlowPane flow = new FlowPane();
+        flow.setHgap(18);
+        flow.setVgap(8);
+        for (PaymentMode mode : PaymentMode.values()) {
+            CheckBox box = new CheckBox(mode.getDisplayName());
+            paymentModeChecks.put(mode, box);
+            flow.getChildren().add(box);
+        }
+
+        VBox card = new VBox(10, heading, sub, flow);
+        card.getStyleClass().add("card");
+        return card;
+    }
+
+    private void loadPaymentModes() {
+        SchoolProfile p = AppConfig.getInstance().getSchoolProfile();
+        for (PaymentMode mode : PaymentMode.values()) {
+            CheckBox box = paymentModeChecks.get(mode);
+            if (box != null) {
+                box.setSelected(p.getEnabledPaymentModes().contains(mode));
+            }
+        }
+    }
+
+    private void savePaymentModes() {
+        List<PaymentMode> selected = new java.util.ArrayList<>();
+        for (PaymentMode mode : PaymentMode.values()) {
+            CheckBox box = paymentModeChecks.get(mode);
+            if (box != null && box.isSelected()) {
+                selected.add(mode);
+            }
+        }
+        AppConfig.getInstance().getSchoolProfile().setEnabledPaymentModes(selected);
     }
 
     private VBox buildDatabaseConfigCard() {
@@ -524,6 +576,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         refreshImagePreview(stampPath, stampPreview, receiptMockStamp, stampWarning, "stamp");
         refreshImagePreview(signaturePath, signaturePreview, receiptMockSignature, signatureWarning, "signature");
         refreshReceiptBrandingMockup();
+        loadPaymentModes();
         loadMigrationHistory();
         loadDbConfig();
         refreshDatabaseLocation();
@@ -857,6 +910,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
             p.setLogoPath(logoPath.getText().trim().isEmpty() ? null : logoPath.getText().trim());
             p.setStampPath(stampPath.getText().trim().isEmpty() ? null : stampPath.getText().trim());
             p.setSignaturePath(signaturePath.getText().trim().isEmpty() ? null : signaturePath.getText().trim());
+            savePaymentModes();
             AppConfig.getInstance().setCurrentUser(currentUser.getText().trim());
             refreshReceiptBrandingMockup();
             PersistenceService.getInstance().saveAll();

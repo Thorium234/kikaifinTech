@@ -1038,6 +1038,10 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
 
     @Override
     public void refresh() {
+        payMode.getItems().setAll(PaymentMode.allowedModes());
+        if (!payMode.getItems().contains(payMode.getValue())) {
+            payMode.setValue(payMode.getItems().isEmpty() ? null : payMode.getItems().get(0));
+        }
         creditorBox.setItems(store.getCreditors());
         voteheadBox.setItems(FeeStructureStore.getInstance().getVoteheads());
         lpoCreditorBox.setItems(store.getCreditors());

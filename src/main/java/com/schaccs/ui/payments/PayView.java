@@ -560,6 +560,10 @@ public class PayView extends VBox implements MainLayout.Refreshable {
 
     @Override
     public void refresh() {
+        modeBox.getItems().setAll(PaymentMode.allowedModes());
+        if (!modeBox.getItems().contains(modeBox.getValue())) {
+            modeBox.setValue(modeBox.getItems().isEmpty() ? null : modeBox.getItems().get(0));
+        }
         populateFilters();
         applyFilters();
         if (selected != null) {

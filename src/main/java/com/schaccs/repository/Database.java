@@ -16,6 +16,7 @@ import com.schaccs.repository.migration.MigrationV19DropStudentFields;
 import com.schaccs.repository.migration.MigrationV20AcademicCalendar;
 import com.schaccs.repository.migration.MigrationV22MidTermEnrollments;
 import com.schaccs.repository.migration.MigrationV23RecycleBin;
+import com.schaccs.repository.migration.MigrationV24EnabledPaymentModes;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -312,7 +313,8 @@ public final class Database {
                 new MigrationV19DropStudentFields(),
                 new MigrationV20AcademicCalendar(),
                 new MigrationV22MidTermEnrollments(),
-                new MigrationV23RecycleBin()
+                new MigrationV23RecycleBin(),
+                new MigrationV24EnabledPaymentModes()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -369,7 +371,8 @@ public final class Database {
                         logo_path TEXT,
                         stamp_path TEXT,
                         signature_path TEXT,
-                        pdf_stamp_enabled INTEGER NOT NULL DEFAULT 1
+                        pdf_stamp_enabled INTEGER NOT NULL DEFAULT 1,
+                        enabled_payment_modes TEXT
                     )
                     """);
             st.execute("""

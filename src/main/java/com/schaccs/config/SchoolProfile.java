@@ -1,6 +1,12 @@
 package com.schaccs.config;
 
+import com.schaccs.enums.PaymentMode;
+
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * School identity and banking details for Friends School Kikai Boys.
@@ -25,6 +31,8 @@ public final class SchoolProfile {
     private String stampPath;
     private String signaturePath;
     private boolean pdfStampEnabled = true;
+    private final Set<PaymentMode> enabledPaymentModes =
+            new LinkedHashSet<>(Arrays.asList(PaymentMode.values()));
     private long nextProcurementRequestNumber = 1001;
     private long nextTenderNumber = 1001;
     private long nextContractNumber = 1001;
@@ -191,6 +199,17 @@ public final class SchoolProfile {
 
     public void setPdfStampEnabled(boolean pdfStampEnabled) {
         this.pdfStampEnabled = pdfStampEnabled;
+    }
+
+    public Set<PaymentMode> getEnabledPaymentModes() {
+        return enabledPaymentModes;
+    }
+
+    public void setEnabledPaymentModes(Collection<PaymentMode> modes) {
+        enabledPaymentModes.clear();
+        if (modes != null) {
+            enabledPaymentModes.addAll(modes);
+        }
     }
 
     public long getNextProcurementRequestNumber() {
