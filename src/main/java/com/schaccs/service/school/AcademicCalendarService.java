@@ -7,7 +7,7 @@ import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
-import com.schaccs.service.student.MidTermEnrollmentService;
+import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.store.AcademicCalendarStore;
 import com.schaccs.store.StudentStore;
 import javafx.collections.ObservableList;
@@ -37,26 +37,26 @@ public class AcademicCalendarService {
     private final AcademicCalendarStore store;
     private final StudentStore studentStore;
     private final AuditService auditService;
-    private final MidTermEnrollmentService midTermService;
+    private final FeeCalculationService feeCalculationService;
 
     private LocalDate lastRolloverDate;
 
     public AcademicCalendarService() {
         this(AcademicCalendarStore.getInstance(), StudentStore.getInstance(), new AuditService(),
-                new MidTermEnrollmentService());
+                new FeeCalculationService());
     }
 
     public AcademicCalendarService(AcademicCalendarStore store, StudentStore studentStore,
                                    AuditService auditService) {
-        this(store, studentStore, auditService, new MidTermEnrollmentService());
+        this(store, studentStore, auditService, new FeeCalculationService());
     }
 
     public AcademicCalendarService(AcademicCalendarStore store, StudentStore studentStore,
-                                   AuditService auditService, MidTermEnrollmentService midTermService) {
+                                   AuditService auditService, FeeCalculationService feeCalculationService) {
         this.store = store;
         this.studentStore = studentStore;
         this.auditService = auditService;
-        this.midTermService = midTermService;
+        this.feeCalculationService = feeCalculationService;
     }
 
     public ObservableList<TermPeriod> getPeriods() {
@@ -281,9 +281,7 @@ public class AcademicCalendarService {
                 }
                 ledger.clearCurrentCycle();
                 ledger.setCurrentTerm(nextTerm(current));
-                if (midTermService.isMidTermEnrolled(s.getId())) {
-                    midTermService.chargeFullFeesForCurrentTerm(s);
-                }
+                feeCalculationService.chargeTermFees(s, nextTerm(current));
                 if (!movedThisStudent) {
                     studentsRolled++;
                     movedThisStudent = true;

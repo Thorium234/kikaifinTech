@@ -12,6 +12,7 @@ public class ArrearsService {
 
     private final StudentStore studentStore;
     private final AuditService auditService;
+    private final FeeCalculationService feeCalculationService;
 
     public ArrearsService() {
         this(StudentStore.getInstance(), new AuditService());
@@ -24,6 +25,7 @@ public class ArrearsService {
     public ArrearsService(StudentStore studentStore, AuditService auditService) {
         this.studentStore = studentStore;
         this.auditService = auditService;
+        this.feeCalculationService = new FeeCalculationService();
     }
 
     public void setArrears(Student student, BigDecimal amount) {
@@ -54,6 +56,7 @@ public class ArrearsService {
                 ledger.setArrears(CurrencyConfig.money(ledger.getArrears().add(netOutstanding)));
             }
             ledger.clearCurrentCycle();
+            feeCalculationService.chargeTermFees(s, ledger.getCurrentTerm());
         }
         auditService.log("ARREARS_ROLLOVER", "System", "ALL",
                 "{\"activeStudents\":" + studentStore.getStudents().stream()

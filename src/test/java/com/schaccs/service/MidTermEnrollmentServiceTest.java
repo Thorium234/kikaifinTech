@@ -179,8 +179,8 @@ class MidTermEnrollmentServiceTest {
     }
 
     @Test
-    @DisplayName("Students without a mid-term enrollment are not auto-charged at rollover")
-    void rolloverLeavesNonEnrolledStudentsUntouched() {
+    @DisplayName("Students without a mid-term enrollment are charged the new term at rollover")
+    void rolloverChargesNonEnrolledStudentsNextTerm() {
         seedFeeStructure(2026);
         Student student = createStudent();
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
@@ -191,8 +191,8 @@ class MidTermEnrollmentServiceTest {
 
         assertEquals(AcademicTerm.TERM_2, ledger.getCurrentTerm());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("600")));
-        assertEquals(0, ledger.getCharged("TUITION").compareTo(BigDecimal.ZERO),
-                "No new charges are created for a student who did not enroll mid-term");
+        assertEquals(0, ledger.getCharged("TUITION").compareTo(CurrencyConfig.money("5000")),
+                "The new term's standard fee is charged for the next term");
     }
 
     @Test

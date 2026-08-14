@@ -22,9 +22,9 @@ import java.util.Optional;
  * Mid-term enrollments: records a student admitted part-way through the current
  * term. When "charge for current mid-term" is on, the custom fee is posted to
  * the student's fee ledger under the MIDTERM votehead; otherwise the current
- * term is left unbilled. Full standard tuition is charged automatically from
- * the next term onward — the end-of-term transition calls
- * {@link #chargeFullFeesForCurrentTerm(Student)} for enrolled students.
+ * term is left unbilled. Full standard tuition is charged automatically for the
+ * next term onward by the end-of-term transition in
+ * {@link com.schaccs.service.school.AcademicCalendarService}.
  */
 public class MidTermEnrollmentService {
 
