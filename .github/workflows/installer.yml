@@ -98,9 +98,16 @@ jobs:
           cache: maven
 
       - name: Install WiX Toolset v3
+        shell: pwsh
         run: |
-          choco install wixtoolset --version 3.14.1 --confirm --no-progress
-          echo "$env:ProgramFiles(x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $wixBin = "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin"
+          if (-not (Test-Path "$wixBin\candle.exe")) {
+            choco install wixtoolset --version 3.14.1 --allow-downgrade --confirm --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "WiX Toolset installation failed" }
+          } else {
+            Write-Host "WiX Toolset v3 already installed at $wixBin"
+          }
+          "$wixBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       # ---- Step A: Package application JAR and copy dependencies -----------
       - name: Package application
