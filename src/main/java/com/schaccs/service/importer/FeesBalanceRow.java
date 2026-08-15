@@ -207,4 +207,23 @@ public class FeesBalanceRow {
     public String getWarningText() {
         return warnings.isEmpty() ? "" : String.join("; ", warnings);
     }
+
+    /**
+     * True when this row carries a mistake that blocks a clean auto-import and
+     * should be corrected in the Clean Data section: missing name or admission
+     * number, a class that could not be inferred, or a duplicate admission
+     * number in the file. Informational notes (credit balance, penalty, totals
+     * mismatch, name match) do not block import.
+     */
+    public boolean requiresCleaning() {
+        for (String warning : warnings) {
+            if (warning.startsWith("No name")
+                    || warning.startsWith("No admission number")
+                    || warning.startsWith("Class not inferred")
+                    || warning.contains("Duplicate admission number in file")) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

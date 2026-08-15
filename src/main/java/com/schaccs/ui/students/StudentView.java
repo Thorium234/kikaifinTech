@@ -522,15 +522,15 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             List<Student> students = rows.stream()
                     .map(importService::toStudent)
                     .collect(Collectors.toList());
-            StudentImportReviewDialog dialog = new StudentImportReviewDialog(file.toPath(), rows, students, importService);
+            StudentImportReviewDialog dialog = new StudentImportReviewDialog(rows, students, importService);
             dialog.showAndWait();
             if (dialog.getImportedCount() > 0) {
                 table.refresh();
                 int remaining = dialog.getRemainingCount();
                 if (remaining > 0) {
                     AlertUtil.warn("Import partially complete",
-                            "Imported " + dialog.getImportedCount() + " student(s). " + remaining
-                                    + " row(s) were not saved because they still have errors.");
+                            "Imported " + dialog.getImportedCount() + " student(s) automatically. "
+                                    + remaining + " row(s) still have errors and were left in Clean Data.");
                 } else {
                     AlertUtil.info("Import complete", "Imported " + dialog.getImportedCount() + " student(s).");
                 }
@@ -563,6 +563,14 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             dialog.showAndWait();
             if (dialog.getImportedCount() > 0) {
                 table.refresh();
+                int remaining = dialog.getRemainingCount();
+                if (remaining > 0) {
+                    AlertUtil.warn("Import partially complete",
+                            "Imported " + dialog.getImportedCount() + " balance(s) automatically. "
+                                    + remaining + " row(s) still need cleaning and were left in Clean Data.");
+                } else {
+                    AlertUtil.info("Import complete", "Imported " + dialog.getImportedCount() + " balance(s).");
+                }
             }
         } catch (java.io.UncheckedIOException e) {
             AlertUtil.error("Import failed", e.getMessage());

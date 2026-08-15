@@ -4,13 +4,11 @@ import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.service.importer.FeesBalanceImportService;
 import com.schaccs.service.importer.FeesBalanceRow;
-import com.schaccs.util.AlertUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
@@ -28,47 +26,68 @@ import javafx.stage.Modality;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Scrutiny + review dialog for a "FEES BALANCE" workbook. Every student row
- * found on any sheet is staged; the report shows how each row was matched
- * against the student registry and flags anomalies (inconsistent totals,
- * missing admission numbers, credit balances, penalties, duplicates, sheets
- * that were skipped). Details can be corrected inline before applying.
+ * Fees-balance import with the Clean Data split: every row without a blocking
+ * mistake is committed immediately when the dialog opens; rows that carry a
+ * mistake (missing name or admission number, class not inferred, duplicate
+ * admission number in file) are held in the Clean Data table. A held row is
+ * committed automatically the moment its mistakes are cleared — either by
+ * editing the details inline, or by unchecking it to skip it.
  */
 public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
 
-    private static final ButtonType IMPORT_TYPE =
-            new ButtonType("Import Checked", ButtonBar.ButtonData.OK_DONE);
-    private static final ButtonType CANCEL_TYPE =
-            new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+    private static final String ALREADY_IMPORTED =
+            "Admission number was already imported in this batch - change it to a unique number or uncheck to skip";
+
+    private static final ButtonType CLOSE_TYPE =
+            new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
 
     private final FeesBalanceImportService importService;
-    private final ObservableList<FeesBalanceRow> rows;
+    private final ObservableList<FeesBalanceRow> cleanData = FXCollections.observableArrayList();
     private final TableView<FeesBalanceRow> table = new TableView<>();
     private final Label summaryLabel = new Label();
+    private final Set<String> committedAdmissionNumbers = new HashSet<>();
 
     private int imported;
 
     public FeesBalanceImportReviewDialog(FeesBalanceImportService importService, List<FeesBalanceRow> rows) {
         this.importService = importService;
-        this.rows = FXCollections.observableArrayList(rows);
 
-        setTitle("Import Fees Balance - Review & Scrutiny");
+        setTitle("Import Fees Balance - Clean Data");
         initModality(Modality.APPLICATION_MODAL);
-        updateHeader();
-        getDialogPane().getButtonTypes().addAll(CANCEL_TYPE, IMPORT_TYPE);
+        getDialogPane().getButtonTypes().addAll(CLOSE_TYPE);
+
+        List<FeesBalanceRow> held = new ArrayList<>();
+        List<FeesBalanceRow> autoRows = new ArrayList<>();
+        for (FeesBalanceRow row : rows) {
+            if (isAutoImportable(row)) {
+                autoRows.add(row);
+            } else {
+                held.add(row);
+            }
+        }
+        importNow(autoRows, held);
+        cleanData.setAll(held);
+        for (FeesBalanceRow row : cleanData) {
+            row.includeProperty().addListener((obs, oldValue, newValue) -> importCleanedRows());
+        }
 
         buildTable();
+        updateHeader();
         updateSummary();
 
         summaryLabel.getStyleClass().add("muted");
         summaryLabel.setWrapText(true);
         summaryLabel.setMaxWidth(Double.MAX_VALUE);
-        Label hint = new Label("Tip: uncheck rows to skip them, fix names/admission numbers/classes inline, and edit the "
-                + "Balance cell before importing. Unmatched students are created as Active; the Balance is written as "
-                + "arrears (or advance when it is a credit).");
+        Label hint = new Label("Clean Data: the rows below carry mistakes and were held back. "
+                + "Fix the details inline (or uncheck a row to skip it) - a row imports automatically the moment its "
+                + "mistakes are cleared. Informational notes (credit balance, penalty, totals mismatch) do not block import.");
         hint.getStyleClass().add("muted");
         hint.setWrapText(true);
 
@@ -80,13 +99,6 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
         content.setPadding(new Insets(8));
         getDialogPane().setContent(content);
         getDialogPane().setPrefSize(1560, 640);
-
-        Button importButton = (Button) getDialogPane().lookupButton(IMPORT_TYPE);
-        importButton.getStyleClass().add("primary-button");
-        importButton.setOnAction(e -> {
-            e.consume();
-            commit();
-        });
     }
 
     private void buildTable() {
@@ -112,7 +124,7 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
         adm.setCellFactory(c -> new TextFieldTableCell<>());
         adm.setOnEditCommit(e -> {
             e.getRowValue().setAdmissionNumber(e.getNewValue());
-            updateSummary();
+            afterEdit();
         });
         adm.setPrefWidth(90);
 
@@ -121,26 +133,35 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
         name.setCellFactory(c -> new TextFieldTableCell<>());
         name.setOnEditCommit(e -> {
             e.getRowValue().setName(e.getNewValue());
-            updateSummary();
+            afterEdit();
         });
         name.setPrefWidth(210);
 
         TableColumn<FeesBalanceRow, String> form = new TableColumn<>("Form");
         form.setCellValueFactory(c -> c.getValue().formClassProperty());
         form.setCellFactory(c -> new TextFieldTableCell<>());
-        form.setOnEditCommit(e -> e.getRowValue().setFormClass(e.getNewValue()));
+        form.setOnEditCommit(e -> {
+            e.getRowValue().setFormClass(e.getNewValue());
+            afterEdit();
+        });
         form.setPrefWidth(75);
 
         TableColumn<FeesBalanceRow, String> stream = new TableColumn<>("Stream");
         stream.setCellValueFactory(c -> c.getValue().streamProperty());
         stream.setCellFactory(c -> new TextFieldTableCell<>());
-        stream.setOnEditCommit(e -> e.getRowValue().setStream(e.getNewValue()));
+        stream.setOnEditCommit(e -> {
+            e.getRowValue().setStream(e.getNewValue());
+            afterEdit();
+        });
         stream.setPrefWidth(70);
 
         TableColumn<FeesBalanceRow, BoardingStatus> boarding = new TableColumn<>("Boarding");
         boarding.setCellValueFactory(c -> c.getValue().boardingStatusProperty());
         boarding.setCellFactory(c -> new ComboBoxTableCell<>(BoardingStatus.values()));
-        boarding.setOnEditCommit(e -> e.getRowValue().setBoardingStatus(e.getNewValue()));
+        boarding.setOnEditCommit(e -> {
+            e.getRowValue().setBoardingStatus(e.getNewValue());
+            afterEdit();
+        });
         boarding.setPrefWidth(95);
 
         TableColumn<FeesBalanceRow, String> cfees = moneyColumn("C/FEES", r -> r.getCurrentFees(), false);
@@ -152,7 +173,7 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
             if (value != null) {
                 FeesBalanceRow row = e.getRowValue();
                 row.setTotalFees(CurrencyConfig.money(value.subtract(row.getPenalty())));
-                updateSummary();
+                afterEdit();
             }
         });
 
@@ -185,7 +206,7 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
                 cfees, arrears, penalty, balance, status, notes};
         table.getColumns().addAll(columns);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        table.setItems(rows);
+        table.setItems(cleanData);
     }
 
     private TableColumn<FeesBalanceRow, String> moneyColumn(String title,
@@ -200,53 +221,124 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
         return column;
     }
 
+    private void afterEdit() {
+        revalidateCleanData();
+        importCleanedRows();
+    }
+
+    /**
+     * A row can be imported right away when it is ticked, not a sheet-level
+     * skip, has a student name and carries no blocking mistake.
+     */
+    private boolean isAutoImportable(FeesBalanceRow row) {
+        if (!row.isInclude() || "Skipped".equals(row.getMatchStatus())) {
+            return false;
+        }
+        if (row.getName() == null || row.getName().isBlank()) {
+            return false;
+        }
+        return !row.requiresCleaning();
+    }
+
+    /**
+     * Recompute the scrutiny notes for the held rows and re-flag admission
+     * numbers that were already committed in this session so duplicates cannot
+     * silently overwrite a balance.
+     */
+    private void revalidateCleanData() {
+        if (cleanData.isEmpty()) {
+            return;
+        }
+        importService.scrutinize(cleanData);
+        for (FeesBalanceRow row : cleanData) {
+            String adm = normalizeAdm(row.getAdmissionNumber());
+            if (!adm.isEmpty() && committedAdmissionNumbers.contains(adm)
+                    && !row.getWarnings().contains(ALREADY_IMPORTED)) {
+                row.getWarnings().add(ALREADY_IMPORTED);
+            }
+        }
+    }
+
+    /**
+     * Commit every held row that became importable (mistakes cleared, still
+     * ticked) immediately, and drop it from the Clean Data table. Rows that
+     * still fail to apply stay held with the failure reason shown.
+     */
+    private void importCleanedRows() {
+        List<FeesBalanceRow> ready = new ArrayList<>();
+        for (FeesBalanceRow row : cleanData) {
+            String adm = normalizeAdm(row.getAdmissionNumber());
+            if (isAutoImportable(row) && !committedAdmissionNumbers.contains(adm)) {
+                ready.add(row);
+            }
+        }
+        if (ready.isEmpty()) {
+            updateSummary();
+            table.refresh();
+            return;
+        }
+        importNow(ready, cleanData);
+        revalidateCleanData();
+        updateSummary();
+        table.refresh();
+    }
+
+    /**
+     * Apply the given rows in one pass and record them as committed. Rows that
+     * failed to apply (warnings starting with "Skipped") are returned to the
+     * held list with the reason shown.
+     */
+    private void importNow(List<FeesBalanceRow> toImport, List<FeesBalanceRow> held) {
+        if (toImport.isEmpty()) {
+            return;
+        }
+        FeesBalanceImportService.ApplyResult result = importService.apply(toImport);
+        imported += result.getCreated() + result.getExisting();
+
+        Set<String> skippedLabels = result.getWarnings().stream()
+                .filter(w -> w.startsWith("Skipped "))
+                .map(w -> w.substring("Skipped ".length()))
+                .map(w -> w.indexOf(':') >= 0 ? w.substring(0, w.indexOf(':')).trim() : w.trim())
+                .collect(Collectors.toSet());
+
+        for (FeesBalanceRow row : toImport) {
+            if (skippedLabels.contains(label(row))) {
+                if (!held.contains(row)) {
+                    held.add(row);
+                }
+                for (String warning : result.getWarnings()) {
+                    if (warning.startsWith("Skipped " + label(row) + ":")
+                            && !row.getWarnings().contains(warning)) {
+                        row.getWarnings().add(warning);
+                    }
+                }
+            } else {
+                committedAdmissionNumbers.add(normalizeAdm(row.getAdmissionNumber()));
+                held.remove(row);
+            }
+        }
+    }
+
     private void updateHeader() {
-        long newCount = rows.stream().filter(r -> r.getMatchStatus().equals("New")).count();
-        long existingCount = rows.stream().filter(r -> r.getMatchStatus().equals("Existing")).count();
-        long warningCount = rows.stream().filter(r -> !r.getWarnings().isEmpty()).count();
-        setHeaderText(rows.size() + " student row(s) staged from the workbook. "
-                + newCount + " new · " + existingCount + " existing · "
-                + warningCount + " need attention. Review below, then Import Checked.");
+        setHeaderText("Fees balance import: " + cleanData.size()
+                + " row(s) need cleaning"
+                + (imported > 0 ? " (" + imported + " valid row(s) were committed immediately)" : "")
+                + ". Fix the details below and each row imports automatically when its mistakes are cleared.");
     }
 
     private void updateSummary() {
-        long checked = rows.stream().filter(r -> r.isInclude() && !r.getMatchStatus().equals("Skipped")).count();
-        summaryLabel.setText("Staged: " + rows.size() + "   |   Will import: " + checked
-                + "   |   Imported so far: " + imported
-                + (imported > 0 ? "" : "   |   Uncheck a row to skip it"));
+        summaryLabel.setText("Imported: " + imported
+                + "   |   Clean Data: " + cleanData.size()
+                + (cleanData.isEmpty() ? "   |   All rows imported." : "   |   Fix a row (or uncheck to skip) and it imports automatically."));
         summaryLabel.setAlignment(Pos.CENTER_LEFT);
     }
 
-    private void commit() {
-        List<FeesBalanceRow> selected = new ArrayList<>();
-        for (FeesBalanceRow row : rows) {
-            if (row.isInclude() && !row.getMatchStatus().equals("Skipped")) {
-                selected.add(row);
-            }
-        }
-        if (selected.isEmpty()) {
-            AlertUtil.warn("Nothing selected", "Tick at least one row to import.");
-            return;
-        }
-        long nameless = selected.stream().filter(r -> r.getName() == null || r.getName().isBlank()).count();
-        if (nameless > 0) {
-            AlertUtil.warn("Rows without a name",
-                    nameless + " selected row(s) have no student name and will be skipped on import.");
-        }
-        FeesBalanceImportService.ApplyResult result = importService.apply(selected);
-        imported += result.getCreated() + result.getExisting();
+    private String label(FeesBalanceRow row) {
+        return row.getName() + (row.getAdmissionNumber().isBlank() ? "" : " (" + row.getAdmissionNumber() + ")");
+    }
 
-        StringBuilder message = new StringBuilder();
-        message.append("Created: ").append(result.getCreated()).append("\n");
-        message.append("Updated (existing): ").append(result.getExisting()).append("\n");
-        message.append("Credit balances -> advance: ").append(result.getCredits()).append("\n");
-        message.append("Skipped: ").append(result.getSkipped());
-        if (!result.getWarnings().isEmpty()) {
-            message.append("\n\nWarnings:\n- ").append(String.join("\n- ", result.getWarnings()));
-        }
-        AlertUtil.info("Import complete", message.toString());
-        setResult(IMPORT_TYPE);
-        hide();
+    private String normalizeAdm(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private BigDecimal parseAmount(String value) {
@@ -262,5 +354,9 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
 
     public int getImportedCount() {
         return imported;
+    }
+
+    public int getRemainingCount() {
+        return cleanData.size();
     }
 }

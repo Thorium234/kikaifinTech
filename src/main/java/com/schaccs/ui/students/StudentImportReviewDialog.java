@@ -5,13 +5,11 @@ import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.importer.StudentImportService;
-import com.schaccs.util.AlertUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
@@ -28,31 +26,26 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Import review dialog: stages every row from an imported file (including rows
- * with mistakes), highlights the cells that need correction (duplicate admission
- * numbers, non-numeric years, bad phone format, missing required fields, ...) and
- * lets the user fix them inline in the table before saving. Saving commits only
- * the rows that are now valid; rows still in error stay highlighted.
+ * Student import with the Clean Data split: every row that validates cleanly is
+ * committed immediately when the dialog opens; rows that carry mistakes
+ * (duplicate admission number, missing details, bad formats, ...) are held in
+ * the Clean Data table. A held row is committed automatically the moment its
+ * mistakes are cleared by editing the red cells, and it then leaves the table.
  */
 public class StudentImportReviewDialog extends Dialog<ButtonType> {
 
-    private static final ButtonType SAVE_TYPE =
-            new ButtonType("Save Valid Rows", ButtonBar.ButtonData.OK_DONE);
-    private static final ButtonType CANCEL_TYPE =
-            new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+    private static final ButtonType CLOSE_TYPE =
+            new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
 
     private final StudentImportService importService;
-    private final Path sourcePath;
     private final ObservableList<Student> staged;
     private final List<Map<String, String>> rawRows;
     private final Map<Student, Map<String, List<String>>> errorsByStudent = new HashMap<>();
@@ -61,54 +54,66 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
     private final Label summaryLabel = new Label();
 
     private int imported;
-    private boolean dirty;
-    private boolean refreshed;
 
-    public StudentImportReviewDialog(Path sourcePath,
-                                     List<Map<String, String>> rawRows,
+    public StudentImportReviewDialog(List<Map<String, String>> rawRows,
                                      List<Student> students,
                                      StudentImportService importService) {
         this.importService = importService;
-        this.sourcePath = sourcePath;
         this.rawRows = new ArrayList<>(rawRows);
         this.staged = FXCollections.observableArrayList(students);
 
-        setTitle("Review Import");
+        setTitle("Import Students - Clean Data");
         initModality(Modality.APPLICATION_MODAL);
-        updateHeader();
-        getDialogPane().getButtonTypes().addAll(CANCEL_TYPE, SAVE_TYPE);
+        getDialogPane().getButtonTypes().addAll(CLOSE_TYPE);
 
+        importValidRowsImmediately();
         buildTable();
+        updateHeader();
+        updateSummary();
 
         summaryLabel.getStyleClass().add("muted");
         summaryLabel.setWrapText(true);
         summaryLabel.setMaxWidth(Double.MAX_VALUE);
-        Label hint = new Label("Tip: double-click a red cell to edit it. Rows that are still in error will not be saved.");
+        Label hint = new Label("Clean Data: the rows below carry mistakes and were held back. "
+                + "Double-click a red cell to edit it; a row is imported automatically the moment its mistakes "
+                + "are cleared and it leaves this list. Already-correct rows were committed immediately.");
         hint.getStyleClass().add("muted");
         hint.setWrapText(true);
 
-        Button refreshButton = new Button("Refresh from File");
-        refreshButton.getStyleClass().add("secondary-button");
-        refreshButton.setTooltip(new Tooltip("Re-read the source file and reload the preview with the latest changes."));
-        refreshButton.setOnAction(e -> refreshFromFile());
-
         HBox.setHgrow(summaryLabel, Priority.ALWAYS);
-        HBox toolbar = new HBox(10, summaryLabel, refreshButton);
+        HBox toolbar = new HBox(10, summaryLabel);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
         VBox content = new VBox(10, toolbar, table, hint);
         content.setPadding(new Insets(8));
         getDialogPane().setContent(content);
         getDialogPane().setPrefSize(1480, 620);
+    }
 
-        Button saveButton = (Button) getDialogPane().lookupButton(SAVE_TYPE);
-        saveButton.getStyleClass().add("primary-button");
-        saveButton.setOnAction(e -> {
-            e.consume();
-            commitValid();
-        });
-
+    /**
+     * Commit every staged row that has no validation errors right away, leaving
+     * only the rows that need cleaning in the table.
+     */
+    private void importValidRowsImmediately() {
         revalidate();
+        List<Student> valid = staged.stream()
+                .filter(s -> errorsByStudent.getOrDefault(s, Map.of()).isEmpty())
+                .collect(Collectors.toList());
+        for (Student student : valid) {
+            List<String> errors = importService.commitStudent(student);
+            if (errors.isEmpty()) {
+                imported++;
+                removeRow(student);
+            } else {
+                errorsByStudent.get(student).computeIfAbsent("row", k -> new ArrayList<>()).addAll(errors);
+            }
+        }
+        if (!valid.isEmpty()) {
+            PersistenceService.getInstance().saveAll();
+        }
+        revalidate();
+        updateSummary();
+        table.refresh();
     }
 
     private void buildTable() {
@@ -126,7 +131,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         adm.setOnEditCommit(e -> {
             e.getRowValue().setAdmissionNumber(e.getNewValue());
             syncRaw(e.getRowValue(), "admissionnumber", e.getNewValue());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         adm.setPrefWidth(110);
 
@@ -142,7 +147,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         name.setOnEditCommit(e -> {
             e.getRowValue().setName(e.getNewValue());
             syncRaw(e.getRowValue(), "fullname", e.getNewValue());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         name.setPrefWidth(170);
 
@@ -158,7 +163,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         gender.setOnEditCommit(e -> {
             e.getRowValue().setGender(e.getNewValue());
             syncRaw(e.getRowValue(), "gender", e.getNewValue());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         gender.setPrefWidth(80);
 
@@ -174,7 +179,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         cls.setOnEditCommit(e -> {
             e.getRowValue().setFormClass(e.getNewValue());
             syncRaw(e.getRowValue(), "formclass", e.getNewValue());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         cls.setPrefWidth(100);
 
@@ -190,7 +195,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         stream.setOnEditCommit(e -> {
             e.getRowValue().setStream(e.getNewValue());
             syncRaw(e.getRowValue(), "stream", e.getNewValue());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         stream.setPrefWidth(70);
 
@@ -207,7 +212,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
             e.getRowValue().setBoardingStatus(e.getNewValue());
             syncRaw(e.getRowValue(), "boardingstatus",
                     e.getNewValue() == null ? "" : e.getNewValue().getDisplayName());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         boarding.setPrefWidth(95);
 
@@ -223,7 +228,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         phone.setOnEditCommit(e -> {
             e.getRowValue().setPhone(e.getNewValue());
             syncRaw(e.getRowValue(), "phone", e.getNewValue());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         phone.setPrefWidth(120);
 
@@ -239,7 +244,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         parent.setOnEditCommit(e -> {
             e.getRowValue().setParentName(e.getNewValue());
             syncRaw(e.getRowValue(), "parentname", e.getNewValue());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         parent.setPrefWidth(130);
 
@@ -256,7 +261,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
             e.getRowValue().setStatus(e.getNewValue());
             syncRaw(e.getRowValue(), "studentstatus",
                     e.getNewValue() == null ? "" : e.getNewValue().getDisplayName());
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         status.setPrefWidth(90);
 
@@ -274,7 +279,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
             String value = e.getNewValue() == null ? "" : e.getNewValue().trim();
             e.getRowValue().setAcademicYear(parseYear(value));
             syncRaw(e.getRowValue(), "academicyear", value);
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         academicYear.setPrefWidth(110);
 
@@ -292,7 +297,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
             String value = e.getNewValue() == null ? "" : e.getNewValue().trim();
             e.getRowValue().setYearOfAdmission(parseYear(value));
             syncRaw(e.getRowValue(), "yearofadmission", value);
-            revalidate();
+            afterEdit(e.getRowValue());
         });
         yearOfAdmission.setPrefWidth(110);
 
@@ -324,6 +329,35 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         table.setItems(staged);
     }
 
+    private void afterEdit(Student student) {
+        revalidate();
+        tryImportStudent(student);
+    }
+
+    /**
+     * Import the edited row the moment it no longer has any errors, then leave
+     * the list. Otherwise just refresh the highlights and summary.
+     */
+    private void tryImportStudent(Student student) {
+        boolean clean = errorsByStudent.getOrDefault(student, Map.of())
+                .values().stream().allMatch(List::isEmpty);
+        if (clean) {
+            List<String> errors = importService.commitStudent(student);
+            if (!errors.isEmpty()) {
+                errorsByStudent.get(student).computeIfAbsent("row", k -> new ArrayList<>()).addAll(errors);
+                clean = false;
+            }
+        }
+        if (clean) {
+            imported++;
+            removeRow(student);
+            PersistenceService.getInstance().saveAll();
+            revalidate();
+        }
+        updateSummary();
+        table.refresh();
+    }
+
     private void applyHighlight(TableCell<Student, ?> cell, String field, boolean empty) {
         cell.getStyleClass().remove("import-error-cell");
         cell.setTooltip(null);
@@ -346,7 +380,6 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
      * always inspects the values currently shown in the table.
      */
     private void syncRaw(Student student, String key, String value) {
-        dirty = true;
         int index = staged.indexOf(student);
         if (index >= 0 && index < rawRows.size()) {
             rawRows.get(index).put(key, value == null ? "" : value);
@@ -365,36 +398,9 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
     }
 
     private void updateHeader() {
-        setHeaderText("All " + staged.size() + " row(s) from the file are staged below"
-                + (refreshed ? " (reloaded from file)" : "") + ". "
-                + "Red cells contain mistakes (e.g. duplicate admission number, number format, "
-                + "Academic Year / Year of Admission). "
-                + "Edit them directly in the table, then click Save Valid Rows.");
-    }
-
-    private void refreshFromFile() {
-        if (dirty && !AlertUtil.confirm("Refresh from File",
-                "Reload the preview from the file? Inline edits made in the table will be discarded.")) {
-            return;
-        }
-        try {
-            List<Map<String, String>> fresh = importService.parseFile(sourcePath);
-            if (fresh.isEmpty()) {
-                AlertUtil.warn("Nothing to refresh", "The file now contains no data rows.");
-                return;
-            }
-            rawRows.clear();
-            rawRows.addAll(fresh);
-            staged.setAll(fresh.stream().map(importService::toStudent).collect(Collectors.toList()));
-            dirty = false;
-            refreshed = true;
-            imported = 0;
-            updateHeader();
-            revalidate();
-        } catch (Exception e) {
-            AlertUtil.error("Refresh failed",
-                    "The file could not be re-read.\n\n" + e.getMessage());
-        }
+        setHeaderText("Clean Data: " + staged.size() + " row(s) still have mistakes"
+                + (imported > 0 ? " (" + imported + " valid row(s) were imported automatically)" : "")
+                + ". Edit the red cells — a row imports the moment its mistakes are cleared.");
     }
 
     private void revalidate() {
@@ -451,58 +457,18 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
     }
 
     private void updateSummary() {
-        long valid = errorsByStudent.values().stream().filter(Map::isEmpty).count();
-        long needingFix = staged.size() - valid;
-        summaryLabel.setText("Rows staged: " + staged.size()
-                + "   |   Valid: " + valid
-                + "   |   Need fixing: " + needingFix
-                + (imported > 0 ? "   |   Saved so far: " + imported : ""));
+        summaryLabel.setText("Imported automatically: " + imported
+                + "   |   Clean Data: " + staged.size()
+                + (staged.isEmpty() ? "   |   Nothing left to clean." : "   |   Fix a row and it imports immediately."));
         summaryLabel.setAlignment(Pos.CENTER_LEFT);
     }
 
-    private void commitValid() {
-        revalidate();
-        List<Student> valid = new ArrayList<>();
-        for (Student student : staged) {
-            if (errorsByStudent.getOrDefault(student, Map.of()).isEmpty()) {
-                valid.add(student);
-            }
-        }
-        int savedNow = 0;
-        for (Student student : valid) {
-            if (importService.commitStudent(student).isEmpty()) {
-                imported++;
-                savedNow++;
-            }
-        }
-        if (savedNow > 0) {
-            PersistenceService.getInstance().saveAll();
-        }
-        if (!valid.isEmpty()) {
-            removeStaged(valid);
-        }
-        if (staged.isEmpty()) {
-            setResult(SAVE_TYPE);
-            hide();
-            return;
-        }
-        revalidate();
-        if (savedNow > 0) {
-            AlertUtil.info("Import progress",
-                    "Saved " + savedNow + " valid row(s) (total saved: " + imported + "). "
-                            + staged.size() + " row(s) still have errors — correct them in the table, then click Save Valid Rows again.");
-        } else {
-            AlertUtil.warn("Nothing saved",
-                    staged.size() + " row(s) still have errors. Correct the highlighted cells in the table, then click Save Valid Rows.");
-        }
-    }
-
-    private void removeStaged(List<Student> valid) {
-        Set<String> ids = valid.stream().map(Student::getId).collect(Collectors.toSet());
-        for (int i = staged.size() - 1; i >= 0; i--) {
-            if (ids.contains(staged.get(i).getId())) {
-                staged.remove(i);
-                rawRows.remove(i);
+    private void removeRow(Student student) {
+        int index = staged.indexOf(student);
+        if (index >= 0) {
+            staged.remove(index);
+            if (index < rawRows.size()) {
+                rawRows.remove(index);
             }
         }
     }
