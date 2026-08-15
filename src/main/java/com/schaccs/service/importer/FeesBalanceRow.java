@@ -11,7 +11,9 @@ import javafx.beans.property.StringProperty;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * One staged student record read from a "FEES BALANCE" workbook sheet. Holds the
@@ -225,5 +227,90 @@ public class FeesBalanceRow {
             }
         }
         return false;
+    }
+
+    /**
+     * Snapshot the row as a flat string map so it can be persisted in the Clean
+     * Data list and rebuilt later without re-reading the source workbook.
+     */
+    public Map<String, String> toFields() {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("sheetName", getSheetName());
+        fields.put("rowNumber", rowNumber == 0 ? "" : String.valueOf(rowNumber));
+        fields.put("admissionNumber", getAdmissionNumber());
+        fields.put("name", getName());
+        fields.put("formClass", getFormClass());
+        fields.put("stream", getStream());
+        fields.put("boardingStatus", getBoardingStatus() == null ? "" : getBoardingStatus().name());
+        fields.put("currentFees", plain(getCurrentFees()));
+        fields.put("arrears", plain(getArrears()));
+        fields.put("penalty", plain(getPenalty()));
+        fields.put("totalFees", plain(getTotalFees()));
+        fields.put("include", String.valueOf(isInclude()));
+        fields.put("matchStatus", getMatchStatus());
+        fields.put("hasBreakdown", String.valueOf(isHasBreakdown()));
+        return fields;
+    }
+
+    /** Rebuild a row from a snapshot produced by {@link #toFields()}. */
+    public static FeesBalanceRow fromFields(Map<String, String> fields) {
+        FeesBalanceRow row = new FeesBalanceRow(
+                value(fields, "sheetName"),
+                parseInt(fields.get("rowNumber")));
+        row.setAdmissionNumber(value(fields, "admissionNumber"));
+        row.setName(value(fields, "name"));
+        row.setFormClass(value(fields, "formClass"));
+        row.setStream(value(fields, "stream"));
+        String boarding = fields.get("boardingStatus");
+        if (boarding != null && !boarding.isBlank()) {
+            try {
+                row.setBoardingStatus(BoardingStatus.valueOf(boarding));
+            } catch (IllegalArgumentException ignored) {
+                // Unknown marker: leave unset, scrutiny will fall back to defaults.
+            }
+        }
+        row.setCurrentFees(parse(fields.get("currentFees")));
+        row.setArrears(parse(fields.get("arrears")));
+        row.setPenalty(parse(fields.get("penalty")));
+        row.setTotalFees(parse(fields.get("totalFees")));
+        row.setInclude(!"false".equalsIgnoreCase(fields.get("include")));
+        row.setMatchStatus(value(fields, "matchStatus", "New"));
+        row.setHasBreakdown(Boolean.parseBoolean(fields.get("hasBreakdown")));
+        return row;
+    }
+
+    private static String plain(BigDecimal value) {
+        return value == null ? "" : value.toPlainString();
+    }
+
+    private static BigDecimal parse(String value) {
+        if (value == null || value.isBlank()) {
+            return CurrencyConfig.zero();
+        }
+        try {
+            return CurrencyConfig.money(value);
+        } catch (NumberFormatException e) {
+            return CurrencyConfig.zero();
+        }
+    }
+
+    private static int parseInt(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static String value(Map<String, String> m, String key, String fallback) {
+        String v = m.get(key);
+        return v == null || v.isBlank() ? fallback : v;
+    }
+
+    private static String value(Map<String, String> m, String key) {
+        return value(m, key, "");
     }
 }

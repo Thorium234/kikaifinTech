@@ -209,7 +209,62 @@ class FeesBalanceImportServiceTest {
         assertEquals("4617", godgiver.getAdmissionNumber());
         assertEquals(BoardingStatus.DAY, godgiver.getBoardingStatus());
         assertEquals(CurrencyConfig.money("9000"), godgiver.getTotalFees());
-        assertEquals("G", godgiver.getStream());
+        assertEquals("Grade 10", godgiver.getFormClass());
+        assertEquals("", godgiver.getStream());
+    }
+
+    @Test
+    void parsesFormFiveAndSixSheetsAndTitles() {
+        Workbook wb = new XSSFWorkbook();
+        Sheet sheet = wb.createSheet("F5B");
+        title(sheet, 0, 1, "FORM FIVE B FEES BALANCES AS AT 11TH FEB. 2026");
+        header(sheet, 1, "NO.", "NAMES", "", "ADM. NO.", "T/FEES");
+        data(sheet, 2, "JOHN KAMAU", "B", 5001, 20000, 0, 20000);
+        Sheet sheet2 = wb.createSheet("F6");
+        title(sheet2, 0, 1, "FORM SIX FEES BALANCES AS AT 11TH FEB. 2026");
+        header(sheet2, 1, "NO.", "NAMES", "", "ADM. NO.", "T/FEES");
+        data(sheet2, 2, "JANE WANGARI", "B", 6001, 20000, 0, 20000);
+
+        List<FeesBalanceRow> rows = service.parseWorkbook(wb);
+
+        FeesBalanceRow john = rowByName(rows, "JOHN KAMAU");
+        assertNotNull(john);
+        assertEquals("Form 5", john.getFormClass());
+        assertEquals("B", john.getStream());
+        FeesBalanceRow jane = rowByName(rows, "JANE WANGARI");
+        assertNotNull(jane);
+        assertEquals("Form 6", jane.getFormClass());
+        assertEquals("", jane.getStream());
+    }
+
+    @Test
+    void parsesGradeEightElevenAndTwelveSheets() {
+        Workbook wb = new XSSFWorkbook();
+        Sheet s8 = wb.createSheet("G8A");
+        title(s8, 0, 1, "GRADE 8 FEES BALANCES AS AT 11TH FEB. 2026");
+        header(s8, 1, "NO.", "NAMES", "", "ADM. NO.", "T/FEES");
+        data(s8, 2, "BRIAN OTIENO", "D", 8001, 10000, 0, 10000);
+        Sheet s11 = wb.createSheet("G11");
+        title(s11, 0, 1, "GRADE 11 FEES BALANCES AS AT 11TH FEB. 2026");
+        header(s11, 1, "NO.", "NAMES", "", "ADM. NO.", "T/FEES");
+        data(s11, 2, "KEVIN KIPROTICH", "B", 11001, 15000, 0, 15000);
+        Sheet s12 = wb.createSheet("G12");
+        title(s12, 0, 1, "GRADE TWELVE FEES BALANCES AS AT 11TH FEB. 2026");
+        header(s12, 1, "NO.", "NAMES", "", "ADM. NO.", "T/FEES");
+        data(s12, 2, "AKINYI OMONDI", "D", 12001, 18000, 0, 18000);
+
+        List<FeesBalanceRow> rows = service.parseWorkbook(wb);
+
+        FeesBalanceRow brian = rowByName(rows, "BRIAN OTIENO");
+        assertNotNull(brian);
+        assertEquals("Grade 8", brian.getFormClass());
+        assertEquals("A", brian.getStream());
+        FeesBalanceRow kevin = rowByName(rows, "KEVIN KIPROTICH");
+        assertNotNull(kevin);
+        assertEquals("Grade 11", kevin.getFormClass());
+        FeesBalanceRow akin = rowByName(rows, "AKINYI OMONDI");
+        assertNotNull(akin);
+        assertEquals("Grade 12", akin.getFormClass());
     }
 
     @Test

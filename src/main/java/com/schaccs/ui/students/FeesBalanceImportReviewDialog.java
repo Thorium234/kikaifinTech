@@ -359,4 +359,12 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
     public int getRemainingCount() {
         return cleanData.size();
     }
+
+    /**
+     * The rows still held for cleaning when the dialog closes. Used to persist
+     * Clean Data so a later session can continue fixing them.
+     */
+    public List<FeesBalanceRow> getHeldRows() {
+        return new ArrayList<>(cleanData);
+    }
 }

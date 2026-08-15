@@ -43,8 +43,11 @@ import java.util.regex.Pattern;
 public class FeesBalanceImportService {
 
     private static final Pattern FORM_TITLE = Pattern.compile(
-            "(?i)FORM\\s+(ONE|TWO|THREE|FOUR|1|2|3|4)(?:\\s+([A-Z]+))?");
+            "(?i)\\bFORM\\s+(ONE|TWO|THREE|FOUR|FIVE|SIX|1|2|3|4|5|6)(?:\\s+([A-Z])(?=\\s|\\d|$))?");
+    private static final Pattern GRADE_TITLE = Pattern.compile(
+            "(?i)\\bGRADE\\s+(EIGHT|NINE|TEN|ELEVEN|TWELVE|8|9|10|11|12)(?:\\s+([A-Z])(?=\\s|\\d|$))?");
     private static final Pattern SHEET_NAME = Pattern.compile("(?i)^F(\\d)([A-Z]*)(\\d*)$");
+    private static final Pattern GRADE_SHEET = Pattern.compile("(?i)^G\\s*([1-9]\\d*)\\s*([A-Z]*)(?:\\s*[-]?\\d*)?$");
 
     private final StudentStore studentStore;
     private final AuditService auditService;
@@ -447,24 +450,38 @@ public class FeesBalanceImportService {
     }
 
     private boolean isFormTitle(String value) {
-        return !value.isEmpty() && value.matches("(?i).*\\bFORM\\s+(ONE|TWO|THREE|FOUR|1|2|3|4)\\b.*");
+        return !value.isEmpty()
+                && (value.matches("(?i).*\\bFORM\\s+(ONE|TWO|THREE|FOUR|FIVE|SIX|1|2|3|4|5|6)\\b.*")
+                || value.matches("(?i).*\\bGRADE\\s+(EIGHT|NINE|TEN|ELEVEN|TWELVE|8|9|10|11|12)\\b.*"));
     }
 
     private String[] parseFormText(String text) {
         if (text == null) {
             return null;
         }
-        Matcher m = FORM_TITLE.matcher(text);
-        if (m.find()) {
-            String form = formWordToClass(m.group(1));
-            String stream = m.group(2) == null ? "" : m.group(2).trim();
-            return new String[]{form, stream};
+        Matcher form = FORM_TITLE.matcher(text);
+        if (form.find()) {
+            String formClass = formWordToClass(form.group(1));
+            String stream = form.group(2) == null ? "" : form.group(2).trim();
+            return new String[]{formClass, stream};
+        }
+        Matcher grade = GRADE_TITLE.matcher(text);
+        if (grade.find()) {
+            String formClass = gradeWordToClass(grade.group(1));
+            String stream = grade.group(2) == null ? "" : grade.group(2).trim();
+            return new String[]{formClass, stream};
         }
         Matcher sheet = SHEET_NAME.matcher(text);
         if (sheet.matches()) {
-            String form = "Form " + sheet.group(1);
+            String formClass = "Form " + sheet.group(1);
             String stream = sheet.group(2) == null ? "" : sheet.group(2).trim();
-            return new String[]{form, stream};
+            return new String[]{formClass, stream};
+        }
+        Matcher gradeSheet = GRADE_SHEET.matcher(text);
+        if (gradeSheet.matches()) {
+            String formClass = "Grade " + gradeSheet.group(1);
+            String stream = gradeSheet.group(2) == null ? "" : gradeSheet.group(2).trim();
+            return new String[]{formClass, stream};
         }
         return null;
     }
@@ -483,8 +500,36 @@ public class FeesBalanceImportService {
             case "four":
             case "4":
                 return "Form 4";
+            case "five":
+            case "5":
+                return "Form 5";
+            case "six":
+            case "6":
+                return "Form 6";
             default:
                 return "Form " + token;
+        }
+    }
+
+    private String gradeWordToClass(String token) {
+        switch (token.toLowerCase(Locale.ROOT)) {
+            case "eight":
+            case "8":
+                return "Grade 8";
+            case "nine":
+            case "9":
+                return "Grade 9";
+            case "ten":
+            case "10":
+                return "Grade 10";
+            case "eleven":
+            case "11":
+                return "Grade 11";
+            case "twelve":
+            case "12":
+                return "Grade 12";
+            default:
+                return "Grade " + token;
         }
     }
 

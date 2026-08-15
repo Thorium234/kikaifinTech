@@ -480,4 +480,12 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
     public int getRemainingCount() {
         return staged.size();
     }
+
+    /**
+     * The rows still held for cleaning when the dialog closes. Used to persist
+     * Clean Data so a later session can continue fixing them.
+     */
+    public List<Map<String, String>> getHeldRawRows() {
+        return new ArrayList<>(rawRows);
+    }
 }

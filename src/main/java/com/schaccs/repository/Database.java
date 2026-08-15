@@ -17,6 +17,7 @@ import com.schaccs.repository.migration.MigrationV20AcademicCalendar;
 import com.schaccs.repository.migration.MigrationV22MidTermEnrollments;
 import com.schaccs.repository.migration.MigrationV23RecycleBin;
 import com.schaccs.repository.migration.MigrationV24EnabledPaymentModes;
+import com.schaccs.repository.migration.MigrationV25CleanData;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -314,7 +315,8 @@ public final class Database {
                 new MigrationV20AcademicCalendar(),
                 new MigrationV22MidTermEnrollments(),
                 new MigrationV23RecycleBin(),
-                new MigrationV24EnabledPaymentModes()
+                new MigrationV24EnabledPaymentModes(),
+                new MigrationV25CleanData()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {

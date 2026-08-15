@@ -3,6 +3,7 @@ package com.schaccs.ui.students;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
+import com.schaccs.model.CleanDataEntry;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
@@ -14,6 +15,7 @@ import com.schaccs.service.importer.FeesBalanceRow;
 import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.service.student.StudentTransitionService;
+import com.schaccs.store.CleanDataStore;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.ui.component.SearchBar;
@@ -78,6 +80,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final TextField parentNameField = new TextField();
     private final Label feeStructureLabel = new Label();
 
+    private Button cleanDataBtn;
     private Student editing;
 
     public StudentView() {
@@ -113,6 +116,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         importBalanceBtn.getStyleClass().add("secondary-button");
         importBalanceBtn.setGraphic(new FontIcon(FontAwesomeSolid.COINS));
         importBalanceBtn.setOnAction(e -> importFeesBalance());
+        Button cleanDataBtn = new Button("Clean Data");
+        cleanDataBtn.getStyleClass().add("secondary-button");
+        cleanDataBtn.setGraphic(new FontIcon(FontAwesomeSolid.BROOM));
+        cleanDataBtn.setOnAction(e -> openCleanData());
         Button exportBtn = new Button("Export");
         exportBtn.getStyleClass().add("secondary-button");
         exportBtn.setOnAction(e -> exportStudents());
@@ -129,8 +136,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         deleteBtn.setGraphic(new FontIcon(FontAwesomeSolid.TRASH));
         deleteBtn.setOnAction(e -> deleteSelected());
 
-        FlowPane toolbar = new FlowPane(10, 10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn, exportBtn, templateBtn);
+        FlowPane toolbar = new FlowPane(10, 10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn, cleanDataBtn, exportBtn, templateBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
+        this.cleanDataBtn = cleanDataBtn;
 
         setupTable();
 
@@ -211,7 +219,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         if (!store.getFormClasses().isEmpty()) {
             store.getFormClasses().forEach(fc -> classBox.getItems().add(fc.getName()));
         } else {
-            classBox.getItems().addAll("Form 1", "Form 2", "Form 3", "Form 4");
+            classBox.getItems().addAll("Form 1", "Form 2", "Form 3", "Form 4", "Form 5", "Form 6",
+                    "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12");
         }
 
         streamBox.getItems().clear();
@@ -524,17 +533,24 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                     .collect(Collectors.toList());
             StudentImportReviewDialog dialog = new StudentImportReviewDialog(rows, students, importService);
             dialog.showAndWait();
+            CleanDataStore.getInstance().addRows(CleanDataEntry.Type.STUDENT, dialog.getHeldRawRows());
+            PersistenceService.getInstance().saveAll();
             if (dialog.getImportedCount() > 0) {
                 table.refresh();
                 int remaining = dialog.getRemainingCount();
                 if (remaining > 0) {
                     AlertUtil.warn("Import partially complete",
                             "Imported " + dialog.getImportedCount() + " student(s) automatically. "
-                                    + remaining + " row(s) still have errors and were left in Clean Data.");
+                                    + remaining + " row(s) still have errors and were moved to Clean Data for fixing.");
                 } else {
                     AlertUtil.info("Import complete", "Imported " + dialog.getImportedCount() + " student(s).");
                 }
+            } else if (!dialog.getHeldRawRows().isEmpty()) {
+                AlertUtil.warn("Nothing imported",
+                        "All " + dialog.getHeldRawRows().size()
+                                + " row(s) had errors and were moved to Clean Data. Fix them from the Clean Data list anytime.");
             }
+            updateCleanDataButton();
         } catch (java.io.IOException e) {
             AlertUtil.error("Import failed", e.getMessage());
         } catch (IllegalArgumentException e) {
@@ -561,20 +577,45 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             service.scrutinize(rows);
             FeesBalanceImportReviewDialog dialog = new FeesBalanceImportReviewDialog(service, rows);
             dialog.showAndWait();
+            List<Map<String, String>> heldFields = dialog.getHeldRows().stream()
+                    .map(FeesBalanceRow::toFields)
+                    .collect(Collectors.toList());
+            CleanDataStore.getInstance().addRows(CleanDataEntry.Type.FEES_BALANCE, heldFields);
+            PersistenceService.getInstance().saveAll();
             if (dialog.getImportedCount() > 0) {
                 table.refresh();
                 int remaining = dialog.getRemainingCount();
                 if (remaining > 0) {
                     AlertUtil.warn("Import partially complete",
                             "Imported " + dialog.getImportedCount() + " balance(s) automatically. "
-                                    + remaining + " row(s) still need cleaning and were left in Clean Data.");
+                                    + remaining + " row(s) still need cleaning and were moved to Clean Data for fixing.");
                 } else {
                     AlertUtil.info("Import complete", "Imported " + dialog.getImportedCount() + " balance(s).");
                 }
+            } else if (!heldFields.isEmpty()) {
+                AlertUtil.warn("Nothing imported",
+                        "All " + heldFields.size()
+                                + " row(s) had errors and were moved to Clean Data. Fix them from the Clean Data list anytime.");
             }
+            updateCleanDataButton();
         } catch (java.io.UncheckedIOException e) {
             AlertUtil.error("Import failed", e.getMessage());
         }
+    }
+
+    private void openCleanData() {
+        CleanDataDialog dialog = new CleanDataDialog(() -> { });
+        dialog.showAndWait();
+        table.refresh();
+        updateCleanDataButton();
+    }
+
+    private void updateCleanDataButton() {
+        if (cleanDataBtn == null) {
+            return;
+        }
+        int count = CleanDataStore.getInstance().getItems().size();
+        cleanDataBtn.setText(count == 0 ? "Clean Data" : "Clean Data (" + count + ")");
     }
 
     private void switchToList() {
@@ -593,5 +634,6 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     public void refresh() {
         populateDropdowns();
         table.refresh();
+        updateCleanDataButton();
     }
 }

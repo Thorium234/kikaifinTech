@@ -45,7 +45,8 @@ public class FeeStructureTemplateDialog extends Stage {
         }
         nameField.setPromptText("Template name (default: current structure)");
         yearField.setText(String.valueOf(AppConfig.getInstance().getAcademicYear()));
-        formClassBox.getItems().addAll("ALL", "Form 1", "Form 2", "Form 3", "Form 4");
+        formClassBox.getItems().addAll("ALL", "Form 1", "Form 2", "Form 3", "Form 4", "Form 5", "Form 6",
+                "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12");
         formClassBox.setEditable(true);
         formClassBox.setValue("ALL");
         boardingBox.setItems(FXCollections.observableArrayList(BoardingStatus.values()));

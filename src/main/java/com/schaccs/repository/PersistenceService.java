@@ -43,6 +43,7 @@ import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.model.student.MidTermStudent;
 import com.schaccs.model.student.DeletedStudent;
+import com.schaccs.model.CleanDataEntry;
 import com.schaccs.model.voucher.Commitment;
 import com.schaccs.model.voucher.Creditor;
 import com.schaccs.model.voucher.PaymentVoucher;
@@ -73,6 +74,8 @@ import com.schaccs.store.EmployeeStore;
 import com.schaccs.store.PayrollStore;
 import com.schaccs.store.ProcurementStore;
 import com.schaccs.store.RecycleBinStore;
+import com.schaccs.store.CleanDataStore;
+import com.schaccs.store.CleanDataCodec;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -136,6 +139,7 @@ public final class PersistenceService {
         PayrollStore.getInstance().clear();
         ProcurementStore.getInstance().clear();
         RecycleBinStore.getInstance().clear();
+        CleanDataStore.getInstance().clear();
     }
 
     public synchronized void saveAll() {
@@ -160,6 +164,7 @@ public final class PersistenceService {
             saveAcademicCalendar(conn);
             saveMidTermEnrollments(conn);
             saveRecycleBin(conn);
+            saveCleanData(conn);
             saveAccountStoreEntities(conn);
             saveEmployees(conn);
             saveSalaryStructures(conn);
@@ -217,6 +222,7 @@ public final class PersistenceService {
             PayrollStore.getInstance().clear();
             ProcurementStore.getInstance().clear();
             RecycleBinStore.getInstance().clear();
+            CleanDataStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
             loadFeeStructures(conn);
@@ -236,6 +242,7 @@ public final class PersistenceService {
             loadAcademicCalendar(conn);
             loadMidTermEnrollments(conn);
             loadRecycleBin(conn);
+            loadCleanData(conn);
             loadAccountStoreEntities(conn);
             loadEmployees(conn);
             loadSalaryStructures(conn);
@@ -300,6 +307,7 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM academic_calendar");
             st.executeUpdate("DELETE FROM mid_term_enrollments");
             st.executeUpdate("DELETE FROM recycle_bin");
+            st.executeUpdate("DELETE FROM clean_data");
             st.executeUpdate("DELETE FROM depreciation_schedules");
             st.executeUpdate("DELETE FROM assets");
             st.executeUpdate("DELETE FROM asset_categories");
@@ -1647,6 +1655,62 @@ public final class PersistenceService {
                         academicYear,
                         status != null ? StudentStatus.valueOf(status) : null,
                         deletedAt != null ? LocalDateTime.parse(deletedAt) : LocalDateTime.now()));
+            }
+        }
+    }
+
+    private void saveCleanData(Connection conn) throws SQLException {
+        CleanDataStore store = CleanDataStore.getInstance();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO clean_data (id, import_type, payload, created_at) VALUES (?,?,?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET import_type=excluded.import_type, "
+                        + "payload=excluded.payload, created_at=excluded.created_at")) {
+            for (CleanDataEntry e : store.getItems()) {
+                ps.setString(1, e.getId());
+                ps.setString(2, e.getType().name());
+                ps.setString(3, CleanDataCodec.encode(e.getFields()));
+                ps.setString(4, dateTime(e.getCreatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+        // Purge rows belonging to entries that were resolved or discarded
+        // (the in-memory store is the source of truth for what is still held).
+        Set<String> current = new HashSet<>();
+        for (CleanDataEntry e : store.getItems()) {
+            current.add(e.getId());
+        }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT id FROM clean_data");
+             PreparedStatement del = conn.prepareStatement("DELETE FROM clean_data WHERE id = ?")) {
+            while (rs.next()) {
+                String id = rs.getString("id");
+                if (!current.contains(id)) {
+                    del.setString(1, id);
+                    del.addBatch();
+                }
+            }
+            del.executeBatch();
+        }
+    }
+
+    private void loadCleanData(Connection conn) throws SQLException {
+        CleanDataStore store = CleanDataStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM clean_data ORDER BY created_at")) {
+            while (rs.next()) {
+                String id = rs.getString("id");
+                String type = rs.getString("import_type");
+                String created = rs.getString("created_at");
+                try {
+                    store.add(CleanDataEntry.restore(
+                            id,
+                            CleanDataEntry.Type.valueOf(type),
+                            CleanDataCodec.decode(rs.getString("payload")),
+                            created != null ? LocalDateTime.parse(created) : LocalDateTime.now()));
+                } catch (IllegalArgumentException ignored) {
+                    // Unrecognised import type: skip instead of failing the whole load.
+                }
             }
         }
     }
