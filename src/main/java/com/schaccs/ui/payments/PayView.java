@@ -504,6 +504,7 @@ public class PayView extends VBox implements MainLayout.Refreshable {
     }
 
     private List<VoteheadRow> voteheadRows(StudentFeeLedger ledger, Map<String, BigDecimal> expected) {
+        Map<String, String> structureNames = payPreview.structureNames(selected);
         Set<String> codes = new LinkedHashSet<>();
         codes.addAll(expected.keySet());
         codes.addAll(ledger.getChargedByVotehead().keySet());
@@ -517,14 +518,18 @@ public class PayView extends VBox implements MainLayout.Refreshable {
                     && p.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            rows.add(new VoteheadRow(voteheadDisplayName(code), e, c, p, c.subtract(p).max(BigDecimal.ZERO)));
+            rows.add(new VoteheadRow(voteheadDisplayName(code, structureNames), e, c, p, c.subtract(p).max(BigDecimal.ZERO)));
         }
         return rows;
     }
 
-    private String voteheadDisplayName(String code) {
+    private String voteheadDisplayName(String code, Map<String, String> structureNames) {
         if ("ARREARS".equals(code)) return "Arrears";
         if (StudentFeeLedger.ADVANCE_CODE.equals(code)) return "Advance";
+        String structureName = structureNames.get(code);
+        if (structureName != null && !structureName.isBlank()) {
+            return structureName;
+        }
         return FeeStructureStore.getInstance().findVoteheadByCode(code)
                 .map(Votehead::getName)
                 .orElse(code);

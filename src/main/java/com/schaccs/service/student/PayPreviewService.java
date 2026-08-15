@@ -1,5 +1,6 @@
 package com.schaccs.service.student;
 
+import com.schaccs.enums.AcademicTerm;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.service.fee.FeeCalculationService;
@@ -30,6 +31,35 @@ public class PayPreviewService {
 
     public boolean hasStructure(Student student) {
         return student != null && feeCalc.structureFor(student).isPresent();
+    }
+
+    /**
+     * Votehead-code → display-name map from the student's fee structure for the
+     * current term (falling back to any term's item when the current term has no
+     * entry for that code). Display-only; does not affect charging or distribution.
+     */
+    public Map<String, String> structureNames(Student student) {
+        Map<String, String> names = new java.util.LinkedHashMap<>();
+        if (student == null) {
+            return names;
+        }
+        StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+        feeCalc.structureFor(student).ifPresent(structure -> {
+            for (var item : structure.getItems()) {
+                names.putIfAbsent(item.getVoteheadCode(), item.getVoteheadName());
+            }
+        });
+        AcademicTerm term = ledger.getCurrentTerm();
+        if (term != null) {
+            Map<String, String> termNames = new java.util.LinkedHashMap<>();
+            feeCalc.structureFor(student).ifPresent(structure -> {
+                for (var item : structure.itemsForTerm(term)) {
+                    termNames.put(item.getVoteheadCode(), item.getVoteheadName());
+                }
+            });
+            names.putAll(termNames);
+        }
+        return names;
     }
 
     public FeeStatus feeStatus(Student student) {

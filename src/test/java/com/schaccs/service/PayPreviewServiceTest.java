@@ -125,4 +125,22 @@ class PayPreviewServiceTest {
         assertEquals(0, status.expectedTerm().compareTo(BigDecimal.ZERO));
         assertTrue(status.expectedByVotehead().isEmpty());
     }
+
+    @Test
+    void structureNamesSurfaceImportedVoteHeadNames() {
+        FeeStructureStore store = FeeStructureStore.getInstance();
+        FeeStructure structure = new FeeStructure(2026, "ALL", BoardingStatus.BOARDING, "Boarding 2026");
+        structure.addItem(new FeeStructureItem("8", "LUNCH", AcademicTerm.TERM_1,
+                BoardingStatus.BOARDING, CurrencyConfig.money("5500")));
+        structure.addItem(new FeeStructureItem("1", "BOARDING", AcademicTerm.TERM_1,
+                BoardingStatus.BOARDING, CurrencyConfig.money("14000")));
+        store.addStructure(structure);
+        Student student = createStudent(BoardingStatus.BOARDING, "Guardian A");
+        StudentStore.getInstance().getLedger(student.getId()).setCurrentTerm(AcademicTerm.TERM_1);
+
+        Map<String, String> names = new PayPreviewService().structureNames(student);
+
+        assertEquals("LUNCH", names.get("8"));
+        assertEquals("BOARDING", names.get("1"));
+    }
 }

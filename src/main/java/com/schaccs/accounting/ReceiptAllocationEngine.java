@@ -42,9 +42,15 @@ public class ReceiptAllocationEngine {
             return allocations;
         }
 
-        Set<String> termCodes = feeStructure.itemsForTerm(term).stream()
+        List<FeeStructureItem> termItems = feeStructure.itemsForTerm(term);
+        Set<String> termCodes = termItems.stream()
                 .map(FeeStructureItem::getVoteheadCode)
                 .collect(Collectors.toSet());
+
+        Map<String, String> structureNames = termItems.stream()
+                .collect(Collectors.toMap(FeeStructureItem::getVoteheadCode,
+                        FeeStructureItem::getVoteheadName,
+                        (a, b) -> a, LinkedHashMap::new));
 
         BigDecimal remaining = CurrencyConfig.money(paymentAmount);
 
@@ -76,7 +82,7 @@ public class ReceiptAllocationEngine {
                         (a, b) -> a, LinkedHashMap::new));
 
         if (!outstanding.isEmpty() && remaining.compareTo(BigDecimal.ZERO) > 0) {
-            remaining = distributeEqually(allocations, outstanding, remaining);
+            remaining = distributeEqually(allocations, outstanding, remaining, structureNames);
         }
 
         // 4. Overflow to advance credit
@@ -90,7 +96,8 @@ public class ReceiptAllocationEngine {
 
     private BigDecimal distributeEqually(List<FeeAllocation> allocations,
                                           Map<String, BigDecimal> outstanding,
-                                          BigDecimal remaining) {
+                                          BigDecimal remaining,
+                                          Map<String, String> structureNames) {
         int maxIterations = outstanding.size() * 10 + 10;
         int iterations = 0;
         while (!outstanding.isEmpty() && remaining.compareTo(BigDecimal.ZERO) > 0) {
@@ -117,7 +124,8 @@ public class ReceiptAllocationEngine {
                 alloc = alloc.min(due).min(remaining.subtract(roundDistributed));
                 if (alloc.compareTo(BigDecimal.ZERO) <= 0) continue;
 
-                String name = feeStore.voteheadName(entry.getKey());
+                String name = structureNames.getOrDefault(entry.getKey(),
+                        feeStore.voteheadName(entry.getKey()));
                 allocations.add(new FeeAllocation(entry.getKey(), name, due, alloc));
                 roundDistributed = roundDistributed.add(alloc);
 

@@ -4,9 +4,12 @@ import com.schaccs.accounting.ReceiptAllocationEngine;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.AccountType;
+import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.fee.FeeAllocation;
+import com.schaccs.model.fee.FeeStructure;
+import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
@@ -88,5 +91,28 @@ class ReceiptCoreTest {
         assertEquals(4, LedgerStore.getInstance().getTransactions().size());
         assertTrue(LedgerStore.getInstance().getTransactions().stream()
                 .anyMatch(t -> "RCPT-RV-1000".equals(t.getReference())));
+    }
+
+    @Test
+    @DisplayName("allocation uses fee structure vote head name when votehead store has no match")
+    void allocationUsesStructureVoteHeadName() {
+        FeeStructureStore.getInstance().clear();
+
+        FeeStructure fs = new FeeStructure(2026, "ALL", BoardingStatus.BOARDING, "Boarding Fee Structure 2026");
+        fs.addItem(new FeeStructureItem("8", "LUNCH", AcademicTerm.TERM_1,
+                BoardingStatus.BOARDING, CurrencyConfig.money("5500")));
+        FeeStructureStore.getInstance().addStructure(fs);
+
+        StudentFeeLedger ledger = new StudentFeeLedger("S-LUNCH");
+        ledger.charge("8", CurrencyConfig.money("5500"));
+        ledger.setCurrentTerm(AcademicTerm.TERM_1);
+
+        ReceiptAllocationEngine engine = new ReceiptAllocationEngine(FeeStructureStore.getInstance());
+        List<FeeAllocation> allocations = engine.allocate(ledger, CurrencyConfig.money("5500"), fs, AcademicTerm.TERM_1);
+
+        assertEquals(1, allocations.size());
+        assertEquals("8", allocations.get(0).getVoteheadCode());
+        assertEquals("LUNCH", allocations.get(0).getVoteheadName());
+        assertEquals(CurrencyConfig.money("5500.00"), allocations.get(0).getAllocated());
     }
 }
