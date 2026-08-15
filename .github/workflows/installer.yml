@@ -55,6 +55,9 @@ env:
   APP_VENDOR: Thor Technologies
   APP_MAIN_CLASS: com.schaccs.Launcher
 
+permissions:
+  contents: write
+
 jobs:
   # ===========================================================================
   # Job 1 — Run tests
