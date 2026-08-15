@@ -1,9 +1,12 @@
 package com.schaccs.service;
 
 import com.schaccs.model.CleanDataEntry;
+import com.schaccs.model.student.Student;
 import com.schaccs.repository.PersistenceService;
+import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.store.CleanDataCodec;
 import com.schaccs.store.CleanDataStore;
+import com.schaccs.store.StudentStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -141,6 +144,27 @@ class CleanDataTest {
         assertEquals("GODGIVER WEKESA", fees.get(0).getName());
         assertEquals("4617", fees.get(0).getFields().get("admissionNumber"));
         assertEquals("Grade 10", fees.get(0).getFields().get("formClass"));
+    }
+
+    @Test
+    @DisplayName("A corrected Clean Data student row is committed into the student list")
+    void correctedStudentRowGoesToStudentList() {
+        StudentImportService service = new StudentImportService();
+
+        Map<String, String> broken = studentRow("2026/200", "", "Form 2", "A");
+        Student student = service.toStudent(broken);
+        List<String> errors = service.validateRow(broken, student, List.of());
+        assertFalse(errors.isEmpty(), "A broken row must stay in Clean Data");
+
+        broken.put("fullname", "Fixed Name");
+        student.setName("Fixed Name");
+        errors = service.validateRow(broken, student, List.of());
+        assertTrue(errors.isEmpty(), "A fixed row must validate clean: " + errors);
+
+        List<String> commitErrors = service.commitStudent(student);
+        assertTrue(commitErrors.isEmpty(), "Committing the fixed row must succeed: " + commitErrors);
+        assertTrue(StudentStore.getInstance().findByAdmissionNumber("2026/200").isPresent(),
+                "A fixed Clean Data row must appear in the student list");
     }
 
     @Test

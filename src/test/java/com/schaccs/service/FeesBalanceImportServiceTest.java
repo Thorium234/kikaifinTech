@@ -381,6 +381,34 @@ class FeesBalanceImportServiceTest {
     }
 
     @Test
+    void reUploadUpdatesExistingStudentBalanceWithoutDuplicating() {
+        Student existing = new Student("4408", "HAGGAI KIPROTICH NDIEMA", "Form 3", "W",
+                BoardingStatus.BOARDING, "");
+        StudentStore.getInstance().add(existing);
+        StudentStore.getInstance().getLedger(existing.getId()).setArrears(CurrencyConfig.money("1000"));
+
+        Workbook wb = new XSSFWorkbook();
+        Sheet sheet = wb.createSheet("F4E");
+        title(sheet, 0, 1, "FORM FOUR EAST FEES BALANCES AS AT 11TH FEB. 2026");
+        header(sheet, 1, "NO.", "NAMES", "", "ADM. NO.", "C/FEES", "ARREARS", "T/FEES");
+        data(sheet, 2, "HAGGAI KIPROTICH NDIEMA", "B", 4408, 40500, 7820, 48320);
+
+        List<FeesBalanceRow> rows = service.parseWorkbook(wb);
+        FeesBalanceImportService.ApplyResult result = service.apply(rows);
+
+        assertEquals(0, result.getCreated(), "Re-upload must not create a duplicate");
+        assertEquals(1, result.getExisting(), "Re-upload must match the existing student");
+        assertEquals(1, StudentStore.getInstance().getStudents().stream()
+                        .filter(s -> "4408".equals(s.getAdmissionNumber())).count(),
+                "Exactly one student may hold admission 4408");
+
+        Student haggai = StudentStore.getInstance().findByAdmissionNumber("4408").orElseThrow();
+        assertEquals(CurrencyConfig.money("48320"),
+                StudentStore.getInstance().getLedger(haggai.getId()).getArrears(),
+                "Re-upload must replace the old balance with the new one");
+    }
+
+    @Test
     void applyTurnsCreditBalanceIntoAdvance() {
         Workbook wb = new XSSFWorkbook();
         Sheet sheet = wb.createSheet("F4E");
