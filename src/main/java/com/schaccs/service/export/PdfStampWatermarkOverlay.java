@@ -8,10 +8,12 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import org.apache.pdfbox.util.Matrix;
 
 import java.awt.Color;
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -80,6 +82,29 @@ public final class PdfStampWatermarkOverlay {
         content.setStrokingColor(STAMP_COLOR);
         content.setLineWidth(1.5f);
 
+        // If an uploaded stamp image is configured, draw it instead of the text stamp.
+        PDImageXObject stampImage = loadStampImage(document, school.getStampPath());
+        if (stampImage != null) {
+            float iw = stampImage.getWidth();
+            float ih = stampImage.getHeight();
+            if (iw > 0f && ih > 0f) {
+                float maxW = STAMP_WIDTH + 8f;
+                float maxH = STAMP_HEIGHT + 8f;
+                float scale = Math.min(maxW / iw, maxH / ih);
+                float dw = iw * scale;
+                float dh = ih * scale;
+                Matrix m = Matrix.getTranslateInstance(cx, cy);
+                m.rotate((float) Math.toRadians(ROTATION_DEGREES));
+                m.translate(-dw / 2f, -dh / 2f);
+                content.drawImage(stampImage, m);
+                content.restoreGraphicsState();
+                content.setNonStrokingColor(Color.BLACK);
+                content.setStrokingColor(Color.BLACK);
+                content.setLineWidth(1f);
+                return;
+            }
+        }
+
         float hw = STAMP_WIDTH / 2f;
         float hh = STAMP_HEIGHT / 2f;
 
@@ -144,6 +169,17 @@ public final class PdfStampWatermarkOverlay {
         content.setNonStrokingColor(Color.BLACK);
         content.setStrokingColor(Color.BLACK);
         content.setLineWidth(1f);
+    }
+
+    private static PDImageXObject loadStampImage(PDDocument document, String path) {
+        if (path == null || path.isBlank()) return null;
+        File file = new File(path);
+        if (!file.isFile()) return null;
+        try {
+            return PDImageXObject.createFromFile(file.getAbsolutePath(), document);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private static void drawRoundedRect(PDPageContentStream content,

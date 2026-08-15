@@ -26,8 +26,10 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 
 import java.awt.Color;
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -61,6 +63,7 @@ public class PdfExportService {
         try (PDDocument document = new PDDocument()) {
             PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
             PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            SchoolProfile school = AppConfig.getInstance().getSchoolProfile();
             PDPage page = new PDPage(new PDRectangle(PDRectangle.A4.getHeight(), PDRectangle.A4.getWidth()));
             document.addPage(page);
             PDPageContentStream content = new PDPageContentStream(document, page);
@@ -68,6 +71,7 @@ public class PdfExportService {
             float usableWidth = box.getWidth() - (2 * MARGIN);
             float y = box.getHeight() - MARGIN;
 
+            y = drawSchoolHeader(document, content, school, box, y);
             y = drawTitle(content, bold, title, y);
             float[] colWidths = evenWidths(headers.size(), usableWidth);
             y = drawHeader(content, bold, headers, colWidths, y);
@@ -81,6 +85,7 @@ public class PdfExportService {
                     usableWidth = box.getWidth() - (2 * MARGIN);
                     colWidths = evenWidths(headers.size(), usableWidth);
                     y = box.getHeight() - MARGIN;
+                    y = drawSchoolHeader(document, content, school, box, y);
                     y = drawTitle(content, bold, title, y);
                     y = drawHeader(content, bold, headers, colWidths, y);
                 }
@@ -260,6 +265,23 @@ public class PdfExportService {
                 drawParagraph(content, bold, regular, "Principal", safe(school.getPrincipal()), y, width);
                 y -= 26f;
 
+                // ── Signature image (uploaded from Settings) ──
+                PDImageXObject signature = loadImage(document, school.getSignaturePath());
+                if (signature != null) {
+                    float[] dims = fitImage(signature, 150f, 24f);
+                    if (dims[0] > 0f && dims[1] > 0f) {
+                        content.drawImage(signature, MARGIN + width - dims[0], y - dims[1] - 2f, dims[0], dims[1]);
+                        content.beginText();
+                        content.setFont(regular, SMALL_SIZE);
+                        content.setNonStrokingColor(Color.DARK_GRAY);
+                        content.newLineAtOffset(MARGIN + width - dims[0], y - dims[1] - 14f);
+                        content.showText("Signature");
+                        content.endText();
+                        content.setNonStrokingColor(Color.BLACK);
+                        y -= dims[1] + 18f;
+                    }
+                }
+
                 // ── Banking details ──
                 drawParagraph(content, bold, regular, "Banking details", bankDetails(school), y, width);
                 y -= 26f;
@@ -416,9 +438,28 @@ public class PdfExportService {
     private float drawSchoolHeader(PDDocument document, PDPageContentStream content, SchoolProfile school, PDRectangle box, float y) throws IOException {
         PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
         PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-        y = drawCentered(content, bold, safe(school.getMinistry()), 10f, box.getWidth() / 2, y, BRAND);
-        y = drawCentered(content, bold, safe(school.getSchoolName()), 16f, box.getWidth() / 2, y - 1, BRAND);
-        y = drawCentered(content, regular, safe(school.getLocation()), 9f, box.getWidth() / 2, y - 1, Color.DARK_GRAY);
+
+        float logoW = 0f;
+        float logoH = 0f;
+        PDImageXObject logo = loadImage(document, school.getLogoPath());
+        if (logo != null) {
+            float[] dims = fitImage(logo, 52f, 52f);
+            logoW = dims[0];
+            logoH = dims[1];
+            if (logoW > 0f && logoH > 0f) {
+                content.drawImage(logo, MARGIN, y - logoH, logoW, logoH);
+            }
+        }
+
+        float centerX = box.getWidth() / 2f;
+        if (logoW > 0f) {
+            float usable = box.getWidth() - (2 * MARGIN);
+            centerX = MARGIN + logoW + (usable - logoW) / 2f;
+        }
+
+        y = drawCentered(content, bold, safe(school.getMinistry()), 10f, centerX, y, BRAND);
+        y = drawCentered(content, bold, safe(school.getSchoolName()), 16f, centerX, y - 1, BRAND);
+        y = drawCentered(content, regular, safe(school.getLocation()), 9f, centerX, y - 1, Color.DARK_GRAY);
         y -= 10f;
         content.setStrokingColor(BRAND);
         float width = box.getWidth() - (2 * MARGIN);
@@ -630,6 +671,25 @@ public class PdfExportService {
                 + " | A/C: " + safe(school.getBankAccount())
                 + " | PayBill: " + safe(school.getPayBill())
                 + " | Account: " + safe(school.getPayBillAccount());
+    }
+
+    private PDImageXObject loadImage(PDDocument document, String path) {
+        if (path == null || path.isBlank()) return null;
+        File file = new File(path);
+        if (!file.isFile()) return null;
+        try {
+            return PDImageXObject.createFromFile(file.getAbsolutePath(), document);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private float[] fitImage(PDImageXObject image, float maxW, float maxH) {
+        float iw = image.getWidth();
+        float ih = image.getHeight();
+        if (iw <= 0f || ih <= 0f) return new float[]{0f, 0f};
+        float scale = Math.min(maxW / iw, maxH / ih);
+        return new float[]{iw * scale, ih * scale};
     }
 
     private String safe(String value) {
