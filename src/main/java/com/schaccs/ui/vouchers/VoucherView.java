@@ -20,6 +20,7 @@ import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
 import com.schaccs.util.FileDialogMemory;
+import com.schaccs.util.FileNamingUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -663,7 +664,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
         FileDialogMemory.applyTo(chooser);
         chooser.setTitle(title);
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
-        chooser.setInitialFileName(initialName);
+        chooser.setInitialFileName(FileNamingUtil.suggest(initialName));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) {
             return;
@@ -833,7 +834,7 @@ public class VoucherView extends VBox implements MainLayout.Refreshable {
                 new FileChooser.ExtensionFilter("CSV files", "*.csv"),
                 new FileChooser.ExtensionFilter("Excel files", "*.xlsx")
         );
-        chooser.setInitialFileName(initialName);
+        chooser.setInitialFileName(FileNamingUtil.suggest(initialName));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         FileDialogMemory.remember(file);
         return file;

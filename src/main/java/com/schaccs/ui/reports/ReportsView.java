@@ -28,6 +28,7 @@ import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
 import com.schaccs.util.FileDialogMemory;
+import com.schaccs.util.FileNamingUtil;
 import com.schaccs.util.PrintUtil;
 import com.schaccs.util.ReceiptPrinter;
 import javafx.application.Platform;
@@ -1154,7 +1155,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Full Report Pack");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
-        chooser.setInitialFileName("report-pack.xlsx");
+        chooser.setInitialFileName(FileNamingUtil.suggest("report-pack.xlsx"));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) {
             return;
@@ -1208,7 +1209,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         FileDialogMemory.applyTo(chooser);
         chooser.setTitle(title);
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
-        chooser.setInitialFileName(initialFileName);
+        chooser.setInitialFileName(FileNamingUtil.suggest(initialFileName));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         FileDialogMemory.remember(file);
         return file;
@@ -1222,7 +1223,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
                 new FileChooser.ExtensionFilter("CSV files", "*.csv"),
                 new FileChooser.ExtensionFilter("Excel files", "*.xlsx")
         );
-        chooser.setInitialFileName(initialFileName);
+        chooser.setInitialFileName(FileNamingUtil.suggest(initialFileName));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         FileDialogMemory.remember(file);
         return file;

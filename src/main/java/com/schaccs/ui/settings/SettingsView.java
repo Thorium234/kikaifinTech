@@ -16,6 +16,7 @@ import com.schaccs.update.UpdateSettingsView;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.DatabaseExportUtil;
 import com.schaccs.util.FileDialogMemory;
+import com.schaccs.util.FileNamingUtil;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.beans.property.SimpleStringProperty;
@@ -883,7 +884,7 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Migration History PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files", "*.pdf"));
-        chooser.setInitialFileName("migration-history.pdf");
+        chooser.setInitialFileName(FileNamingUtil.suggest("migration-history.pdf"));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) {
             return;

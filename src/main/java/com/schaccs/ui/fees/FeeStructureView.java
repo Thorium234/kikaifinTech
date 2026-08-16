@@ -14,6 +14,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.FileDialogMemory;
+import com.schaccs.util.FileNamingUtil;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
@@ -171,7 +172,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Excel Workbook", "*.xlsx"),
                 new FileChooser.ExtensionFilter("CSV", "*.csv"));
-        chooser.setInitialFileName(safeName(s.getName()) + ".xlsx");
+        chooser.setInitialFileName(FileNamingUtil.suggest(safeName(s.getName()) + ".xlsx"));
         java.io.File file = chooser.showSaveDialog(getScene().getWindow());
         if (file == null) {
             return;
@@ -195,7 +196,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Export Fee Structure as PDF");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
-        chooser.setInitialFileName(safeName(s.getName()) + ".pdf");
+        chooser.setInitialFileName(FileNamingUtil.suggest(safeName(s.getName()) + ".pdf"));
         java.io.File file = chooser.showSaveDialog(getScene().getWindow());
         if (file == null) {
             return;

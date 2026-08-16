@@ -9,6 +9,7 @@ import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.CurrencyUtil;
 import com.schaccs.util.DateUtil;
+import com.schaccs.util.FileNamingUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -222,7 +223,7 @@ public class BankReconciliationView extends VBox implements MainLayout.Refreshab
         chooser.getExtensionFilters().addAll(
                 new javafx.stage.FileChooser.ExtensionFilter("CSV files", "*.csv"),
                 new javafx.stage.FileChooser.ExtensionFilter("Excel files", "*.xlsx"));
-        chooser.setInitialFileName("reconciliation-" + rec.getId() + ".csv");
+        chooser.setInitialFileName(FileNamingUtil.suggest("reconciliation-" + rec.getId() + ".csv"));
         java.io.File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         try {
