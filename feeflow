@@ -1,0 +1,116 @@
+Designing a robust, automated fee and calendar tracking engine requires separating **academic lifecycle management** from **financial transaction processing**. Below is the architectural design for implementing calendar-driven fee logic, intelligent batch historical imports, and automated course completion tracking.
+
+--
+
+### Core Data Models & Lifecycle States
+
+#### Academic Calendar Management
+
+The academic calendar dictates the active billing rules across the institution.
+
+* **Academic Year & Term Structure:**
+* **Academic Year:** `year` (e.g., 2026), `start_date`, `end_date`, `is_closed`.
+* **Academic Term:** `term_number` (Term 1, Term 2, Term 3), `start_date`, `end_date`, `status` (`PLANNED`, `ACTIVE`, `ENDED`).
+
+
+* **State Engine:**
+* Only **one** term can have the `ACTIVE` status at any given timestamp.
+* A scheduled background job checks system dates daily. When the current date exceeds a term’s `end_date`, its status flips to `ENDED`, and the system evaluates uncollected balances for that period as formal arrears.
+
+
+
+#### Student Course & Duration Tracking
+
+To track course completion dynamically:
+
+* **Course/Program Schema:** `course_code`, `duration_value` (e.g., 3), `duration_unit` (`YEARS` or `TERMS`).
+* **Student Enrollment Schema:** `student_id`, `enrollment_date`, `expected_completion_date`, `status` (`ACTIVE`, `GRADUATED`, `COMPLETED`).
+* **Completion Logic:**
+Upon manual entry or import of the course duration, `expected_completion_date` is computed automatically. Once the system clock passes this threshold (or the final term status transitions to `ENDED`), the system changes the student status to `COMPLETED`/`GRADUATED` and freezes any new standard term fee generation.
+
+---
+
+### Term Billing vs. Arrears Waterfall Engine
+
+The financial engine processes every incoming payment through an automated **Payment Allocation Waterfall**:
+
+```
+                  [ Student Payment Received ]
+                               │
+                               ▼
+               Does Student Have Prior Arrears?
+                              ╱ ╲
+                            YES   NO
+                            ╱     ╲
+                           ▼       ▼
+             1. Clear Arrears    1. Apply directly to Current 
+                (Oldest first)      Term Actual Fees.
+                           │
+                           ▼
+             2. Excess funds apply 
+                to Current Term
+
+```
+
+#### Rule Execution During an Active Term
+
+1. **Regular Fee Processing:** While a term’s status is `ACTIVE`, new fee allocations apply directly to the current term’s balance.
+2. **Prior Arrears Settlement:** If a student enters an active term with unpaid balances from ended terms (e.g., Term 1 or Term 2), the system automatically routes incoming payments to clear the **oldest arrears first**. Once all prior arrears reach a zero balance, any remaining amount rolls over to pay the current term's active fee.
+
+#### Rule Execution Upon Term Transition (`ENDED`)
+
+* When the cron job marks Term 3 as `ENDED`:
+* Outstanding unpaid balances for Term 3 convert into formal unpaid arrears.
+* Late penalty rules or carry-over ledger entries trigger automatically.
+* Financial reporting seals the ended academic year’s operational revenue and carries total unpaid balances into the next year as opening arrears.
+
+
+
+---
+
+### Historical & Batch Data Import Engine
+
+To handle bulk digital transformations cleanly, the system relies on time-contextual imports and auto-generated calendars:
+
+```
+                  [ Bursar Uploads CSV/Excel ]
+                               │
+                          (Passes Year)
+                               ▼
+               Does Calendar for Year Exist?
+                              ╱ ╲
+                            YES   NO
+                            ╱     ╲
+                           ▼       ▼
+               Use Existing     Auto-Generate Default
+                 Calendar       3-Term Calendar
+                           │
+                           ▼
+              Validate Student & Transaction 
+                  Timestamps against Calendar
+                           │
+                           ▼
+              Commit Historical Balances / Payments
+
+```
+
+#### Step-by-Step Import Execution
+
+1. **Target Year Specification:**
+* The bursar selects or inputs the historical context year (e.g., `2020`).
+
+
+2. **Automated Calendar Scaffolding:**
+* The system queries the database for a calendar corresponding to `2020`.
+* **If missing:** It automatically scaffolds an Academic Year entry for `2020` along with three default terms (e.g., Term 1: Jan–Apr, Term 2: May–Aug, Term 3: Sep–Dec) marked as `ENDED`.
+* The bursar can adjust these boundary dates before finalizing the import.
+
+
+3. **Temporal Validation & Re-computation:**
+* Incoming student records, historic payments, and fee statements are mapped against the target year's calendar boundaries.
+* The system verifies whether transactions occurred within active term dates or after term completion to distinguish historical actual payments from historical arrears settlements.
+
+
+4. **Data Isolation & Audit Trail:**
+* Imported records carry an `imported_at` timestamp, an `import_batch_id`, and a reference to the bursar who performed the upload for complete audit logging.wire the system with the calender becouse when we have 3 terms good then the fee arears are for term 1 and term2 meaning in term 3 they should now start paying as normal until it ends thats when we say we are doing the arrears thing the system checks the calendar until its status says ended thats when it wires to arears else it just do as normal then let the system be like this we are digitalizing this when importing it checks also time or in simple terms when a bursar is importing he should specify the year of which the records are baing uploade like 2020 then the system makes the calender automatically which can be customazed later with three terms so that when he imports data for 2026 then the system makes 3term calender we will have to cornfirm that now the student is paying actual fee rather than arrears in term that isnt in those dates then another feature is when a system gets data we shoud have manual enty of how long the course takes so that immediateatly when the time ends it stops counting
+wire the system with the calender becouse when we have 3 terms good then the fee arears are for term 1 and term2 meaning in term 3 they should now start paying as normal until it ends thats when we say we are doing the arrears thing the system checks the calendar until its status says ended thats when it wires to arears else it just do as normal then let the system be like this we are digitalizing this when importing it checks also time or in simple terms when a bursar is importing he should specify the year of which the records are baing uploade like 2020 then the system makes the calender automatically which can be customazed later with three terms so that when he imports data for 2026 then the system makes 3term calender we will have to cornfirm that now the student is paying actual fee rather than arrears in term that isnt in those dates then another feature is when a system gets data we shoud have manual enty of how long the course takes so that immediateatly when the time ends it stops counting 
