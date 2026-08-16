@@ -23,13 +23,16 @@ import com.schaccs.ui.component.TypeToConfirmDialog;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.util.AlertUtil;
 import com.schaccs.util.FileDialogMemory;
+import com.schaccs.util.FileNamingUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.Tab;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SelectionMode;
@@ -50,6 +53,7 @@ import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.io.File;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +83,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
     private final TextField phoneField = new TextField();
     private final TextField parentNameField = new TextField();
     private final Label feeStructureLabel = new Label();
+    private final TextField courseCodeField = new TextField();
+    private final TextField durationValueField = new TextField();
+    private final ComboBox<com.schaccs.enums.DurationUnit> durationUnitBox = new ComboBox<>();
+    private final javafx.scene.control.DatePicker enrollmentDatePicker = new javafx.scene.control.DatePicker();
+    private final Label completionLabel = new Label();
 
     private Button cleanDataBtn;
     private Student editing;
@@ -162,6 +171,13 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         nameField.setPromptText("Full name");
         phoneField.setPromptText("Phone (e.g. 0712345678)");
         parentNameField.setPromptText("Parent / Guardian name");
+        courseCodeField.setPromptText("e.g. KCSE, Certificate, Diploma");
+        durationValueField.setPromptText("e.g. 4");
+        durationUnitBox.getItems().addAll(com.schaccs.enums.DurationUnit.values());
+        durationUnitBox.setValue(com.schaccs.enums.DurationUnit.YEARS);
+        durationValueField.textProperty().addListener((obs, o, n) -> updateCompletionLabel());
+        durationUnitBox.valueProperty().addListener((obs, o, n) -> updateCompletionLabel());
+        enrollmentDatePicker.valueProperty().addListener((obs, o, n) -> updateCompletionLabel());
 
         Button saveBtn = new Button("Save Student");
         saveBtn.getStyleClass().add("success-button");
@@ -194,6 +210,21 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         // Column 2 — Contact & Parent/Guardian
         grid.add(labeled("Phone", phoneField), 1, 0);
         grid.add(labeled("Parent / Guardian Name", parentNameField), 1, 1);
+
+        HBox durationRow = new HBox(10,
+                labeled("Course Duration (amount)", durationValueField),
+                labeled("Unit", durationUnitBox));
+        durationRow.setAlignment(Pos.BOTTOM_LEFT);
+
+        // Column 1 (cont.) — Course tracking
+        grid.add(labeled("Course Code (optional)", courseCodeField), 0, 6);
+        grid.add(durationRow, 0, 7);
+        grid.add(labeled("Enrollment Date", enrollmentDatePicker), 0, 8);
+
+        completionLabel.getStyleClass().add("muted");
+        completionLabel.setWrapText(true);
+        completionLabel.setMaxWidth(Double.MAX_VALUE);
+        grid.add(completionLabel, 0, 9, 2, 1);
 
         feeStructureLabel.getStyleClass().add("muted");
         boardingBox.setOnAction(e -> updateFeeStructureLabel());
@@ -344,6 +375,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         boardingBox.setValue(BoardingStatus.BOARDING);
         phoneField.clear();
         parentNameField.clear();
+        courseCodeField.clear();
+        durationValueField.clear();
+        durationUnitBox.setValue(com.schaccs.enums.DurationUnit.YEARS);
+        enrollmentDatePicker.setValue(null);
+        completionLabel.setText("");
         admField.setDisable(false);
         formTab.setText("Add Student");
         updateFeeStructureLabel();
@@ -360,8 +396,34 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         boardingBox.setValue(s.getBoardingStatus() != null ? s.getBoardingStatus() : BoardingStatus.BOARDING);
         phoneField.setText(s.getPhone());
         parentNameField.setText(s.getParentName());
+        courseCodeField.setText(s.getCourseCode());
+        durationValueField.setText(s.getDurationValue() != null ? String.valueOf(s.getDurationValue()) : "");
+        durationUnitBox.setValue(s.getDurationUnit() != null ? s.getDurationUnit() : com.schaccs.enums.DurationUnit.YEARS);
+        enrollmentDatePicker.setValue(s.getEnrollmentDate());
+        updateCompletionLabel();
         formTab.setText("Edit Student");
         updateFeeStructureLabel();
+    }
+
+    private void updateCompletionLabel() {
+        try {
+            Integer value = durationValueField.getText().isBlank()
+                    ? null : Integer.valueOf(durationValueField.getText().trim());
+            java.time.LocalDate enrolled = enrollmentDatePicker.getValue();
+            if (value == null || value <= 0 || enrolled == null) {
+                completionLabel.setText("");
+                return;
+            }
+            com.schaccs.enums.DurationUnit unit = durationUnitBox.getValue();
+            java.time.LocalDate expected = com.schaccs.enums.DurationUnit.YEARS == unit
+                    ? enrolled.plusYears(value)
+                    : enrolled.plusMonths(value * 4L);
+            completionLabel.setText("Expected course completion: " + expected
+                    + (expected.isBefore(java.time.LocalDate.now())
+                    ? " (already passed - this student will be marked Completed and fees frozen)" : ""));
+        } catch (NumberFormatException e) {
+            completionLabel.setText("");
+        }
     }
 
     private void save() {
@@ -385,6 +447,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             s.setStatus(StudentStatus.ACTIVE);
             s.setAcademicYear(com.schaccs.config.AppConfig.getInstance().getAcademicYear());
             s.setParentName(parentName);
+            applyCourseFields(s);
             List<String> errors = studentService.addStudent(s);
             if (!errors.isEmpty()) {
                 AlertUtil.warn("Validation", String.join("\n", errors));
@@ -402,6 +465,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
             editing.setGender(gender);
             editing.setPhone(phone);
             editing.setParentName(parentName);
+            applyCourseFields(editing);
             if (previousStatus != boarding) {
                 StudentFeeLedger ledger = StudentStore.getInstance().getLedger(editing.getId());
                 new StudentTransitionService().apply(editing, boarding, ledger.getCurrentTerm());
@@ -419,6 +483,21 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         table.refresh();
         clearForm();
         switchToList();
+    }
+
+    private void applyCourseFields(Student s) {
+        s.setCourseCode(courseCodeField.getText().trim().isEmpty() ? null : courseCodeField.getText().trim());
+        Integer value = null;
+        try {
+            value = durationValueField.getText().isBlank()
+                    ? null : Integer.valueOf(durationValueField.getText().trim());
+        } catch (NumberFormatException ignored) {
+            value = null;
+        }
+        s.setDurationValue(value);
+        s.setDurationUnit(durationUnitBox.getValue());
+        s.setEnrollmentDate(enrollmentDatePicker.getValue());
+        s.setExpectedCompletionDate(Services.getInstance().academicCalendar().expectedCompletionDate(s));
     }
 
     private void deleteSelected() {
@@ -458,7 +537,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         FileChooser.ExtensionFilter excel = new FileChooser.ExtensionFilter("Excel files", "*.xlsx");
         chooser.getExtensionFilters().addAll(csv, excel);
         chooser.setSelectedExtensionFilter(csv);
-        chooser.setInitialFileName("students-export.csv");
+        chooser.setInitialFileName(FileNamingUtil.suggest("students-export.csv"));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         FileDialogMemory.remember(file);
@@ -487,7 +566,7 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         FileChooser.ExtensionFilter csv = new FileChooser.ExtensionFilter("CSV files", "*.csv");
         chooser.getExtensionFilters().addAll(excel, csv);
         chooser.setSelectedExtensionFilter(excel);
-        chooser.setInitialFileName("student-import-template.xlsx");
+        chooser.setInitialFileName(FileNamingUtil.suggest("student-import-template.xlsx"));
         File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
         if (file == null) return;
         FileDialogMemory.remember(file);
@@ -568,6 +647,15 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         if (file == null) return;
         FileDialogMemory.remember(file);
         try {
+            Integer year = promptImportYear();
+            if (year == null) {
+                return;
+            }
+            if (Services.getInstance().academicCalendar().ensureYearCalendar(year)) {
+                AlertUtil.info("Calendar scaffolded",
+                        "The calendar had no periods for " + year + ", so Term 1, Term 2 and Term 3 were "
+                                + "generated as ended periods. Edit their dates in the Academic Calendar if needed.");
+            }
             FeesBalanceImportService service = new FeesBalanceImportService();
             List<FeesBalanceRow> rows = service.parseWorkbook(file.toPath());
             if (rows.isEmpty()) {
@@ -575,7 +663,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 return;
             }
             service.scrutinize(rows);
-            FeesBalanceImportReviewDialog dialog = new FeesBalanceImportReviewDialog(service, rows);
+            FeesBalanceImportService.ImportContext context =
+                    FeesBalanceImportService.ImportContext.of(year,
+                            com.schaccs.config.AppConfig.getInstance().getCurrentUser());
+            FeesBalanceImportReviewDialog dialog = new FeesBalanceImportReviewDialog(service, rows, context);
             dialog.showAndWait();
             List<Map<String, String>> heldFields = dialog.getHeldRows().stream()
                     .map(FeesBalanceRow::toFields)
@@ -587,10 +678,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 int remaining = dialog.getRemainingCount();
                 if (remaining > 0) {
                     AlertUtil.warn("Import partially complete",
-                            "Imported " + dialog.getImportedCount() + " balance(s) automatically. "
+                            "Imported " + dialog.getImportedCount() + " balance(s) for " + year + " automatically. "
                                     + remaining + " row(s) still need cleaning and were moved to Clean Data for fixing.");
                 } else {
-                    AlertUtil.info("Import complete", "Imported " + dialog.getImportedCount() + " balance(s).");
+                    AlertUtil.info("Import complete",
+                            "Imported " + dialog.getImportedCount() + " balance(s) for " + year + ".");
                 }
             } else if (!heldFields.isEmpty()) {
                 AlertUtil.warn("Nothing imported",
@@ -601,6 +693,35 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         } catch (java.io.UncheckedIOException e) {
             AlertUtil.error("Import failed", e.getMessage());
         }
+    }
+
+    private Integer promptImportYear() {
+        javafx.scene.control.Spinner<Integer> year =
+                new javafx.scene.control.Spinner<>(1990, 2100, LocalDate.now().getYear());
+        year.setEditable(true);
+        year.setPrefWidth(220);
+        VBox content = new VBox(10,
+                new Label("Which academic year does this fees-balance workbook belong to?"),
+                year,
+                new Label("Imported balances are booked against this year. If the calendar has no periods "
+                        + "for it, Term 1, Term 2 and Term 3 are generated automatically as ended periods."));
+        content.setPadding(new Insets(10));
+
+        javafx.scene.control.Dialog<ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Import Fees Balance");
+        dialog.setHeaderText("Select the academic year for this import");
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+        Optional<ButtonType> choice = dialog.showAndWait();
+        if (choice.isEmpty() || choice.get() != ButtonType.OK) {
+            return null;
+        }
+        Integer selected = year.getValue();
+        if (selected == null) {
+            AlertUtil.warn("No year", "Select an academic year to continue the import.");
+            return null;
+        }
+        return selected;
     }
 
     private void openCleanData() {

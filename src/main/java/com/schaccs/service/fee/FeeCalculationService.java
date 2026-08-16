@@ -50,6 +50,9 @@ public class FeeCalculationService {
      * child sharing the same parent/guardian name.
      */
     public void chargeAnnualFees(Student student) {
+        if (!isBillable(student)) {
+            return;
+        }
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
         if (!ledger.getChargedByVotehead().isEmpty()) {
             return;
@@ -85,6 +88,9 @@ public class FeeCalculationService {
     }
 
     public void chargeTermFees(Student student, AcademicTerm term) {
+        if (!isBillable(student)) {
+            return;
+        }
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
         if (term == ledger.getCurrentTerm() && !ledger.getChargedByVotehead().isEmpty()) {
             return;
@@ -97,6 +103,17 @@ public class FeeCalculationService {
             }
             ledger.setCurrentTerm(term);
         });
+    }
+
+    /**
+     * Standard term/annual charges are only generated for students still on
+     * course. A student whose expected completion date passed (COMPLETED or
+     * GRADUATED) is frozen — no new fee generation, the account simply settles.
+     */
+    private boolean isBillable(Student student) {
+        return student != null
+                && student.getStatus() != com.schaccs.enums.StudentStatus.COMPLETED
+                && student.getStatus() != com.schaccs.enums.StudentStatus.GRADUATED;
     }
 
     /**

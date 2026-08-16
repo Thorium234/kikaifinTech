@@ -18,6 +18,7 @@ import com.schaccs.repository.migration.MigrationV22MidTermEnrollments;
 import com.schaccs.repository.migration.MigrationV23RecycleBin;
 import com.schaccs.repository.migration.MigrationV24EnabledPaymentModes;
 import com.schaccs.repository.migration.MigrationV25CleanData;
+import com.schaccs.repository.migration.MigrationV26TermStatusAndCourseTracking;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -316,7 +317,8 @@ public final class Database {
                 new MigrationV22MidTermEnrollments(),
                 new MigrationV23RecycleBin(),
                 new MigrationV24EnabledPaymentModes(),
-                new MigrationV25CleanData()
+                new MigrationV25CleanData(),
+                new MigrationV26TermStatusAndCourseTracking()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -424,7 +426,12 @@ public final class Database {
                         avatar_path TEXT,
                         year_of_admission INTEGER,
                         academic_year INTEGER,
-                        status TEXT
+                        status TEXT,
+                        course_code TEXT,
+                        duration_value INTEGER,
+                        duration_unit TEXT,
+                        enrollment_date TEXT,
+                        expected_completion_date TEXT
                     )
                     """);
             st.execute("""

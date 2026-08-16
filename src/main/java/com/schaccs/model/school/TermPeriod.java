@@ -1,6 +1,7 @@
 package com.schaccs.model.school;
 
 import com.schaccs.enums.AcademicTerm;
+import com.schaccs.enums.TermStatus;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 
@@ -10,7 +11,10 @@ import java.util.UUID;
 
 /**
  * One period of the academic calendar: the term and its start/end dates.
- * Dates are fully customizable through the Calendar workspace.
+ * Dates are fully customizable through the Calendar workspace. The lifecycle
+ * status (PLANNED/ACTIVE/ENDED) is maintained by the calendar service: only one
+ * term may be ACTIVE at a time, and once a term's end date passes the service
+ * flips it to ENDED, which is the trigger for unpaid balances to roll to arrears.
  */
 public class TermPeriod {
 
@@ -18,20 +22,26 @@ public class TermPeriod {
     private final ObjectProperty<AcademicTerm> term = new SimpleObjectProperty<>();
     private final ObjectProperty<LocalDate> from = new SimpleObjectProperty<>();
     private final ObjectProperty<LocalDate> to = new SimpleObjectProperty<>();
+    private final ObjectProperty<TermStatus> status = new SimpleObjectProperty<>(TermStatus.PLANNED);
 
     public TermPeriod(AcademicTerm term, LocalDate from, LocalDate to) {
-        this(UUID.randomUUID().toString(), term, from, to);
+        this(UUID.randomUUID().toString(), term, from, to, TermStatus.PLANNED);
     }
 
-    private TermPeriod(String id, AcademicTerm term, LocalDate from, LocalDate to) {
+    private TermPeriod(String id, AcademicTerm term, LocalDate from, LocalDate to, TermStatus status) {
         this.id = id;
         this.term.set(term);
         this.from.set(from);
         this.to.set(to);
+        this.status.set(status);
     }
 
     public static TermPeriod withId(String id, AcademicTerm term, LocalDate from, LocalDate to) {
-        return new TermPeriod(id, term, from, to);
+        return new TermPeriod(id, term, from, to, TermStatus.PLANNED);
+    }
+
+    public static TermPeriod withId(String id, AcademicTerm term, LocalDate from, LocalDate to, TermStatus status) {
+        return new TermPeriod(id, term, from, to, status);
     }
 
     public String getId() {
@@ -72,6 +82,18 @@ public class TermPeriod {
 
     public ObjectProperty<LocalDate> toProperty() {
         return to;
+    }
+
+    public TermStatus getStatus() {
+        return status.get();
+    }
+
+    public void setStatus(TermStatus status) {
+        this.status.set(status);
+    }
+
+    public ObjectProperty<TermStatus> statusProperty() {
+        return status;
     }
 
     /** Calendar year this period belongs to (derived from the start date). */

@@ -3,11 +3,14 @@ package com.schaccs.service;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
+import com.schaccs.enums.DurationUnit;
 import com.schaccs.enums.StudentStatus;
+import com.schaccs.enums.TermStatus;
 import com.schaccs.model.school.TermPeriod;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
+import com.schaccs.service.fee.FeeCalculationService;
 import com.schaccs.service.school.AcademicCalendarService;
 import com.schaccs.store.StudentStore;
 import org.junit.jupiter.api.AfterEach;
@@ -212,5 +215,146 @@ class AcademicCalendarServiceTest {
         assertTrue(errors.isEmpty());
         assertEquals(LocalDate.of(2026, 1, 27), t1.getFrom());
         assertEquals(LocalDate.of(2026, 4, 25), t1.getTo());
+    }
+
+    @Test
+    @DisplayName("reconcileStatuses marks exactly one ACTIVE, past ENDED and future PLANNED")
+    void reconcileStatusesMarksTermLifecycle() {
+        seed();
+        service.reconcileStatuses(LocalDate.of(2026, 6, 1));
+        assertEquals(TermStatus.ENDED, periodOf(AcademicTerm.TERM_1).getStatus());
+        assertEquals(TermStatus.ACTIVE, periodOf(AcademicTerm.TERM_2).getStatus());
+        assertEquals(TermStatus.PLANNED, periodOf(AcademicTerm.TERM_3).getStatus());
+        long activeCount = service.getPeriods().stream()
+                .filter(p -> p.getStatus() == TermStatus.ACTIVE).count();
+        assertEquals(1, activeCount, "Only one term may be ACTIVE at a time");
+        assertEquals(AcademicTerm.TERM_2, service.activeTerm(LocalDate.of(2026, 6, 1)).orElse(null));
+    }
+
+    @Test
+    @DisplayName("reconcileStatuses is idempotent on the same day")
+    void reconcileStatusesIdempotent() {
+        seed();
+        service.reconcileStatuses(LocalDate.of(2026, 6, 1));
+        int changed = service.reconcileStatuses(LocalDate.of(2026, 6, 1));
+        assertEquals(0, changed);
+    }
+
+    @Test
+    @DisplayName("ensureYearCalendar scaffolds the three standard ended terms for a missing year")
+    void ensureYearCalendarScaffoldsMissingYear() {
+        seed();
+        assertTrue(service.ensureYearCalendar(2020));
+        assertEquals(6, service.getPeriods().size());
+        assertEquals(AcademicTerm.TERM_1,
+                service.periodForTerm(AcademicTerm.TERM_1, LocalDate.of(2020, 2, 1)).orElseThrow().getTerm());
+        assertEquals(AcademicTerm.TERM_3,
+                service.periodForTerm(AcademicTerm.TERM_3, LocalDate.of(2020, 10, 1)).orElseThrow().getTerm());
+        for (TermPeriod p : service.getPeriods()) {
+            if (p.getYear() == 2020) {
+                assertEquals(TermStatus.ENDED, p.getStatus(),
+                        "Scaffolded historical terms are ENDED by default");
+            }
+        }
+        assertFalse(service.ensureYearCalendar(2020), "Existing year is never regenerated");
+        assertFalse(service.ensureYearCalendar(2026), "Sample year already present");
+    }
+
+    @Test
+    @DisplayName("expectedCompletionDate computes from enrollment plus YEARS or TERMS duration")
+    void expectedCompletionDateComputesDuration() {
+        seed();
+        Student years = createStudent("Form 1", 2026);
+        years.setEnrollmentDate(LocalDate.of(2024, 1, 10));
+        years.setDurationValue(4);
+        years.setDurationUnit(DurationUnit.YEARS);
+        assertEquals(LocalDate.of(2028, 1, 10), service.expectedCompletionDate(years));
+
+        Student terms = createStudent("Form 1", 2026);
+        terms.setEnrollmentDate(LocalDate.of(2024, 1, 10));
+        terms.setDurationValue(9);
+        terms.setDurationUnit(DurationUnit.TERMS);
+        assertEquals(LocalDate.of(2027, 1, 10), service.expectedCompletionDate(terms),
+                "9 terms ≈ 3 years of 4 months each");
+
+        Student incomplete = createStudent("Form 1", 2026);
+        assertNull(service.expectedCompletionDate(incomplete));
+    }
+
+    @Test
+    @DisplayName("checkCompletions marks a student COMPLETED once the expected completion date passes")
+    void checkCompletionsMarksCompletedStudent() {
+        seed();
+        Student student = createStudent("Form 4", 2026);
+        student.setEnrollmentDate(LocalDate.of(2022, 1, 10));
+        student.setDurationValue(4);
+        student.setDurationUnit(DurationUnit.YEARS);
+        student.setExpectedCompletionDate(service.expectedCompletionDate(student));
+
+        assertEquals(0, service.checkCompletions(LocalDate.of(2025, 1, 1)));
+        assertEquals(StudentStatus.ACTIVE, student.getStatus());
+
+        assertEquals(1, service.checkCompletions(LocalDate.of(2027, 1, 1)));
+        assertEquals(StudentStatus.COMPLETED, student.getStatus());
+    }
+
+    @Test
+    @DisplayName("Rollover skips non-ACTIVE students (completed courses are not advanced)")
+    void rolloverSkipsCompletedStudents() {
+        seed();
+        Student student = createStudent("Form 4", 2026);
+        student.setStatus(StudentStatus.COMPLETED);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        ledger.setCurrentTerm(AcademicTerm.TERM_3);
+        ledger.charge("TUITION", CurrencyConfig.money("800"));
+
+        AcademicCalendarService.RolloverResult result =
+                service.rolloverIfDue(LocalDate.of(2026, 10, 30));
+
+        assertEquals(0, result.studentsRolled());
+        assertEquals(AcademicTerm.TERM_3, ledger.getCurrentTerm(),
+                "Completed student's term is not advanced");
+    }
+
+    @Test
+    @DisplayName("Rollover freezes a student whose course clock passed even if the term ended")
+    void rolloverCompletesCourseInsteadOfAdvancing() {
+        seed();
+        Student student = createStudent("Form 4", 2026);
+        student.setEnrollmentDate(LocalDate.of(2022, 1, 10));
+        student.setDurationValue(4);
+        student.setDurationUnit(DurationUnit.YEARS);
+        student.setExpectedCompletionDate(service.expectedCompletionDate(student));
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        ledger.setCurrentTerm(AcademicTerm.TERM_3);
+        ledger.charge("TUITION", CurrencyConfig.money("800"));
+
+        AcademicCalendarService.RolloverResult result =
+                service.rolloverIfDue(LocalDate.of(2027, 1, 15));
+
+        assertEquals(0, result.studentsRolled());
+        assertEquals(StudentStatus.COMPLETED, student.getStatus());
+        assertEquals(AcademicTerm.TERM_3, ledger.getCurrentTerm());
+    }
+
+    @Test
+    @DisplayName("Fee generation freezes for COMPLETED / GRADUATED students")
+    void feeGenerationFreezesForCompletedStudents() {
+        seed();
+        Student completed = createStudent("Form 4", 2026);
+        completed.setStatus(StudentStatus.COMPLETED);
+        new FeeCalculationService().chargeTermFees(completed, AcademicTerm.TERM_1);
+        assertEquals(0, StudentStore.getInstance().getLedger(completed.getId())
+                .getTotalCharged().compareTo(BigDecimal.ZERO));
+
+        Student graduated = createStudent("Form 4", 2026);
+        graduated.setStatus(StudentStatus.GRADUATED);
+        new FeeCalculationService().chargeAnnualFees(graduated);
+        assertEquals(0, StudentStore.getInstance().getLedger(graduated.getId())
+                .getTotalCharged().compareTo(BigDecimal.ZERO));
+    }
+
+    private TermPeriod periodOf(AcademicTerm term) {
+        return service.periodForTerm(term, LocalDate.of(2026, 6, 1)).orElseThrow();
     }
 }

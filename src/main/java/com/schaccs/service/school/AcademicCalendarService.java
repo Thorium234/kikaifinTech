@@ -2,6 +2,9 @@ package com.schaccs.service.school;
 
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.AcademicTerm;
+import com.schaccs.enums.DurationUnit;
+import com.schaccs.enums.StudentStatus;
+import com.schaccs.enums.TermStatus;
 import com.schaccs.model.school.TermPeriod;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
@@ -211,6 +214,124 @@ public class AcademicCalendarService {
                 .orElse(false);
     }
 
+    // ------------------------------------------------------------------
+    // Term lifecycle status engine
+    // ------------------------------------------------------------------
+
+    /**
+     * Recompute the lifecycle status of every term period from the given date:
+     * a period whose end date has passed becomes ENDED, the period containing
+     * the date becomes ACTIVE, and everything still in the future stays PLANNED.
+     * Guarantees at most one ACTIVE term at any timestamp. Returns the number of
+     * periods whose status actually changed, so callers know whether a
+     * term-boundary event (e.g. arrears rollover) just happened.
+     */
+    public int reconcileStatuses(LocalDate today) {
+        int changed = 0;
+        for (TermPeriod p : store.getPeriods()) {
+            TermStatus next = TermStatus.PLANNED;
+            if (p.getFrom() != null && p.getTo() != null) {
+                if (today.isAfter(p.getTo())) {
+                    next = TermStatus.ENDED;
+                } else if (!today.isBefore(p.getFrom())) {
+                    next = TermStatus.ACTIVE;
+                }
+            }
+            if (p.getStatus() != next) {
+                p.setStatus(next);
+                changed++;
+            }
+        }
+        if (changed > 0) {
+            PersistenceService.getInstance().saveAll();
+        }
+        return changed;
+    }
+
+    /** The term period currently ACTIVE for the given date, if any. */
+    public Optional<TermPeriod> activePeriod(LocalDate today) {
+        return store.getPeriods().stream()
+                .filter(p -> p.getStatus() == TermStatus.ACTIVE)
+                .findFirst()
+                .or(() -> periodFor(today));
+    }
+
+    /** The term currently ACTIVE for the given date, if any. */
+    public Optional<AcademicTerm> activeTerm(LocalDate today) {
+        return activePeriod(today).map(TermPeriod::getTerm);
+    }
+
+    /**
+     * Ensure the calendar has the three standard terms for the given year,
+     * generating them when none exist yet: Term 1 (Jan 1 – Apr 30), Term 2
+     * (May 1 – Aug 31), Term 3 (Sep 1 – Dec 31). Generated periods are marked
+     * ENDED because this is used to scaffold historical years whose terms have
+     * already finished. Returns true when the scaffold was created.
+     */
+    public boolean ensureYearCalendar(int year) {
+        boolean hasYear = store.getPeriods().stream()
+                .anyMatch(p -> p.getYear() == year);
+        if (hasYear) {
+            return false;
+        }
+        store.add(new TermPeriod(AcademicTerm.TERM_1,
+                LocalDate.of(year, 1, 1), LocalDate.of(year, 4, 30)));
+        store.add(new TermPeriod(AcademicTerm.TERM_2,
+                LocalDate.of(year, 5, 1), LocalDate.of(year, 8, 31)));
+        store.add(new TermPeriod(AcademicTerm.TERM_3,
+                LocalDate.of(year, 9, 1), LocalDate.of(year, 12, 31)));
+        for (TermPeriod p : store.getPeriods()) {
+            if (p.getYear() == year) {
+                p.setStatus(TermStatus.ENDED);
+            }
+        }
+        PersistenceService.getInstance().saveAll();
+        return true;
+    }
+
+    /**
+     * Mark students whose expected completion date has passed as COMPLETED
+     * (GRADUATED when the class was already promoted past the top form). Returns
+     * the number of students whose status changed.
+     */
+    public int checkCompletions(LocalDate today) {
+        int completed = 0;
+        for (Student s : studentStore.getStudents()) {
+            if (s.getStatus() != StudentStatus.ACTIVE) {
+                continue;
+            }
+            if (s.isCourseCompleted(today)) {
+                s.setStatus(StudentStatus.COMPLETED);
+                completed++;
+            }
+        }
+        if (completed > 0) {
+            PersistenceService.getInstance().saveAll();
+            auditService.log("COURSE_COMPLETION", "Course Duration", "-",
+                    "{\"asOf\":\"" + today + "\",\"students\":\"" + completed + "\"}");
+        }
+        return completed;
+    }
+
+    /**
+     * Compute the expected completion date from the enrollment date and the
+     * course duration. YEARS adds the value to the enrollment year; TERMS adds
+     * 4 months per term (3 terms per year). Returns null when there is not
+     * enough information.
+     */
+    public LocalDate expectedCompletionDate(Student student) {
+        LocalDate enrolled = student.getEnrollmentDate();
+        Integer value = student.getDurationValue();
+        DurationUnit unit = student.getDurationUnit();
+        if (enrolled == null || value == null || value <= 0 || unit == null) {
+            return null;
+        }
+        return switch (unit) {
+            case YEARS -> enrolled.plusYears(value);
+            case TERMS -> enrolled.plusMonths(value * 4L);
+        };
+    }
+
     /** Unpaid balance (charged − paid) for a student's current term that would roll to arrears. */
     public BigDecimal unpaidAtCurrentTermEnd(Student student) {
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
@@ -252,15 +373,25 @@ public class AcademicCalendarService {
         int classPromotions = 0;
         BigDecimal arrearsRolled = CurrencyConfig.zero();
 
+        reconcileStatuses(today);
+        checkCompletions(today);
+
         for (Student s : studentStore.getStudents()) {
+            if (s.getStatus() != StudentStatus.ACTIVE) {
+                continue;
+            }
             StudentFeeLedger ledger = studentStore.getLedger(s.getId());
             boolean movedThisStudent = false;
             int guard = 0;
             while (guard++ < 8) {
                 AcademicTerm current = ledger.getCurrentTerm();
                 Optional<TermPeriod> period = periodForTerm(current, today);
-                if (period.isEmpty() || !today.isAfter(period.get().getTo())
+                if (period.isEmpty() || period.get().getStatus() != TermStatus.ENDED
                         || period.get().getYear() != effectiveYear(s)) {
+                    break;
+                }
+                if (s.isCourseCompleted(today)) {
+                    s.setStatus(StudentStatus.COMPLETED);
                     break;
                 }
                 BigDecimal unpaid = unpaid(ledger);

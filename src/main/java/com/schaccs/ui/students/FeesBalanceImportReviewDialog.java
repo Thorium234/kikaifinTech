@@ -49,6 +49,7 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
             new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
 
     private final FeesBalanceImportService importService;
+    private final FeesBalanceImportService.ImportContext importContext;
     private final ObservableList<FeesBalanceRow> cleanData = FXCollections.observableArrayList();
     private final TableView<FeesBalanceRow> table = new TableView<>();
     private final Label summaryLabel = new Label();
@@ -57,7 +58,13 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
     private int imported;
 
     public FeesBalanceImportReviewDialog(FeesBalanceImportService importService, List<FeesBalanceRow> rows) {
+        this(importService, rows, null);
+    }
+
+    public FeesBalanceImportReviewDialog(FeesBalanceImportService importService, List<FeesBalanceRow> rows,
+                                         FeesBalanceImportService.ImportContext importContext) {
         this.importService = importService;
+        this.importContext = importContext;
 
         setTitle("Import Fees Balance - Clean Data");
         initModality(Modality.APPLICATION_MODAL);
@@ -292,7 +299,9 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
         if (toImport.isEmpty()) {
             return;
         }
-        FeesBalanceImportService.ApplyResult result = importService.apply(toImport);
+        FeesBalanceImportService.ApplyResult result = importContext != null
+                ? importService.apply(toImport, importContext)
+                : importService.apply(toImport);
         imported += result.getCreated() + result.getExisting();
 
         Set<String> skippedLabels = result.getWarnings().stream()
@@ -320,7 +329,10 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
     }
 
     private void updateHeader() {
-        setHeaderText("Fees balance import: " + cleanData.size()
+        String yearInfo = importContext != null
+                ? " (year " + importContext.year() + ", batch " + importContext.batchId() + ")"
+                : "";
+        setHeaderText("Fees balance import" + yearInfo + ": " + cleanData.size()
                 + " row(s) need cleaning"
                 + (imported > 0 ? " (" + imported + " valid row(s) were committed immediately)" : "")
                 + ". Fix the details below and each row imports automatically when its mistakes are cleared.");

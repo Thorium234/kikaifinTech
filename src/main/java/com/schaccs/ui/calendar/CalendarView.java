@@ -18,6 +18,7 @@ import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
@@ -112,7 +113,11 @@ public class CalendarView extends VBox implements MainLayout.Refreshable {
             }
         });
 
-        HBox toolbar = new HBox(10, addBtn, editBtn, deleteBtn);
+        Button yearBtn = new Button("Generate Year");
+        yearBtn.getStyleClass().add("secondary-button");
+        yearBtn.setOnAction(e -> showYearDialog());
+
+        HBox toolbar = new HBox(10, addBtn, editBtn, deleteBtn, yearBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
         setupTable();
@@ -157,17 +162,7 @@ public class CalendarView extends VBox implements MainLayout.Refreshable {
     }
 
     private String statusOf(TermPeriod p) {
-        if (p.getFrom() == null || p.getTo() == null) {
-            return "";
-        }
-        LocalDate today = LocalDate.now();
-        if (today.isBefore(p.getFrom())) {
-            return "Upcoming";
-        }
-        if (today.isAfter(p.getTo())) {
-            return "Ended";
-        }
-        return "Active";
+        return p.getStatus() != null ? p.getStatus().getDisplayName() : "";
     }
 
     private void showPeriodDialog(TermPeriod existing) {
@@ -214,6 +209,38 @@ public class CalendarView extends VBox implements MainLayout.Refreshable {
         });
     }
 
+    private void showYearDialog() {
+        Spinner<Integer> year = new Spinner<>(2000, 2100, LocalDate.now().getYear());
+        year.setEditable(true);
+        year.setPrefWidth(220);
+
+        VBox content = new VBox(10,
+                new Label("Academic year (e.g. 2020):"),
+                year,
+                new Label("Generates Term 1, Term 2 and Term 3 for the year if the calendar "
+                        + "has none. Existing (customized) periods are never overwritten."));
+        content.setPadding(new Insets(10));
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Generate Academic Year");
+        dialog.setHeaderText("Scaffold the three standard terms for a year");
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+        dialog.showAndWait().filter(ButtonType.OK::equals).ifPresent(btn -> {
+            Integer selected = year.getValue();
+            if (selected == null) {
+                return;
+            }
+            boolean created = service.ensureYearCalendar(selected);
+            AlertUtil.info(created ? "Year generated" : "No changes",
+                    created
+                            ? "Term 1, Term 2 and Term 3 for " + selected
+                                    + " were added as ended periods. Edit their dates if needed."
+                            : "The calendar already has periods for " + selected + ".");
+            refresh();
+        });
+    }
+
     private void runRollover() {
         LocalDate today = LocalDate.now();
         AcademicCalendarService.RolloverPreview preview = service.overduePreview(today);
@@ -240,6 +267,8 @@ public class CalendarView extends VBox implements MainLayout.Refreshable {
     @Override
     public void refresh() {
         LocalDate today = LocalDate.now();
+        service.reconcileStatuses(today);
+        service.checkCompletions(today);
         var current = service.currentOrNextPeriod(today);
         if (current.isEmpty()) {
             statusHeading.setText("No term periods configured");

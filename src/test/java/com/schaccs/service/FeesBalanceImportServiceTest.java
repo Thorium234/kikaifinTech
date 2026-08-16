@@ -2,6 +2,7 @@ package com.schaccs.service;
 
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.BoardingStatus;
+import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
@@ -447,6 +448,30 @@ class FeesBalanceImportServiceTest {
         assertEquals(0, result.getCreated());
         assertEquals(1, result.getSkipped());
         assertTrue(StudentStore.getInstance().findByAdmissionNumber("4602").isEmpty());
+    }
+
+    @Test
+    void applyWithYearContextCreatesStudentsForTheTargetYear() {
+        Workbook wb = new XSSFWorkbook();
+        Sheet sheet = wb.createSheet("F4E");
+        title(sheet, 0, 1, "FORM FOUR EAST FEES BALANCES AS AT 11TH FEB. 2020");
+        header(sheet, 1, "NO.", "NAMES", "", "ADM. NO.", "T/FEES");
+        data(sheet, 2, "LEGACY STUDENT", "B", 4901, 10000, 20000, 30000);
+
+        List<FeesBalanceRow> rows = service.parseWorkbook(wb);
+        FeesBalanceImportService.ImportContext context =
+                FeesBalanceImportService.ImportContext.of(2020, "Bursar");
+        FeesBalanceImportService.ApplyResult result = service.apply(rows, context);
+
+        assertEquals(1, result.getCreated());
+        Student student = StudentStore.getInstance().findByAdmissionNumber("4901").orElseThrow();
+        assertEquals(2020, student.getAcademicYear(),
+                "Imported student must belong to the batch year, not the current year");
+        assertEquals(2020, student.getYearOfAdmission());
+        assertEquals(StudentStatus.ACTIVE, student.getStatus());
+        assertEquals(CurrencyConfig.money("10000"),
+                StudentStore.getInstance().getLedger(student.getId()).getArrears(),
+                "T/FEES (first mapped column) becomes the imported balance");
     }
 
     // ---------------------------------------------------------------- helpers

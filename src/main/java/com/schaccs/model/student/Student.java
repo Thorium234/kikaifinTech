@@ -1,12 +1,14 @@
 package com.schaccs.model.student;
 
 import com.schaccs.enums.BoardingStatus;
+import com.schaccs.enums.DurationUnit;
 import com.schaccs.enums.StudentStatus;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
+import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -25,6 +27,11 @@ public class Student {
     private final ObjectProperty<Integer> academicYear = new SimpleObjectProperty<>(2026);
     private final ObjectProperty<StudentStatus> status = new SimpleObjectProperty<>(StudentStatus.ACTIVE);
     private final StringProperty avatarPath = new SimpleStringProperty();
+    private final StringProperty courseCode = new SimpleStringProperty();
+    private final ObjectProperty<Integer> durationValue = new SimpleObjectProperty<>();
+    private final ObjectProperty<DurationUnit> durationUnit = new SimpleObjectProperty<>();
+    private final ObjectProperty<LocalDate> enrollmentDate = new SimpleObjectProperty<>();
+    private final ObjectProperty<LocalDate> expectedCompletionDate = new SimpleObjectProperty<>();
 
     public Student() {
         this.id = UUID.randomUUID().toString();
@@ -205,6 +212,72 @@ public class Student {
 
     public StringProperty avatarPathProperty() {
         return avatarPath;
+    }
+
+    public String getCourseCode() {
+        return courseCode.get();
+    }
+
+    public void setCourseCode(String value) {
+        courseCode.set(value);
+    }
+
+    public StringProperty courseCodeProperty() {
+        return courseCode;
+    }
+
+    public Integer getDurationValue() {
+        return durationValue.get();
+    }
+
+    public void setDurationValue(Integer value) {
+        durationValue.set(value);
+    }
+
+    public ObjectProperty<Integer> durationValueProperty() {
+        return durationValue;
+    }
+
+    public DurationUnit getDurationUnit() {
+        return durationUnit.get();
+    }
+
+    public void setDurationUnit(DurationUnit value) {
+        durationUnit.set(value);
+    }
+
+    public ObjectProperty<DurationUnit> durationUnitProperty() {
+        return durationUnit;
+    }
+
+    public LocalDate getEnrollmentDate() {
+        return enrollmentDate.get();
+    }
+
+    public void setEnrollmentDate(LocalDate value) {
+        enrollmentDate.set(value);
+    }
+
+    public ObjectProperty<LocalDate> enrollmentDateProperty() {
+        return enrollmentDate;
+    }
+
+    public LocalDate getExpectedCompletionDate() {
+        return expectedCompletionDate.get();
+    }
+
+    public void setExpectedCompletionDate(LocalDate value) {
+        expectedCompletionDate.set(value);
+    }
+
+    public ObjectProperty<LocalDate> expectedCompletionDateProperty() {
+        return expectedCompletionDate;
+    }
+
+    /** True when the course clock has passed the expected completion date. */
+    public boolean isCourseCompleted(LocalDate today) {
+        LocalDate expected = expectedCompletionDate.get();
+        return expected != null && today != null && today.isAfter(expected);
     }
 
     public boolean matchesSearch(String query) {

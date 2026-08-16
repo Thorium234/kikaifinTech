@@ -36,11 +36,13 @@ public final class AppBootstrap {
 
         AcademicCalendarService calendar = Services.getInstance().academicCalendar();
         boolean seededNow = calendar.seedIfEmpty();
+        LocalDate today = LocalDate.now();
         if (!seededNow) {
             // The calendar is already configured and persisted — apply any ended-term
-            // transition automatically (arrears rollover + term/class move).
-            calendar.rolloverIfDue(LocalDate.now());
+            // transition automatically (status reconcile + arrears rollover + completion).
+            calendar.rolloverIfDue(today);
         } else {
+            calendar.reconcileStatuses(today);
             LOG.info("Academic calendar sample data seeded; skipping automatic rollover on first run.");
         }
 

@@ -4,6 +4,7 @@ public enum StudentStatus {
     ACTIVE("Active"),
     INACTIVE("Inactive"),
     TRANSFERRED("Transferred"),
+    COMPLETED("Completed"),
     GRADUATED("Graduated"),
     SUSPENDED("Suspended");
 

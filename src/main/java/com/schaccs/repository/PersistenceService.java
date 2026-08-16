@@ -10,6 +10,8 @@ import com.schaccs.enums.NormalBalance;
 import com.schaccs.enums.StatementCategory;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.enums.StudentStatus;
+import com.schaccs.enums.DurationUnit;
+import com.schaccs.enums.TermStatus;
 import com.schaccs.enums.TransactionType;
 import com.schaccs.enums.VoucherStatus;
 import com.schaccs.enums.ApprovalAction;
@@ -625,12 +627,15 @@ public final class PersistenceService {
         }
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO students (id, admission_number, name, gender, form_class, stream,
-                    boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status,
+                    course_code, duration_value, duration_unit, enrollment_date, expected_completion_date)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, stream=excluded.stream,
                     boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, phone=excluded.phone,
-                    avatar_path=excluded.avatar_path, year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status
+                    avatar_path=excluded.avatar_path, year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status,
+                    course_code=excluded.course_code, duration_value=excluded.duration_value, duration_unit=excluded.duration_unit,
+                    enrollment_date=excluded.enrollment_date, expected_completion_date=excluded.expected_completion_date
                 """)) {
             for (Student s : store.getStudents()) {
                 ps.setString(1, s.getId());
@@ -646,6 +651,11 @@ public final class PersistenceService {
                 ps.setObject(11, s.getYearOfAdmission());
                 ps.setObject(12, s.getAcademicYear());
                 ps.setString(13, enumName(s.getStatus()));
+                ps.setString(14, s.getCourseCode());
+                ps.setObject(15, s.getDurationValue());
+                ps.setString(16, enumName(s.getDurationUnit()));
+                ps.setString(17, date(s.getEnrollmentDate()));
+                ps.setString(18, date(s.getExpectedCompletionDate()));
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -713,8 +723,9 @@ public final class PersistenceService {
         Set<String> seen = new HashSet<>();
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO students (id, admission_number, name, gender, form_class, stream,
-                    boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status,
+                    course_code, duration_value, duration_unit, enrollment_date, expected_completion_date)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO NOTHING
                 """)) {
             for (Receipt r : ReceiptStore.getInstance().getReceipts()) {
@@ -739,6 +750,11 @@ public final class PersistenceService {
                 ps.setObject(11, s.getYearOfAdmission());
                 ps.setObject(12, s.getAcademicYear());
                 ps.setString(13, enumName(s.getStatus()));
+                ps.setString(14, s.getCourseCode());
+                ps.setObject(15, s.getDurationValue());
+                ps.setString(16, enumName(s.getDurationUnit()));
+                ps.setString(17, date(s.getEnrollmentDate()));
+                ps.setString(18, date(s.getExpectedCompletionDate()));
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -775,6 +791,17 @@ public final class PersistenceService {
                 if (status != null) {
                     s.setStatus(StudentStatus.valueOf(status));
                 }
+                s.setCourseCode(rs.getString("course_code"));
+                int duration = rs.getInt("duration_value");
+                if (!rs.wasNull()) {
+                    s.setDurationValue(duration);
+                }
+                String durationUnit = rs.getString("duration_unit");
+                if (durationUnit != null) {
+                    s.setDurationUnit(DurationUnit.valueOf(durationUnit));
+                }
+                s.setEnrollmentDate(parseDate(rs.getString("enrollment_date")));
+                s.setExpectedCompletionDate(parseDate(rs.getString("expected_completion_date")));
                 try {
                     store.add(s);
                 } catch (IllegalArgumentException duplicateAdmission) {
@@ -1524,14 +1551,15 @@ public final class PersistenceService {
     private void saveAcademicCalendar(Connection conn) throws SQLException {
         AcademicCalendarStore store = AcademicCalendarStore.getInstance();
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO academic_calendar (id, term, from_date, to_date) VALUES (?,?,?,?) "
+                "INSERT INTO academic_calendar (id, term, from_date, to_date, status) VALUES (?,?,?,?,?) "
                         + "ON CONFLICT(id) DO UPDATE SET term=excluded.term, "
-                        + "from_date=excluded.from_date, to_date=excluded.to_date")) {
+                        + "from_date=excluded.from_date, to_date=excluded.to_date, status=excluded.status")) {
             for (com.schaccs.model.school.TermPeriod p : store.getPeriods()) {
                 ps.setString(1, p.getId());
                 ps.setString(2, enumName(p.getTerm()));
                 ps.setString(3, date(p.getFrom()));
                 ps.setString(4, date(p.getTo()));
+                ps.setString(5, enumName(p.getStatus()));
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -1543,11 +1571,13 @@ public final class PersistenceService {
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery("SELECT * FROM academic_calendar ORDER BY from_date")) {
             while (rs.next()) {
+                String status = rs.getString("status");
                 store.add(com.schaccs.model.school.TermPeriod.withId(
                         rs.getString("id"),
                         AcademicTerm.valueOf(rs.getString("term")),
                         parseDate(rs.getString("from_date")),
-                        parseDate(rs.getString("to_date"))));
+                        parseDate(rs.getString("to_date")),
+                        status != null ? TermStatus.valueOf(status) : TermStatus.PLANNED));
             }
         }
     }

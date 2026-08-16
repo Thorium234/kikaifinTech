@@ -62,6 +62,20 @@ public class FeesBalanceImportService {
     }
 
     /**
+     * Import context for a fees-balance batch: the calendar year the workbook
+     * belongs to (balances are booked against that year), the batch id, the
+     * bursar who ran the import and the time it happened. Carried through to the
+     * audit log so each import is fully traceable.
+     */
+    public record ImportContext(int year, String batchId, String importedBy, java.time.LocalDateTime importedAt) {
+
+        public static ImportContext of(int year, String importedBy) {
+            return new ImportContext(year, "BATCH-" + java.util.UUID.randomUUID()
+                    .toString().substring(0, 8).toUpperCase(), importedBy, java.time.LocalDateTime.now());
+        }
+    }
+
+    /**
      * Parse the whole workbook into staged rows (one per student entry found on
      * any sheet). No validation is performed here — callers review via
      * {@link #scrutinize(List)} before applying.
@@ -151,12 +165,24 @@ public class FeesBalanceImportService {
      * keep their registry details and only get the balance updated.
      */
     public ApplyResult apply(List<FeesBalanceRow> rows) {
+        return apply(rows, ImportContext.of(AppConfig.getInstance().getAcademicYear(),
+                AppConfig.getInstance().getCurrentUser()));
+    }
+
+    /**
+     * Apply the staged rows against a specific calendar year: unmatched students
+     * are created in the registry for that year and each included student's
+     * opening balance is written into their fee ledger (T/FEES plus penalty as
+     * arrears; a credit balance becomes advance). The whole batch is recorded in
+     * the audit trail with its batch id, bursar and import timestamp.
+     */
+    public ApplyResult apply(List<FeesBalanceRow> rows, ImportContext context) {
         int created = 0;
         int existing = 0;
         int skipped = 0;
         int credits = 0;
         List<String> warnings = new ArrayList<>();
-        int year = AppConfig.getInstance().getAcademicYear();
+        int year = context.year();
         for (FeesBalanceRow row : rows) {
             if (!row.isInclude()) {
                 skipped++;
@@ -198,7 +224,12 @@ public class FeesBalanceImportService {
         }
         PersistenceService.getInstance().saveAll();
         auditService.log("FEES_BALANCE_IMPORT", "System", "ALL",
-                "{\"created\":" + created + ",\"existing\":" + existing + ",\"skipped\":" + skipped + "}");
+                "{\"year\":" + year
+                        + ",\"batchId\":\"" + context.batchId()
+                        + "\",\"importedBy\":\"" + context.importedBy()
+                        + "\",\"importedAt\":\"" + context.importedAt()
+                        + "\",\"created\":" + created + ",\"existing\":" + existing
+                        + ",\"skipped\":" + skipped + "}");
         return new ApplyResult(created, existing, skipped, credits, warnings);
     }
 
