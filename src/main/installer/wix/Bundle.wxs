@@ -19,7 +19,8 @@
         LicenseFile="$(var.ProjectDir)\..\..\installer\eula.rtf"
         SuppressOptionsUI="no"
         SuppressRepair="no"
-        ShowFilesInUse="yes"/>
+        ShowFilesInUse="yes"
+        LaunchTarget="[InstallFolder]ThorCash.exe"/>
     </BootstrapperApplicationRef>
 
     <Chain
