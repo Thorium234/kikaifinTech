@@ -1,6 +1,7 @@
 package com.schaccs.service.finance;
 
 import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.AccountType;
 import com.schaccs.enums.ContractStatus;
 import com.schaccs.model.procurement.Contract;
 import com.schaccs.model.procurement.ContractMilestone;
@@ -13,11 +14,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Centralises financial constraint enforcement:
+ * Centralises financial constraint enforcement for Kenyan public secondary school
+ * accounting:
  * <ul>
- *   <li>Negative cash prevention — blocks payouts that would overdraw cash/bank</li>
+ *   <li>Negative cash prevention — blocks payouts that would overdraw ring-fenced bank accounts</li>
  *   <li>Closed fiscal year lock — blocks transactions in closed periods</li>
  *   <li>Contract value overflow guard — prevents disbursements exceeding contract value</li>
+ *   <li>Ring-fencing enforcement — prevents cross-subsidization between government
+ *       capitation, infrastructure grants, and parent-funded fee accounts</li>
  * </ul>
  */
 public final class FinancialConstraintService {
@@ -44,17 +48,23 @@ public final class FinancialConstraintService {
 
     /**
      * Validates that a cash/bank payout of the given amount will not drive the
-     * cash balance below zero. Returns an error message if blocked, or null if OK.
+     * balance below zero on the specified bank account. If {@code bankAccount} is
+     * null, checks the legacy CASH_AT_BANK.
      */
-    public String checkNegativeCash(BigDecimal amount) {
-        BigDecimal cashBalance = ledgerStore.getAccountBalance(
-                com.schaccs.enums.AccountType.CASH_AT_BANK);
-        if (cashBalance.subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
-            return "Insufficient cash balance. Available: "
-                    + CurrencyConfig.format(cashBalance) + ", requested payout: "
+    public String checkNegativeCash(BigDecimal amount, AccountType bankAccount) {
+        AccountType target = bankAccount != null ? bankAccount : AccountType.CASH_AT_BANK;
+        BigDecimal balance = ledgerStore.getAccountBalance(target);
+        if (balance.subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
+            return "Insufficient balance in " + target.getDisplayName() + ". Available: "
+                    + CurrencyConfig.format(balance) + ", requested payout: "
                     + CurrencyConfig.format(amount) + ".";
         }
         return null;
+    }
+
+    /** Overload for backward compatibility — checks legacy CASH_AT_BANK. */
+    public String checkNegativeCash(BigDecimal amount) {
+        return checkNegativeCash(amount, null);
     }
 
     /**
@@ -106,6 +116,68 @@ public final class FinancialConstraintService {
             }
         }
         return total;
+    }
+
+    /**
+     * Enforces ring-fencing: prevents transfers between accounts in different
+     * restricted groups. Returns an error message if the transfer violates
+     * ring-fencing, or null if OK.
+     *
+     * <p>Rules:
+     * <ul>
+     *   <li>Transfers between two accounts in the SAME restricted group are allowed.</li>
+     *   <li>Transfers involving an unrestricted account (null group) are allowed.</li>
+     *   <li>Transfers between DIFFERENT restricted groups are BLOCKED.</li>
+     * </ul>
+     */
+    public String checkRingFencing(AccountType source, AccountType destination) {
+        if (source == null || destination == null) {
+            return null;
+        }
+        String srcGroup = source.getRestrictedGroup();
+        String dstGroup = destination.getRestrictedGroup();
+        if (srcGroup == null || dstGroup == null) {
+            return null;
+        }
+        if (!srcGroup.equals(dstGroup)) {
+            return "Ring-fencing violation: cannot transfer from "
+                    + source.getDisplayName() + " (" + srcGroup + ") to "
+                    + destination.getDisplayName() + " (" + dstGroup
+                    + "). Cross-subsidization between restricted funds is not allowed.";
+        }
+        return null;
+    }
+
+    /**
+     * Determines which ring-fenced bank account an income account should deposit into,
+     * based on the restricted-group mapping. Returns null if the income account is
+     * unrestricted (caller should use CASH_AT_BANK as fallback).
+     */
+    public static AccountType bankAccountForIncome(AccountType incomeAccount) {
+        if (incomeAccount == null) return null;
+        String group = incomeAccount.getRestrictedGroup();
+        if (group == null) return null;
+        return switch (group) {
+            case "GOVT" -> AccountType.BANK_TUITION;
+            case "PARENT" -> AccountType.BANK_BOARDING;
+            default -> null;
+        };
+    }
+
+    /**
+     * Determines which ring-fenced bank account an expense should draw from,
+     * based on the restricted-group mapping. Returns null if the expense account is
+     * unrestricted (caller should use CASH_AT_BANK as fallback).
+     */
+    public static AccountType bankAccountForExpense(AccountType expenseAccount) {
+        if (expenseAccount == null) return null;
+        String group = expenseAccount.getRestrictedGroup();
+        if (group == null) return null;
+        return switch (group) {
+            case "GOVT" -> AccountType.BANK_TUITION;
+            case "PARENT" -> AccountType.BANK_BOARDING;
+            default -> null;
+        };
     }
 
     /**

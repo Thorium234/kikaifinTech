@@ -461,7 +461,11 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         collectionCard.setValue(CurrencyUtil.format(reportService.totalCollectionAll()));
         todayCard.setValue(CurrencyUtil.format(reportService.totalCollectionOn(LocalDate.now())));
         outstandingCard.setValue(CurrencyUtil.format(reportService.totalOutstanding()));
-        schoolFundCard.setValue(CurrencyUtil.format(accountingService.balance(AccountType.CASH_AT_BANK)));
+        schoolFundCard.setValue(CurrencyUtil.format(
+                accountingService.balance(AccountType.CASH_AT_BANK)
+                .add(accountingService.balance(AccountType.BANK_TUITION))
+                .add(accountingService.balance(AccountType.BANK_INFRASTRUCTURE))
+                .add(accountingService.balance(AccountType.BANK_BOARDING))));
 
         if (reportService.isLedgerBalanced()) {
             integrityBanner.setText("");

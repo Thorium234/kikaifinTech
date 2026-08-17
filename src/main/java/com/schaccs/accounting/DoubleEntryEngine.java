@@ -84,8 +84,10 @@ public class DoubleEntryEngine {
     }
 
     /**
-     * Fee receipt: Debit Cash at Bank, Credit Accounts Receivable.
+     * Fee receipt: Debit ring-fenced bank (or Cash at Bank), Credit Accounts Receivable.
      * Revenue was already recognized at billing time via {@link #postFeeBilling}.
+     * The bank account is determined by the income account's restricted group
+     * (e.g. tuition income → BANK_TUITION, boarding income → BANK_BOARDING).
      */
     public void postFeeReceipt(String reference, String narration, AccountType incomeAccount,
                                 String voteheadCode, BigDecimal amount, String studentId,
@@ -94,8 +96,8 @@ public class DoubleEntryEngine {
         journal.setDate(date);
         journal.setReference(reference);
         journal.setNarration(narration);
-        // Debit cash at bank (asset)
-        journal.addLine(AccountType.CASH_AT_BANK, "CASH_BANK", amount, CurrencyConfig.zero(),
+        AccountType bankAccount = resolveBankForIncome(incomeAccount);
+        journal.addLine(bankAccount, "CASH_BANK", amount, CurrencyConfig.zero(),
                 "Cash/Bank — " + narration);
         // Credit accounts receivable (settle student's outstanding balance)
         journal.addLine(AccountType.ACCOUNTS_RECEIVABLE, voteheadCode, CurrencyConfig.zero(), amount,
@@ -123,6 +125,38 @@ public class DoubleEntryEngine {
         // Credit income votehead (revenue recognized)
         journal.addLine(incomeAccount, voteheadCode, CurrencyConfig.zero(), amount, narration);
         postJournal(journal, createdBy, studentId, null, null, TransactionType.FEE_CHARGE);
+    }
+
+    /**
+     * Resolves the correct bank account for an income source based on its
+     * restricted group and specific account type. Returns CASH_AT_BANK for
+     * unrestricted accounts.
+     */
+    public static AccountType resolveBankForIncome(AccountType incomeAccount) {
+        if (incomeAccount == null) return AccountType.CASH_AT_BANK;
+        return switch (incomeAccount) {
+            case GOVT_CAPITATION_TUITION -> AccountType.BANK_TUITION;
+            case INFRASTRUCTURE_GRANT -> AccountType.BANK_INFRASTRUCTURE;
+            case FEES_BOARDING_ACTIVITY -> AccountType.BANK_BOARDING;
+            case TUITION_FEES -> AccountType.BANK_TUITION;
+            case BOARDING_FEES -> AccountType.BANK_BOARDING;
+            case ACTIVITY_FEES -> AccountType.BANK_BOARDING;
+            default -> AccountType.CASH_AT_BANK;
+        };
+    }
+
+    /**
+     * Resolves the correct bank account for an expense based on its
+     * restricted group. Returns CASH_AT_BANK for unrestricted accounts.
+     */
+    public static AccountType resolveBankForExpense(AccountType expenseAccount) {
+        if (expenseAccount == null) return AccountType.CASH_AT_BANK;
+        return switch (expenseAccount) {
+            case TEACHING_LEARNING_MATERIALS -> AccountType.BANK_TUITION;
+            case INFRASTRUCTURE_EXPANSION -> AccountType.BANK_INFRASTRUCTURE;
+            case BOARDING_FEES, ACTIVITY_FEES, FEES_BOARDING_ACTIVITY -> AccountType.BANK_BOARDING;
+            default -> AccountType.CASH_AT_BANK;
+        };
     }
 
     private static String sha256(String input) {

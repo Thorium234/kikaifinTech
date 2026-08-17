@@ -366,11 +366,11 @@ public class ReportService {
 
         // Cash Flow from Operating Activities
         BigDecimal receipts = filtered.stream()
-                .filter(t -> t.getAccountType() == AccountType.CASH_AT_BANK)
+                .filter(t -> isBankAccount(t.getAccountType()))
                 .map(FinancialTransaction::getDebit)
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
         BigDecimal payments = filtered.stream()
-                .filter(t -> t.getAccountType() == AccountType.CASH_AT_BANK)
+                .filter(t -> isBankAccount(t.getAccountType()))
                 .map(FinancialTransaction::getCredit)
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
 
@@ -404,7 +404,7 @@ public class ReportService {
         // Opening cash balance
         BigDecimal openingBalance = CurrencyConfig.zero();
         for (FinancialTransaction tx : ledgerStore.getTransactions()) {
-            if (tx.getDate().isBefore(from) && tx.getAccountType() == AccountType.CASH_AT_BANK) {
+            if (tx.getDate().isBefore(from) && isBankAccount(tx.getAccountType())) {
                 openingBalance = CurrencyConfig.money(openingBalance.add(tx.getDebit()).subtract(tx.getCredit()));
             }
         }
@@ -414,5 +414,12 @@ public class ReportService {
         rows.add(new CashFlowRow("Summary", "Closing Cash Balance", closingBalance));
 
         return rows;
+    }
+
+    private static boolean isBankAccount(AccountType type) {
+        return type == AccountType.CASH_AT_BANK
+                || type == AccountType.BANK_TUITION
+                || type == AccountType.BANK_INFRASTRUCTURE
+                || type == AccountType.BANK_BOARDING;
     }
 }

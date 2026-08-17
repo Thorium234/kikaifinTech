@@ -15,6 +15,7 @@ import com.schaccs.model.voucher.Imprest;
 import com.schaccs.model.voucher.Lpo;
 import com.schaccs.model.voucher.PaymentVoucher;
 import com.schaccs.accounting.AccountingEngine;
+import com.schaccs.accounting.DoubleEntryEngine;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
 import com.schaccs.service.finance.BudgetService;
@@ -132,7 +133,10 @@ public class PaymentVoucherService {
             return errors;
         }
 
-        String cashError = constraintService.checkNegativeCash(amount);
+        AccountType expenseAccount = commitment.getAccountType() != null
+                ? commitment.getAccountType() : AccountType.SCHOOL_FUND;
+        AccountType bankAccount = DoubleEntryEngine.resolveBankForExpense(expenseAccount);
+        String cashError = constraintService.checkNegativeCash(amount, bankAccount);
         if (cashError != null) {
             errors.add(cashError);
             return errors;
@@ -169,7 +173,7 @@ public class PaymentVoucherService {
                 journal.addLine(voucher.getAccountType(), voucher.getVoteheadCode(),
                         amount, CurrencyConfig.zero(),
                         "Expense — " + voucher.getVoteheadName());
-                journal.addLine(AccountType.CASH_AT_BANK, "CASH",
+                journal.addLine(bankAccount, "CASH",
                         CurrencyConfig.zero(), amount,
                         "Bank payment — " + voucher.getCreditorName());
                 accountingEngine.postTransaction(journal, TransactionType.PAYMENT_VOUCHER,

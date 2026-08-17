@@ -1,6 +1,7 @@
 package com.schaccs.service.procurement;
 
 import com.schaccs.accounting.AccountingEngine;
+import com.schaccs.accounting.DoubleEntryEngine;
 import com.schaccs.enums.AccountType;
 import com.schaccs.enums.TransactionType;
 import com.schaccs.model.finance.JournalEntry;
@@ -92,7 +93,7 @@ public class ProcurementAccountingIntegration {
     /**
      * Post a journal entry for a supplier payment made.
      * DEBIT: ACCOUNTS_PAYABLE
-     * CREDIT: CASH_AT_BANK
+     * CREDIT: Ring-fenced bank (resolved from expense account type)
      */
     public void postSupplierPayment(String contractId, String supplierName,
                                     BigDecimal amount, String voteheadCode) {
@@ -106,8 +107,9 @@ public class ProcurementAccountingIntegration {
                 amount, BigDecimal.ZERO,
                 "Supplier payment \u2014 " + supplierName);
 
-        // CREDIT: Cash at Bank
-        journal.addLine(AccountType.CASH_AT_BANK, voteheadCode,
+        // CREDIT: Ring-fenced bank account (resolved from expense type)
+        AccountType bankAccount = DoubleEntryEngine.resolveBankForExpense(resolveAccountType(voteheadCode));
+        journal.addLine(bankAccount, voteheadCode,
                 BigDecimal.ZERO, amount,
                 "Supplier payment disbursement \u2014 " + supplierName);
 
