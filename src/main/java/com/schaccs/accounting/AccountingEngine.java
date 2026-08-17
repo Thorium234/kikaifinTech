@@ -36,11 +36,22 @@ public class AccountingEngine {
     }
 
     public void postFeeReceiptLine(String receiptRef, String description, AccountType accountType,
-                                   String voteheadCode, BigDecimal amount, String studentId,
-                                   String receiptId, String voucherId, LocalDate date) {
+                                    String voteheadCode, BigDecimal amount, String studentId,
+                                    String receiptId, String voucherId, LocalDate date) {
         String user = AppConfig.getInstance().getCurrentUser();
         doubleEntryEngine.postFeeReceipt(receiptRef, description, accountType, voteheadCode,
                 CurrencyConfig.money(amount), studentId, receiptId, voucherId, user, date);
+    }
+
+    /**
+     * Post a fee billing entry: Debit AR, Credit Income.
+     * Called when fees are charged to a student.
+     */
+    public void postFeeBillingLine(String ref, String description, AccountType incomeAccount,
+                                    String voteheadCode, BigDecimal amount, String studentId, LocalDate date) {
+        String user = AppConfig.getInstance().getCurrentUser();
+        doubleEntryEngine.postFeeBilling(ref, description, incomeAccount, voteheadCode,
+                CurrencyConfig.money(amount), studentId, user, date);
     }
 
     public BigDecimal accountBalance(AccountType type) {

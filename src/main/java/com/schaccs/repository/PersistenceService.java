@@ -973,12 +973,13 @@ public final class PersistenceService {
         }
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO ledger_entries (id, date, account_type, votehead_code, reference, description,
-                    debit, credit, balance, transaction_id)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                    debit, credit, balance, transaction_id, previous_hash, hash)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET date=excluded.date, account_type=excluded.account_type,
                     votehead_code=excluded.votehead_code, reference=excluded.reference, description=excluded.description,
                     debit=excluded.debit, credit=excluded.credit, balance=excluded.balance,
-                    transaction_id=excluded.transaction_id
+                    transaction_id=excluded.transaction_id, previous_hash=excluded.previous_hash,
+                    hash=excluded.hash
                 """)) {
             for (LedgerEntry e : store.getLedgerEntries()) {
                 ps.setString(1, e.getId());
@@ -991,6 +992,8 @@ public final class PersistenceService {
                 ps.setString(8, money(e.getCredit()));
                 ps.setString(9, money(e.getBalance()));
                 ps.setString(10, e.getTransactionId());
+                ps.setString(11, e.getPreviousHash());
+                ps.setString(12, e.getHash());
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -1050,6 +1053,8 @@ public final class PersistenceService {
                 e.setDebit(parseMoney(rs.getString("debit")));
                 e.setCredit(parseMoney(rs.getString("credit")));
                 e.setTransactionId(rs.getString("transaction_id"));
+                e.setPreviousHash(rs.getString("previous_hash"));
+                e.setHash(rs.getString("hash"));
                 entries.add(e);
             }
             // Apply oldest-first for correct running balances

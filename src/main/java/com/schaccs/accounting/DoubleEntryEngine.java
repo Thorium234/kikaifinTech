@@ -9,11 +9,17 @@ import com.schaccs.model.finance.LedgerEntry;
 import com.schaccs.store.LedgerStore;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /**
  * Posts balanced journal entries into the ledger store.
  */
 public class DoubleEntryEngine {
+
+    private static final String GENESIS_HASH = "0".repeat(64);
 
     private final LedgerStore ledgerStore;
 
@@ -31,6 +37,8 @@ public class DoubleEntryEngine {
             throw new IllegalStateException("Journal is not balanced: debits="
                     + journal.totalDebits() + " credits=" + journal.totalCredits());
         }
+
+        String prevHash = ledgerStore.lastHash();
 
         for (JournalEntry.JournalLine line : journal.getLines()) {
             FinancialTransaction tx = new FinancialTransaction();
@@ -58,12 +66,26 @@ public class DoubleEntryEngine {
             entry.setDebit(line.getDebit());
             entry.setCredit(line.getCredit());
             entry.setTransactionId(tx.getId());
+            entry.setPreviousHash(prevHash);
+
+            String hashPayload = prevHash
+                    + "|" + (line.getAccountType() != null ? line.getAccountType().name() : "")
+                    + "|" + nvl(line.getVoteheadCode())
+                    + "|" + nvl(journal.getReference())
+                    + "|" + line.getDebit().toPlainString()
+                    + "|" + line.getCredit().toPlainString()
+                    + "|" + journal.getDate();
+            String hash = sha256(hashPayload);
+            entry.setHash(hash);
+            prevHash = hash;
+
             ledgerStore.addLedgerEntry(entry);
         }
     }
 
     /**
-     * Fee receipt: Debit Cash at Bank, Credit income votehead.
+     * Fee receipt: Debit Cash at Bank, Credit Accounts Receivable.
+     * Revenue was already recognized at billing time via {@link #postFeeBilling}.
      */
     public void postFeeReceipt(String reference, String narration, AccountType incomeAccount,
                                 String voteheadCode, BigDecimal amount, String studentId,
@@ -75,8 +97,45 @@ public class DoubleEntryEngine {
         // Debit cash at bank (asset)
         journal.addLine(AccountType.CASH_AT_BANK, "CASH_BANK", amount, CurrencyConfig.zero(),
                 "Cash/Bank — " + narration);
-        // Credit income votehead (revenue)
-        journal.addLine(incomeAccount, voteheadCode, CurrencyConfig.zero(), amount, narration);
+        // Credit accounts receivable (settle student's outstanding balance)
+        journal.addLine(AccountType.ACCOUNTS_RECEIVABLE, voteheadCode, CurrencyConfig.zero(), amount,
+                "AR settlement — " + narration);
         postJournal(journal, createdBy, studentId, receiptId, voucherId, TransactionType.FEE_RECEIPT);
+    }
+
+    /**
+     * Fee billing: Debit Accounts Receivable, Credit income votehead.
+     * Recognizes revenue when the fee is charged to the student.
+     */
+    public void postFeeBilling(String reference, String narration, AccountType incomeAccount,
+                                String voteheadCode, BigDecimal amount, String studentId,
+                                String createdBy, java.time.LocalDate date) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        JournalEntry journal = new JournalEntry();
+        journal.setDate(date);
+        journal.setReference(reference);
+        journal.setNarration(narration);
+        // Debit accounts receivable (asset — student owes this)
+        journal.addLine(AccountType.ACCOUNTS_RECEIVABLE, voteheadCode, amount, CurrencyConfig.zero(),
+                "AR — " + narration);
+        // Credit income votehead (revenue recognized)
+        journal.addLine(incomeAccount, voteheadCode, CurrencyConfig.zero(), amount, narration);
+        postJournal(journal, createdBy, studentId, null, null, TransactionType.FEE_CHARGE);
+    }
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
+    }
+
+    private static String nvl(String s) {
+        return s != null ? s : "";
     }
 }

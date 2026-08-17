@@ -18,6 +18,7 @@ import com.schaccs.accounting.AccountingEngine;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
 import com.schaccs.service.finance.BudgetService;
+import com.schaccs.service.finance.FinancialConstraintService;
 import com.schaccs.service.finance.FiscalYearService;
 import com.schaccs.store.LedgerStore;
 import com.schaccs.store.VoucherStore;
@@ -37,6 +38,7 @@ public class PaymentVoucherService {
     private final AuditService auditService;
     private final FiscalYearService fiscalYearService = new FiscalYearService();
     private final BudgetService budgetService = new BudgetService();
+    private final FinancialConstraintService constraintService = FinancialConstraintService.getInstance();
 
     public PaymentVoucherService() {
         this(VoucherStore.getInstance(), new AccountingEngine(), new AuditService());
@@ -127,6 +129,12 @@ public class PaymentVoucherService {
         if (!budgetService.checkBudget(commitment.getVoteheadCode(), amount)) {
             errors.add("Amount " + CurrencyConfig.format(amount)
                     + " exceeds the available budget for votehead " + commitment.getVoteheadName() + ".");
+            return errors;
+        }
+
+        String cashError = constraintService.checkNegativeCash(amount);
+        if (cashError != null) {
+            errors.add(cashError);
             return errors;
         }
 

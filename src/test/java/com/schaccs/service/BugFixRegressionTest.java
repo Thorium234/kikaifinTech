@@ -12,6 +12,7 @@ import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.model.finance.Votehead;
+import com.schaccs.model.finance.LedgerEntry;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
@@ -96,6 +97,15 @@ class BugFixRegressionTest {
         Creditor creditor = new Creditor("Supplier A", "0700000000");
         VoucherStore.getInstance().addCreditor(creditor);
         PaymentVoucherService service = new PaymentVoucherService(VoucherStore.getInstance(), new AccountingEngine());
+
+        // Seed CASH_AT_BANK balance so negative-cash guard passes
+        LedgerEntry seed = new LedgerEntry();
+        seed.setDate(LocalDate.now());
+        seed.setAccountType(AccountType.CASH_AT_BANK);
+        seed.setDebit(CurrencyConfig.money("500000"));
+        seed.setCredit(BigDecimal.ZERO);
+        seed.setDescription("Seed balance for test");
+        LedgerStore.getInstance().addLedgerEntry(seed);
 
         Lpo lpo = new Lpo();
         lpo.setCreditorId(creditor.getId());

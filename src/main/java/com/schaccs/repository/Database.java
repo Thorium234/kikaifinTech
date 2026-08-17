@@ -107,8 +107,15 @@ public final class Database {
     }
 
     /**
-     * Resolves the data directory once. Packaged apps keep the database in a
-     * {@code database} folder next to the executable; developer runs use ~/.schaccs.
+     * Resolves the data directory once. Priority:
+     * <ol>
+     *   <li>Packaged app (jpackage): a {@code database} folder next to the application
+     *       executable, if writable.</li>
+     *   <li>Windows: {@code %APPDATA%\ThorCash\database} — the OS-standard user data
+     *       location with guaranteed write permissions.</li>
+     *   <li>Linux / macOS: {@code ~/.local/share/thorcash}.</li>
+     *   <li>Ultimate fallback: {@code ~/.schaccs}.</li>
+     * </ol>
      */
     private static synchronized Path dataDirectory() {
         if (resolvedDataDirectory == null) {
@@ -126,6 +133,7 @@ public final class Database {
     }
 
     private static Path resolveDataDirectory() {
+        // 1. Packaged app — database folder next to the executable
         String appPath = System.getProperty("jpackage.app-path");
         if (appPath != null && !appPath.isBlank()) {
             Path appDir = Path.of(appPath).toAbsolutePath().getParent();
@@ -136,9 +144,33 @@ public final class Database {
                     return candidate;
                 }
                 LOG.warning("Database folder not writable at " + candidate
-                        + " — falling back to " + DEFAULT_DATA_DIR);
+                        + " — trying OS user data directory");
             }
         }
+
+        // 2. Windows: %APPDATA%\ThorCash\database
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("win")) {
+            String appData = System.getenv("APPDATA");
+            if (appData != null && !appData.isBlank()) {
+                Path candidate = Path.of(appData, "ThorCash", "database");
+                if (isWritable(candidate)) {
+                    LOG.info("Database folder (Windows AppData): " + candidate);
+                    return candidate;
+                }
+            }
+        }
+
+        // 3. Linux / macOS: ~/.local/share/thorcash
+        Path xdgCandidate = Path.of(System.getProperty("user.home"),
+                ".local", "share", "thorcash");
+        if (isWritable(xdgCandidate)) {
+            LOG.info("Database folder (XDG): " + xdgCandidate);
+            return xdgCandidate;
+        }
+
+        // 4. Ultimate fallback
+        LOG.info("Database folder (default): " + DEFAULT_DATA_DIR);
         return DEFAULT_DATA_DIR;
     }
 
@@ -234,6 +266,10 @@ public final class Database {
         try (Statement st = conn.createStatement()) {
             st.execute("PRAGMA foreign_keys=ON");
             st.execute("PRAGMA journal_mode=WAL");
+            st.execute("PRAGMA busy_timeout=5000");
+            st.execute("PRAGMA synchronous=NORMAL");
+            st.execute("PRAGMA mmap_size=268435456");
+            st.execute("PRAGMA cache_size=-8000");
         }
     }
 
@@ -318,7 +354,8 @@ public final class Database {
                 new MigrationV23RecycleBin(),
                 new MigrationV24EnabledPaymentModes(),
                 new MigrationV25CleanData(),
-                new MigrationV26TermStatusAndCourseTracking()
+                new MigrationV26TermStatusAndCourseTracking(),
+                new com.schaccs.repository.migration.MigrationV27LedgerHashChain()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {

@@ -1,18 +1,22 @@
 package com.schaccs.service.fee;
 
+import com.schaccs.accounting.AccountingEngine;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.config.SchoolProfile;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
+import com.schaccs.enums.AccountType;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
+import com.schaccs.model.finance.Votehead;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.store.FeeStructureStore;
 import com.schaccs.store.StudentStore;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,14 +26,21 @@ public class FeeCalculationService {
 
     private final FeeStructureStore feeStore;
     private final StudentStore studentStore;
+    private final AccountingEngine accountingEngine;
 
     public FeeCalculationService() {
-        this(FeeStructureStore.getInstance(), StudentStore.getInstance());
+        this(FeeStructureStore.getInstance(), StudentStore.getInstance(), new AccountingEngine());
     }
 
     public FeeCalculationService(FeeStructureStore feeStore, StudentStore studentStore) {
+        this(feeStore, studentStore, new AccountingEngine());
+    }
+
+    public FeeCalculationService(FeeStructureStore feeStore, StudentStore studentStore,
+                                  AccountingEngine accountingEngine) {
         this.feeStore = feeStore;
         this.studentStore = studentStore;
+        this.accountingEngine = accountingEngine;
     }
 
     public Optional<FeeStructure> structureFor(Student student) {
@@ -41,13 +52,11 @@ public class FeeCalculationService {
 
     /**
      * Apply annual fee structure charges to the student ledger (all terms).
-     */
-    /**
-     * Apply annual fee structure charges to the student ledger (all terms).
      * Idempotent: does nothing if the ledger already has charges (e.g. on re-edit),
      * to avoid double-charging the same voteheads.
      * Applies a sibling discount when enabled and this student is not the first
      * child sharing the same parent/guardian name.
+     * Posts GL billing entries (Debit AR, Credit Income) for each votehead charged.
      */
     public void chargeAnnualFees(Student student) {
         if (!isBillable(student)) {
@@ -59,9 +68,13 @@ public class FeeCalculationService {
         }
         structureFor(student).ifPresent(structure -> {
             BigDecimal factor = siblingDiscountFactor(student);
+            String ref = "BILL-" + student.getAdmissionNumber() + "-ANNUAL";
+            LocalDate today = LocalDate.now();
             for (FeeStructureItem item : structure.getItems()) {
                 BigDecimal amount = CurrencyConfig.money(item.getAmount().multiply(factor));
                 ledger.charge(item.getVoteheadCode(), amount);
+                postBillingEntry(ref, student, item.getVoteheadCode(), item.getVoteheadName(),
+                        amount, today);
             }
         });
     }
@@ -97,9 +110,13 @@ public class FeeCalculationService {
         }
         structureFor(student).ifPresent(structure -> {
             BigDecimal factor = siblingDiscountFactor(student);
+            String ref = "BILL-" + student.getAdmissionNumber() + "-" + term;
+            LocalDate today = LocalDate.now();
             for (FeeStructureItem item : structure.itemsForTerm(term)) {
                 BigDecimal amount = CurrencyConfig.money(item.getAmount().multiply(factor));
                 ledger.charge(item.getVoteheadCode(), amount);
+                postBillingEntry(ref, student, item.getVoteheadCode(), item.getVoteheadName(),
+                        amount, today);
             }
             ledger.setCurrentTerm(term);
         });
@@ -149,5 +166,24 @@ public class FeeCalculationService {
 
     public List<FeeStructure> allStructures() {
         return feeStore.getStructures();
+    }
+
+    /**
+     * Posts a single GL billing entry: Debit AR, Credit Income.
+     */
+    private void postBillingEntry(String ref, Student student, String voteheadCode,
+                                   String voteheadName, BigDecimal amount, LocalDate date) {
+        AccountType incomeAccount = feeStore.findVoteheadByCode(voteheadCode)
+                .map(Votehead::getAccountType)
+                .orElse(AccountType.SCHOOL_FUND);
+        accountingEngine.postFeeBillingLine(
+                ref,
+                "Fee billing — " + voteheadName + " (" + student.getAdmissionNumber() + ")",
+                incomeAccount,
+                voteheadCode,
+                amount,
+                student.getId(),
+                date
+        );
     }
 }

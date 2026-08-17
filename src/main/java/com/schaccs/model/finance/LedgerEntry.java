@@ -20,6 +20,8 @@ public class LedgerEntry {
     private BigDecimal credit = CurrencyConfig.zero();
     private BigDecimal balance = CurrencyConfig.zero();
     private String transactionId;
+    private String previousHash;
+    private String hash;
 
     public LedgerEntry() {
         this.id = UUID.randomUUID().toString();
@@ -108,7 +110,13 @@ public class LedgerEntry {
     public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
     }
-    
+
+    public String getPreviousHash() { return previousHash; }
+    public void setPreviousHash(String previousHash) { this.previousHash = previousHash; }
+
+    public String getHash() { return hash; }
+    public void setHash(String hash) { this.hash = hash; }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

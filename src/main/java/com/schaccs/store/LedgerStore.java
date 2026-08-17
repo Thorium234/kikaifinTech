@@ -157,4 +157,17 @@ public final class LedgerStore {
             accountBalances.put(type, CurrencyConfig.zero());
         }
     }
+
+    /**
+     * Returns the hash of the most recently added ledger entry, or a genesis
+     * zero-hash if no entries exist yet. Used by the hash-chain computation
+     * in {@link com.schaccs.accounting.DoubleEntryEngine}.
+     */
+    public synchronized String lastHash() {
+        if (ledgerEntries.isEmpty()) {
+            return "0".repeat(64);
+        }
+        String h = ledgerEntries.get(0).getHash();
+        return h != null ? h : "0".repeat(64);
+    }
 }
