@@ -70,6 +70,7 @@ public final class LedgerStore {
     }
 
     public synchronized List<FinancialTransaction> forStudent(String studentId) {
+        if (studentId == null) return List.of();
         return transactions.stream()
                 .filter(t -> studentId.equals(t.getStudentId()))
                 .collect(Collectors.toList());

@@ -136,6 +136,11 @@ public class PaymentVoucherService {
         AccountType expenseAccount = commitment.getAccountType() != null
                 ? commitment.getAccountType() : AccountType.SCHOOL_FUND;
         AccountType bankAccount = DoubleEntryEngine.resolveBankForExpense(expenseAccount);
+        String ringError = constraintService.checkRingFencing(expenseAccount, bankAccount);
+        if (ringError != null) {
+            errors.add(ringError);
+            return errors;
+        }
         String cashError = constraintService.checkNegativeCash(amount, bankAccount);
         if (cashError != null) {
             errors.add(cashError);

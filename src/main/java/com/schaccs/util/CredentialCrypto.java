@@ -21,7 +21,6 @@ public final class CredentialCrypto {
     private static final int ITERATIONS = 100_000;
     private static final String SECRET_SALT = "Schaccs!DB2024#Secret";
     private static final String MASTER_KEY_ENV = "SCHACCS_MASTER_KEY";
-    private static final String DEFAULT_MASTER_KEY = "schaccs-default-master-key";
 
     private CredentialCrypto() {}
 
@@ -46,7 +45,18 @@ public final class CredentialCrypto {
         if (property != null && !property.isBlank()) {
             return property;
         }
-        return DEFAULT_MASTER_KEY;
+        String generated = generateRandomKey();
+        LOG.warn("No SCHACCS_MASTER_KEY environment variable or system property set. "
+                + "Using a random in-memory key. Credentials encrypted in this session "
+                + "will NOT be decryptable after restart. Set SCHACCS_MASTER_KEY for "
+                + "persistent credential storage.");
+        return generated;
+    }
+
+    private static String generateRandomKey() {
+        byte[] keyBytes = new byte[32];
+        new SecureRandom().nextBytes(keyBytes);
+        return Base64.getEncoder().encodeToString(keyBytes);
     }
 
     public static String encrypt(String plaintext) {

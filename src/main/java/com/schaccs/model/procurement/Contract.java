@@ -21,6 +21,7 @@ public class Contract {
     private BigDecimal contractValue = CurrencyConfig.zero();
     private String deliverables;
     private ContractStatus status = ContractStatus.DRAFT;
+    private String voteheadCode;
     private String notes;
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -61,6 +62,9 @@ public class Contract {
 
     public ContractStatus getStatus() { return status; }
     public void setStatus(ContractStatus status) { this.status = status; }
+
+    public String getVoteheadCode() { return voteheadCode; }
+    public void setVoteheadCode(String voteheadCode) { this.voteheadCode = voteheadCode; }
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }

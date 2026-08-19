@@ -120,7 +120,7 @@ public enum AccountType {
     STAFF_LOAN_CONTROL("Staff Loan Control", "SLOAN", NormalBalance.CREDIT,
             StatementCategory.BALANCE_SHEET, null),
     BANK_CONTROL("Bank Control Account", "BNKCTRL", NormalBalance.CREDIT,
-            StatementCategory.BALANCE_SHEET, null);
+            StatementCategory.BALANCE_SHEET, "GOVT");
 
     private final String displayName;
     private final String code;

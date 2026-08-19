@@ -1,6 +1,7 @@
 package com.schaccs.service.receipt;
 
 import com.schaccs.accounting.AccountingEngine;
+import com.schaccs.accounting.DoubleEntryEngine;
 import com.schaccs.accounting.ReceiptAllocationEngine;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
@@ -21,6 +22,7 @@ import com.schaccs.store.LedgerStore;
 import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.service.audit.AuditService;
+import com.schaccs.service.finance.FinancialConstraintService;
 import com.schaccs.service.finance.FiscalYearService;
 import com.schaccs.util.DisasterRecoveryEngine;
 import com.schaccs.validation.ReceiptValidator;
@@ -172,6 +174,13 @@ public class ReceiptService {
                     .map(Votehead::getAccountType)
                     .orElse(AccountType.SCHOOL_FUND);
 
+            AccountType bankAccount = DoubleEntryEngine.resolveBankForIncome(accountType);
+            String ringError = FinancialConstraintService.getInstance()
+                    .checkRingFencing(accountType, bankAccount);
+            if (ringError != null) {
+                return Result.failure(List.of(ringError));
+            }
+
             accountingEngine.postFeeReceiptLine(
                     ref,
                     "Fee receipt " + receipt.getReceiptNumber() + " — " + alloc.getVoteheadName()
@@ -193,9 +202,9 @@ public class ReceiptService {
             persistenceAction.run();
             DisasterRecoveryEngine.getInstance().onReceiptPosted();
             auditService.log("RECEIPT_CREATED", "Receipt", receipt.getId(),
-                    "{\"receiptNumber\":" + receipt.getReceiptNumber()
-                            + ",\"studentId\":\"" + student.getId()
-                            + "\",\"admissionNumber\":\"" + student.getAdmissionNumber()
+                    "{\"receiptNumber\":\"" + receipt.getReceiptNumber()
+                            + "\",\"studentId\":\"" + jsonEscape(student.getId())
+                            + "\",\"admissionNumber\":\"" + jsonEscape(student.getAdmissionNumber())
                             + "\",\"amount\":" + amount
                             + ",\"paymentMode\":\"" + mode + "\"}");
             return Result.success(receipt, allocations);
@@ -350,9 +359,9 @@ public class ReceiptService {
             receipt.computeVerificationHash();
             persistenceAction.run();
             auditService.log("RECEIPT_REVERSED", "Receipt", receipt.getId(),
-                    "{\"receiptNumber\":" + receipt.getReceiptNumber()
-                            + ",\"amount\":" + receipt.getAmount()
-                            + (reason != null ? ",\"reason\":\"" + reason.replace("\"", "'") + "\"" : "") + "}");
+                    "{\"receiptNumber\":\"" + receipt.getReceiptNumber()
+                            + "\",\"amount\":" + receipt.getAmount()
+                            + (reason != null ? ",\"reason\":\"" + jsonEscape(reason) + "\"" : "") + "}");
             return Result.success(receipt, List.of());
         } catch (Exception e) {
             ledger.setArrears(savedArrears);
@@ -363,5 +372,11 @@ public class ReceiptService {
             LedgerStore.getInstance().rollbackToSnapshot(ledgerSnapshot);
             return Result.failure(List.of("Failed to reverse receipt: " + e.getMessage()));
         }
+    }
+
+    private static String jsonEscape(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 }

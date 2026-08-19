@@ -8,6 +8,7 @@ import com.schaccs.model.finance.JournalEntry;
 import com.schaccs.model.procurement.Contract;
 import com.schaccs.model.procurement.ContractMilestone;
 import com.schaccs.service.audit.AuditService;
+import com.schaccs.service.finance.FinancialConstraintService;
 
 import java.math.BigDecimal;
 
@@ -75,9 +76,9 @@ public class ProcurementAccountingIntegration {
         accountingEngine.postTransaction(journal, TransactionType.PROCUREMENT_GOODS_RECEIVED,
                 null, null, contractId);
         auditService.log("PROCUREMENT_GOODS_RECEIVED", "Contract", contractId,
-                "{\"supplierName\":\"" + supplierName.replace("\"", "'")
+                "{\"supplierName\":\"" + jsonEscape(supplierName)
                         + "\",\"amount\":" + amount
-                        + ",\"description\":\"" + description.replace("\"", "'") + "\"}");
+                        + ",\"description\":\"" + jsonEscape(description) + "\"}");
     }
 
     /**
@@ -97,6 +98,13 @@ public class ProcurementAccountingIntegration {
      */
     public void postSupplierPayment(String contractId, String supplierName,
                                     BigDecimal amount, String voteheadCode) {
+        AccountType expenseAccount = resolveAccountType(voteheadCode);
+        AccountType bankAccount = DoubleEntryEngine.resolveBankForExpense(expenseAccount);
+        String ringError = FinancialConstraintService.getInstance().checkRingFencing(expenseAccount, bankAccount);
+        if (ringError != null) {
+            throw new IllegalStateException(ringError);
+        }
+
         JournalEntry journal = new JournalEntry();
         journal.setDate(java.time.LocalDate.now());
         journal.setReference("PAY-SUP-" + contractId.substring(0, Math.min(8, contractId.length())));
@@ -108,7 +116,6 @@ public class ProcurementAccountingIntegration {
                 "Supplier payment \u2014 " + supplierName);
 
         // CREDIT: Ring-fenced bank account (resolved from expense type)
-        AccountType bankAccount = DoubleEntryEngine.resolveBankForExpense(resolveAccountType(voteheadCode));
         journal.addLine(bankAccount, voteheadCode,
                 BigDecimal.ZERO, amount,
                 "Supplier payment disbursement \u2014 " + supplierName);
@@ -116,7 +123,7 @@ public class ProcurementAccountingIntegration {
         accountingEngine.postTransaction(journal, TransactionType.PROCUREMENT_PAYMENT,
                 null, null, contractId);
         auditService.log("PROCUREMENT_PAYMENT", "Contract", contractId,
-                "{\"supplierName\":\"" + supplierName.replace("\"", "'")
+                "{\"supplierName\":\"" + jsonEscape(supplierName)
                         + "\",\"amount\":" + amount + "}");
     }
 
@@ -125,11 +132,13 @@ public class ProcurementAccountingIntegration {
      * Delegates to postSupplierPayment using the milestone amount and contract details.
      */
     public void postMilestonePayment(Contract contract, ContractMilestone milestone) {
+        String voteheadCode = contract.getVoteheadCode() != null
+                ? contract.getVoteheadCode() : "SUPPLIES";
         postSupplierPayment(
                 contract.getId(),
                 contract.getSupplierId(),
                 milestone.getAmount(),
-                "MILESTONE");
+                voteheadCode);
     }
 
     /**
@@ -164,5 +173,11 @@ public class ProcurementAccountingIntegration {
         }
 
         return AccountType.SUPPLIES;
+    }
+
+    private static String jsonEscape(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 }

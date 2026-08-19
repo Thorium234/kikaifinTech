@@ -152,7 +152,10 @@ public final class FinancialConstraintService {
      * Determines which ring-fenced bank account an income account should deposit into,
      * based on the restricted-group mapping. Returns null if the income account is
      * unrestricted (caller should use CASH_AT_BANK as fallback).
+     *
+     * @deprecated Use {@link com.schaccs.accounting.DoubleEntryEngine#resolveBankForIncome} instead.
      */
+    @Deprecated
     public static AccountType bankAccountForIncome(AccountType incomeAccount) {
         if (incomeAccount == null) return null;
         String group = incomeAccount.getRestrictedGroup();
@@ -168,7 +171,10 @@ public final class FinancialConstraintService {
      * Determines which ring-fenced bank account an expense should draw from,
      * based on the restricted-group mapping. Returns null if the expense account is
      * unrestricted (caller should use CASH_AT_BANK as fallback).
+     *
+     * @deprecated Use {@link com.schaccs.accounting.DoubleEntryEngine#resolveBankForExpense} instead.
      */
+    @Deprecated
     public static AccountType bankAccountForExpense(AccountType expenseAccount) {
         if (expenseAccount == null) return null;
         String group = expenseAccount.getRestrictedGroup();
@@ -184,6 +190,23 @@ public final class FinancialConstraintService {
      * Runs all constraint checks for a proposed payment. Returns a list of error
      * messages; empty list means all checks passed.
      */
+    public List<String> validatePayment(BigDecimal amount, LocalDate date,
+                                         String contractId,
+                                         AccountType expenseAccount,
+                                         AccountType bankAccount) {
+        List<String> errors = new ArrayList<>();
+        String cashCheck = checkNegativeCash(amount, bankAccount);
+        if (cashCheck != null) errors.add(cashCheck);
+        String fyCheck = checkFiscalYearOpen(date);
+        if (fyCheck != null) errors.add(fyCheck);
+        String contractCheck = checkContractOverflow(contractId, amount);
+        if (contractCheck != null) errors.add(contractCheck);
+        String ringCheck = checkRingFencing(expenseAccount, bankAccount);
+        if (ringCheck != null) errors.add(ringCheck);
+        return errors;
+    }
+
+    /** Overload for backward compatibility — checks legacy CASH_AT_BANK, no ring-fencing. */
     public List<String> validatePayment(BigDecimal amount, LocalDate date,
                                          String contractId) {
         List<String> errors = new ArrayList<>();

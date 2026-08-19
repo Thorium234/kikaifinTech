@@ -147,15 +147,22 @@ public class DoubleEntryEngine {
 
     /**
      * Resolves the correct bank account for an expense based on its
-     * restricted group. Returns CASH_AT_BANK for unrestricted accounts.
+     * restricted group and specific type. Returns CASH_AT_BANK for
+     * unrestricted accounts.
      */
     public static AccountType resolveBankForExpense(AccountType expenseAccount) {
         if (expenseAccount == null) return AccountType.CASH_AT_BANK;
         return switch (expenseAccount) {
             case TEACHING_LEARNING_MATERIALS -> AccountType.BANK_TUITION;
             case INFRASTRUCTURE_EXPANSION -> AccountType.BANK_INFRASTRUCTURE;
-            case BOARDING_FEES, ACTIVITY_FEES, FEES_BOARDING_ACTIVITY -> AccountType.BANK_BOARDING;
-            default -> AccountType.CASH_AT_BANK;
+            default -> {
+                String group = expenseAccount.getRestrictedGroup();
+                yield switch (group != null ? group : "") {
+                    case "GOVT" -> AccountType.BANK_TUITION;
+                    case "PARENT" -> AccountType.BANK_BOARDING;
+                    default -> AccountType.CASH_AT_BANK;
+                };
+            }
         };
     }
 

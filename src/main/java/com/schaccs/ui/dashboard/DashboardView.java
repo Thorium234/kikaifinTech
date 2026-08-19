@@ -89,7 +89,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         collectionCard = new DashboardCard("Total Collection", "KSh 0", ThemeConfig.SUCCESS);
         todayCard = new DashboardCard("Today's Collection", "KSh 0", ThemeConfig.ACCENT);
         outstandingCard = new DashboardCard("Outstanding Fees", "KSh 0", ThemeConfig.DANGER);
-        schoolFundCard = new DashboardCard("School Fund Balance", "KSh 0", ThemeConfig.PRIMARY_DARK);
+        schoolFundCard = new DashboardCard("Total Cash & Bank", "KSh 0", ThemeConfig.PRIMARY_DARK);
 
         configureNavigation();
 
