@@ -28,10 +28,20 @@ public class UpdateService {
         return currentVersion;
     }
 
+    private static final long RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
+
     public void checkForUpdates(boolean userInitiated) {
         if (!userInitiated && !settings.isAutoCheckEnabled()) {
             return;
         }
+
+        long now = System.currentTimeMillis();
+        long lastCheck = settings.getLastCheckTime();
+        if (!userInitiated && (now - lastCheck) < RATE_LIMIT_MS) {
+            return;
+        }
+
+        settings.setLastCheckTime(now);
 
         apiClient.fetchLatestRelease().orTimeout(30, java.util.concurrent.TimeUnit.SECONDS).thenAccept(release -> {
             String tagVersion = release.tagName().replaceFirst("^v", "");

@@ -9,6 +9,7 @@ public final class UpdateSettings {
     private static final String KEY_AUTO_DOWNLOAD = "autoDownload";
     private static final String KEY_CHANNEL = "channel";
     private static final String KEY_SKIPPED_VERSION = "skippedVersion";
+    private static final String KEY_LAST_CHECK_TIME = "lastCheckTime";
 
     private final Preferences prefs;
 
@@ -46,5 +47,13 @@ public final class UpdateSettings {
 
     public void setSkippedVersion(String version) {
         prefs.put(KEY_SKIPPED_VERSION, version);
+    }
+
+    public long getLastCheckTime() {
+        return prefs.getLong(KEY_LAST_CHECK_TIME, 0);
+    }
+
+    public void setLastCheckTime(long millis) {
+        prefs.putLong(KEY_LAST_CHECK_TIME, millis);
     }
 }

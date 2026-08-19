@@ -30,6 +30,7 @@ public class GitHubApiClient {
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(API_URL))
             .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "ThorCash-App-Updater/1.0")
             .timeout(TIMEOUT)
             .GET()
             .build();
