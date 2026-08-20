@@ -15,7 +15,8 @@ public class SearchBar extends HBox {
         setSpacing(10);
         setAlignment(Pos.CENTER_LEFT);
         Label icon = new Label("⌕");
-        icon.setStyle("-fx-font-size: 16px; -fx-text-fill: #5D6D7E;");
+        icon.getStyleClass().add("muted");
+        icon.setStyle("-fx-font-size: 16px;");
         field = new TextField();
         field.setPromptText(prompt);
         field.setPrefWidth(320);

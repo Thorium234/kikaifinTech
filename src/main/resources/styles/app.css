@@ -705,3 +705,23 @@
     -fx-border-radius: 10;
     -fx-border-width: 1;
 }
+
+.theme-toggle {
+    -fx-background-color: #F4F6F7;
+    -fx-text-fill: #5D6D7E;
+    -fx-background-radius: 999;
+    -fx-padding: 8;
+    -fx-cursor: hand;
+    -fx-min-width: 36;
+    -fx-min-height: 36;
+    -fx-max-width: 36;
+    -fx-max-height: 36;
+}
+
+.theme-toggle:hover {
+    -fx-background-color: #E0E0E0;
+}
+
+.theme-toggle .ikonli-font-icon {
+    -fx-icon-size: 16;
+}

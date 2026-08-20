@@ -3,6 +3,7 @@ package com.schaccs.ui.dashboard;
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.SchoolProfile;
 import com.schaccs.config.ThemeConfig;
+import com.schaccs.config.ThemeManager;
 import com.schaccs.enums.AccountType;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.receipt.Receipt;
@@ -28,6 +29,7 @@ import com.schaccs.util.MailMergeEngine;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
@@ -44,8 +46,11 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.io.File;
 import java.io.IOException;
@@ -84,6 +89,20 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
 
         Label heading = new Label("Overview Dashboard");
         heading.getStyleClass().add("section-title");
+
+        Button themeToggle = new Button();
+        themeToggle.getStyleClass().add("theme-toggle");
+        themeToggle.setFocusTraversable(false);
+        updateThemeIcon(themeToggle);
+        themeToggle.setOnAction(e -> {
+            ThemeManager.getInstance().toggleTheme(getScene());
+            updateThemeIcon(themeToggle);
+        });
+
+        Region headingSpacer = new Region();
+        HBox.setHgrow(headingSpacer, Priority.ALWAYS);
+        HBox headerRow = new HBox(8, heading, headingSpacer, themeToggle);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
 
         studentsCard = new DashboardCard("Active Students", "0", ThemeConfig.PRIMARY);
         collectionCard = new DashboardCard("Total Collection", "KSh 0", ThemeConfig.SUCCESS);
@@ -159,7 +178,7 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
 
         VBox feeReminderSection = buildFeeReminderSection();
 
-        VBox allContent = new VBox(16, heading, integrityBanner, cards, chartBox, chartsGaugeBox,
+        VBox allContent = new VBox(16, headerRow, integrityBanner, cards, chartBox, chartsGaugeBox,
                 tableScroll, feeReminderSection);
         allContent.setPadding(new Insets(4));
 
@@ -453,6 +472,12 @@ public class DashboardView extends VBox implements MainLayout.Refreshable {
         topDefaulters.getColumns().addAll(columns3);
         topDefaulters.setPrefHeight(260);
         topDefaulters.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+    }
+
+    private void updateThemeIcon(Button toggle) {
+        boolean dark = ThemeManager.getInstance().isDark();
+        toggle.setGraphic(new FontIcon(dark ? FontAwesomeSolid.SUN : FontAwesomeSolid.MOON));
+        toggle.setTooltip(new javafx.scene.control.Tooltip(dark ? "Switch to Light Mode" : "Switch to Dark Mode"));
     }
 
     @Override

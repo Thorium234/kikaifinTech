@@ -2,6 +2,8 @@ package com.schaccs.config;
 
 /**
  * Shared colour tokens for the desktop UI.
+ * Static constants are light-mode defaults for backward compatibility.
+ * Use {@code get(token)} for dynamic light/dark resolution.
  */
 public final class ThemeConfig {
 
@@ -21,5 +23,13 @@ public final class ThemeConfig {
     public static final String SIDEBAR_ACTIVE = "#1ABC9C";
 
     private ThemeConfig() {
+    }
+
+    /**
+     * Returns the current theme colour for the given token.
+     * Resolves dynamically based on the active light/dark theme.
+     */
+    public static String get(String token) {
+        return ThemeManager.getInstance().getColor(token);
     }
 }

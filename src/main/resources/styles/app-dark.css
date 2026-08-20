@@ -1,0 +1,421 @@
+/* ==========================================================================
+   ThorCash Dark Theme
+   Loaded alongside app.css — .dark class on root activates overrides.
+   ========================================================================== */
+
+.dark {
+    -fx-background-color: #121212;
+    -fx-text-fill: #E0E0E0;
+}
+
+/* ---- Title Bar ---- */
+.dark .title-bar {
+    -fx-background-color: #0A1929;
+}
+
+/* ---- Sidebar ---- */
+.dark .sidebar {
+    -fx-background-color: #0A1929;
+}
+.dark .sidebar-scroll {
+    -fx-background-color: #0A1929;
+}
+.dark .sidebar-scroll > .viewport {
+    -fx-background-color: #0A1929;
+}
+.dark .nav-button {
+    -fx-text-fill: #BDBDBD;
+}
+.dark .nav-button .ikonli-font-icon {
+    -fx-icon-color: #BDBDBD;
+}
+.dark .nav-button:hover {
+    -fx-background-color: #1565C0;
+    -fx-text-fill: white;
+}
+.dark .nav-button:hover .ikonli-font-icon {
+    -fx-icon-color: white;
+}
+
+/* ---- Top Bar ---- */
+.dark .top-bar {
+    -fx-background-color: #1A1A1A;
+    -fx-border-color: #333333;
+}
+.dark .top-title {
+    -fx-text-fill: #E0E0E0;
+}
+
+/* ---- Status Bar ---- */
+.dark .status-bar {
+    -fx-background-color: #1A1A1A;
+    -fx-border-color: #333333;
+}
+
+/* ---- Content Area ---- */
+.dark .content-area {
+    -fx-background-color: #121212;
+}
+
+/* ---- Cards ---- */
+.dark .card {
+    -fx-background-color: #1E1E1E;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 2);
+}
+.dark .kpi-card {
+    -fx-background-color: #1E1E1E;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 2);
+}
+.dark .kpi-label {
+    -fx-text-fill: #9E9E9E;
+}
+.dark .kpi-value {
+    -fx-text-fill: #5DADE2;
+}
+
+/* ---- Typography ---- */
+.dark .section-title {
+    -fx-text-fill: #E0E0E0;
+}
+.dark .muted {
+    -fx-text-fill: #9E9E9E;
+}
+
+/* ---- Buttons ---- */
+.dark .secondary-button {
+    -fx-background-color: #333333;
+    -fx-text-fill: #E0E0E0;
+}
+
+/* ---- Tables ---- */
+.dark .table-view {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: #333333;
+}
+.dark .table-view .column-header-background {
+    -fx-background-color: #252525;
+}
+.dark .table-view .column-header-background .label {
+    -fx-text-fill: #BDBDBD;
+}
+.dark .table-view .table-row-cell {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: #333333;
+    -fx-text-fill: #E0E0E0;
+}
+.dark .table-view .table-row-cell:odd {
+    -fx-background-color: #252525;
+}
+.dark .table-view .table-row-cell:selected {
+    -fx-background-color: #1B3A2A;
+}
+.dark .table-view .table-row-cell:selected .text {
+    -fx-fill: #E0E0E0;
+}
+.dark .table-view .table-cell {
+    -fx-text-fill: #E0E0E0;
+}
+
+/* ---- Scroll Bars ---- */
+.dark .scroll-pane .scroll-bar:vertical .thumb {
+    -fx-background-color: #555555;
+}
+.dark .scroll-pane .scroll-bar:vertical .thumb:hover,
+.dark .scroll-pane .scroll-bar:vertical .thumb:pressed {
+    -fx-background-color: #777777;
+}
+.dark .table-view .scroll-bar:vertical .thumb {
+    -fx-background-color: #555555;
+}
+.dark .sidebar-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+}
+.dark .sidebar-scroll .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* ---- Text Fields / Inputs ---- */
+.dark .text-field,
+.dark .combo-box,
+.dark .date-picker,
+.dark .text-area {
+    -fx-background-color: #2A2A2A;
+    -fx-text-fill: #E0E0E0;
+    -fx-border-color: #444444;
+}
+.dark .text-field:focused,
+.dark .combo-box:focused,
+.dark .date-picker:focused,
+.dark .text-area:focused {
+    -fx-border-color: #5DADE2;
+}
+.dark .text-field .prompt-text,
+.dark .text-area .prompt-text {
+    -fx-text-fill: #777777;
+}
+.dark .combo-box .list-cell {
+    -fx-text-fill: #E0E0E0;
+    -fx-background-color: #2A2A2A;
+}
+.dark .combo-box-popup .list-view {
+    -fx-background-color: #2A2A2A;
+}
+.dark .combo-box-popup .list-view .list-cell {
+    -fx-text-fill: #E0E0E0;
+    -fx-background-color: #2A2A2A;
+}
+.dark .combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: #333333;
+}
+
+/* ---- Date Picker Popup ---- */
+.dark .date-picker-popup {
+    -fx-background-color: #2A2A2A;
+    -fx-border-color: #444444;
+}
+.dark .date-picker-popup > .month-year-pane {
+    -fx-background-color: #2A2A2A;
+}
+.dark .date-picker-popup .day-cell {
+    -fx-background-color: #2A2A2A;
+    -fx-text-fill: #E0E0E0;
+}
+.dark .date-picker-popup .day-cell:hover {
+    -fx-background-color: #333333;
+}
+.dark .date-picker-popup .selected {
+    -fx-background-color: #1565C0;
+    -fx-text-fill: white;
+}
+.dark .date-picker-popup .today {
+    -fx-border-color: #5DADE2;
+}
+
+/* ---- Spinner ---- */
+.dark .spinner {
+    -fx-background-color: #2A2A2A;
+}
+.dark .spinner .text-field {
+    -fx-background-color: #2A2A2A;
+}
+.dark .spinner .increment-arrow-button,
+.dark .spinner .decrement-arrow-button {
+    -fx-background-color: #333333;
+}
+.dark .spinner .increment-arrow-button:hover,
+.dark .spinner .decrement-arrow-button:hover {
+    -fx-background-color: #444444;
+}
+
+/* ---- Dialogs ---- */
+.dark .dialog-pane {
+    -fx-background-color: #1E1E1E;
+}
+.dark .dialog-pane .content {
+    -fx-text-fill: #E0E0E0;
+}
+.dark .dialog-pane .header-panel {
+    -fx-background-color: #1E1E1E;
+}
+.dark .dialog-pane .header-panel .label {
+    -fx-text-fill: #E0E0E0;
+}
+
+/* ---- Pay labels ---- */
+.dark .pay-label {
+    -fx-text-fill: #9E9E9E;
+}
+.dark .pay-value {
+    -fx-text-fill: #5DADE2;
+}
+
+/* ---- Policy Banner ---- */
+.dark .policy-banner {
+    -fx-background-color: #3E2C0A;
+    -fx-text-fill: #F5C842;
+}
+
+/* ---- Student Form ---- */
+.dark .student-form-card {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: #333333;
+}
+.dark .student-form-label {
+    -fx-text-fill: #BDBDBD;
+}
+.dark .student-avatar-box {
+    -fx-border-color: #444444;
+    -fx-background-color: #252525;
+}
+.dark .student-header-badge {
+    -fx-background-color: #1A2A3A;
+    -fx-text-fill: #5DADE2;
+}
+.dark .student-validation-banner {
+    -fx-background-color: #3E1A1A;
+    -fx-text-fill: #EF9A9A;
+    -fx-border-color: #5C2626;
+}
+.dark .student-mode-create {
+    -fx-background-color: #1A3A2A;
+    -fx-text-fill: #66BB6A;
+}
+.dark .student-mode-edit {
+    -fx-background-color: #3A2A1A;
+    -fx-text-fill: #FFA726;
+}
+.dark .student-form-section {
+    -fx-text-fill: #5DADE2;
+}
+.dark .student-status-active {
+    -fx-text-fill: #66BB6A;
+}
+.dark .student-status-inactive {
+    -fx-text-fill: #FFA726;
+}
+
+/* ---- Receipt ---- */
+.dark .receipt-header-badge {
+    -fx-background-color: #1A3A2A;
+    -fx-text-fill: #66BB6A;
+}
+.dark .receipt-mode-ready {
+    -fx-background-color: #1A2A3A;
+    -fx-text-fill: #5DADE2;
+}
+.dark .receipt-mode-active {
+    -fx-background-color: #1A3A2A;
+    -fx-text-fill: #66BB6A;
+}
+.dark .receipt-student-summary {
+    -fx-text-fill: #E0E0E0;
+}
+.dark .receipt-form-label {
+    -fx-text-fill: #BDBDBD;
+}
+.dark .receipt-pay-card {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: #333333;
+}
+.dark .receipt-preview-card {
+    -fx-background-color: #1E1E1E;
+}
+
+/* ---- Voucher ---- */
+.dark .voucher-header-badge {
+    -fx-background-color: #2A1A3A;
+    -fx-text-fill: #BA68C8;
+}
+.dark .voucher-mode-ready {
+    -fx-background-color: #1A2A3A;
+    -fx-text-fill: #5DADE2;
+}
+.dark .voucher-table-card,
+.dark .voucher-form-card {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: #333333;
+}
+.dark .voucher-form-label {
+    -fx-text-fill: #BDBDBD;
+}
+
+/* ---- Reports ---- */
+.dark .reports-header-badge {
+    -fx-background-color: #1A2A3A;
+    -fx-text-fill: #5DADE2;
+}
+.dark .reports-mode-ready {
+    -fx-background-color: #1A3A2A;
+    -fx-text-fill: #66BB6A;
+}
+.dark .reports-section-card {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: #333333;
+}
+
+/* ---- Charts ---- */
+.dark .chart-legend {
+    -fx-background-color: transparent;
+}
+.dark .chart-legend-item .label {
+    -fx-text-fill: #BDBDBD;
+}
+.dark .chart-title {
+    -fx-text-fill: #E0E0E0;
+}
+.dark .axis-label {
+    -fx-text-fill: #9E9E9E;
+}
+
+/* ---- Check Box ---- */
+.dark .check-box .text {
+    -fx-fill: #E0E0E0;
+}
+.dark .check-box:selected .box {
+    -fx-background-color: #5DADE2;
+}
+
+/* ---- Tab Pane ---- */
+.dark .tab-pane .tab-header-area {
+    -fx-background-color: #1A1A1A;
+}
+.dark .tab-pane .tab {
+    -fx-background-color: #2A2A2A;
+}
+.dark .tab-pane .tab:selected {
+    -fx-background-color: #1E1E1E;
+}
+.dark .tab-pane .tab .tab-label {
+    -fx-text-fill: #BDBDBD;
+}
+.dark .tab-pane .tab-content-area {
+    -fx-background-color: #1E1E1E;
+}
+
+/* ---- Toggle Switch / Theme Toggle ---- */
+.dark .theme-toggle {
+    -fx-background-color: #333333;
+    -fx-text-fill: #FFD54F;
+}
+.dark .theme-toggle:hover {
+    -fx-background-color: #444444;
+}
+.dark .theme-toggle .ikonli-font-icon {
+    -fx-icon-color: #FFD54F;
+}
+
+/* ---- Import cells ---- */
+.dark .import-error-cell {
+    -fx-background-color: #3E1A1A;
+    -fx-text-fill: #EF9A9A;
+}
+.dark .import-error-cell .text {
+    -fx-fill: #EF9A9A;
+}
+.dark .import-error-text {
+    -fx-text-fill: #EF9A9A;
+}
+.dark .import-ok-text {
+    -fx-text-fill: #66BB6A;
+}
+
+/* ---- Pie chart ---- */
+.dark .pie-chart {
+    -fx-background-color: transparent;
+}
+.dark .pie-chart .pie-label {
+    -fx-fill: #E0E0E0;
+}
+
+/* ---- Progress Bar ---- */
+.dark .progress-bar {
+    -fx-accent: #5DADE2;
+}
+.dark .progress-bar .track {
+    -fx-background-color: #333333;
+}
+
+/* ---- Scroll Bar corner ---- */
+.dark .scroll-pane .corner {
+    -fx-background-color: transparent;
+}

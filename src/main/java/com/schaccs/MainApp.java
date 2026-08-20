@@ -1,6 +1,7 @@
 package com.schaccs;
 
 import com.schaccs.config.AppConfig;
+import com.schaccs.config.ThemeManager;
 import com.schaccs.repository.AppBootstrap;
 import com.schaccs.update.UpdateScheduler;
 import com.schaccs.update.UpdateService;
@@ -129,6 +130,9 @@ public class MainApp extends Application {
             Scene scene = new Scene(root, 1280, 800);
             scene.getStylesheets().add(
                     Objects.requireNonNull(getClass().getResource("/styles/app.css")).toExternalForm());
+            scene.getStylesheets().add(
+                    Objects.requireNonNull(getClass().getResource("/styles/app-dark.css")).toExternalForm());
+            ThemeManager.getInstance().applyTheme(scene);
 
             // TitleBar needs the scene to attach resize/drag listeners
             titleBar.attachResizeListeners(scene);
