@@ -55,10 +55,19 @@ public class UpdateSettingsView extends VBox {
             checkNow.setDisable(true);
             statusLabel.setText("Checking...");
             statusLabel.setStyle("-fx-text-fill: #e65100;");
-            updateService.checkForUpdates(true);
-            statusLabel.setText("Check complete.");
-            statusLabel.setStyle("-fx-text-fill: #1a472a;");
-            checkNow.setDisable(false);
+            updateService.checkForUpdates(true, result -> javafx.application.Platform.runLater(() -> {
+                if ("up-to-date".equals(result)) {
+                    statusLabel.setText("Up to date.");
+                    statusLabel.setStyle("-fx-text-fill: #1a472a;");
+                } else if ("update-available".equals(result)) {
+                    statusLabel.setText("Update available.");
+                    statusLabel.setStyle("-fx-text-fill: #1a472a;");
+                } else {
+                    statusLabel.setText(result);
+                    statusLabel.setStyle("-fx-text-fill: #c62828;");
+                }
+                checkNow.setDisable(false);
+            }));
         });
 
         getChildren().addAll(heading, sub, autoCheck, autoDownload, channelRow, actionRow);

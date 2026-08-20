@@ -19,32 +19,21 @@ public class GitHubApiClient {
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
 
     private final HttpClient client;
-    private final String authToken;
 
     public GitHubApiClient() {
-        this(null);
-    }
-
-    public GitHubApiClient(String authToken) {
-        this.authToken = (authToken != null && !authToken.isBlank()) ? authToken : null;
         this.client = HttpClient.newBuilder()
             .connectTimeout(TIMEOUT)
             .build();
     }
 
     public CompletableFuture<GitHubRelease> fetchLatestRelease() {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
+        HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(API_URL))
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "ThorCash-App-Updater/1.0")
             .timeout(TIMEOUT)
-            .GET();
-
-        if (authToken != null) {
-            builder.header("Authorization", "Bearer " + authToken);
-        }
-
-        HttpRequest request = builder.build();
+            .GET()
+            .build();
 
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenApply(response -> {

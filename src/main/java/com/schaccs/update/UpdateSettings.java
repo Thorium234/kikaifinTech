@@ -10,7 +10,7 @@ public final class UpdateSettings {
     private static final String KEY_CHANNEL = "channel";
     private static final String KEY_SKIPPED_VERSION = "skippedVersion";
     private static final String KEY_LAST_CHECK_TIME = "lastCheckTime";
-    private static final String KEY_GITHUB_TOKEN = "githubToken";
+    private static final String KEY_LAST_CHECKED_VERSION = "lastCheckedVersion";
 
     private final Preferences prefs;
 
@@ -58,11 +58,11 @@ public final class UpdateSettings {
         prefs.putLong(KEY_LAST_CHECK_TIME, millis);
     }
 
-    public String getGitHubToken() {
-        return prefs.get(KEY_GITHUB_TOKEN, "");
+    public String getLastCheckedVersion() {
+        return prefs.get(KEY_LAST_CHECKED_VERSION, "");
     }
 
-    public void setGitHubToken(String token) {
-        prefs.put(KEY_GITHUB_TOKEN, token != null ? token : "");
+    public void setLastCheckedVersion(String version) {
+        prefs.put(KEY_LAST_CHECKED_VERSION, version != null ? version : "");
     }
 }

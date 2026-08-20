@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import javafx.application.Platform;
 
 public class UpdateService {
@@ -31,7 +32,15 @@ public class UpdateService {
     private static final long RATE_LIMIT_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     public void checkForUpdates(boolean userInitiated) {
+        checkForUpdates(userInitiated, null);
+    }
+
+    public void checkForUpdates(boolean userInitiated, Consumer<String> resultCallback) {
         if (!userInitiated && !settings.isAutoCheckEnabled()) {
+            return;
+        }
+
+        if (!userInitiated && currentVersion.equals(settings.getLastCheckedVersion())) {
             return;
         }
 
@@ -47,17 +56,31 @@ public class UpdateService {
             String tagVersion = release.tagName().replaceFirst("^v", "");
             String skipped = settings.getSkippedVersion();
 
-            if (tagVersion.equals(skipped)) return;
+            if (tagVersion.equals(skipped)) {
+                if (resultCallback != null) resultCallback.accept("up-to-date");
+                return;
+            }
 
             if (VersionComparator.isNewer(currentVersion, tagVersion)) {
                 if (release.prerelease() && !"prerelease".equals(settings.getChannel())) {
+                    settings.setLastCheckedVersion(currentVersion);
+                    if (resultCallback != null) resultCallback.accept("up-to-date");
                     return;
                 }
+                if (resultCallback != null) resultCallback.accept("update-available");
                 Platform.runLater(() -> showUpdateDialog(release));
+            } else {
+                settings.setLastCheckedVersion(currentVersion);
+                if (resultCallback != null) resultCallback.accept("up-to-date");
             }
         }).exceptionally(ex -> {
             if (userInitiated) {
-                Platform.runLater(() -> showError(ex.getMessage()));
+                String msg = ex.getMessage();
+                if (resultCallback != null) {
+                    Platform.runLater(() -> resultCallback.accept(msg));
+                } else {
+                    Platform.runLater(() -> showError(msg));
+                }
             }
             return null;
         });
