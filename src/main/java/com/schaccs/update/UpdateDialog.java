@@ -21,7 +21,7 @@ public class UpdateDialog extends Dialog<ButtonType> {
 
     private Path downloadedFile;
 
-    public UpdateDialog(GitHubRelease release, UpdateService service) {
+    public UpdateDialog(GitHubRelease release, UpdateService service, boolean autoDownload) {
         progressBar = new ProgressBar(0);
         progressBar.setPrefWidth(400);
         progressBar.setVisible(false);
@@ -92,6 +92,14 @@ public class UpdateDialog extends Dialog<ButtonType> {
         cancelButton.setOnAction(e -> close());
 
         setResultConverter(btn -> btn);
+
+        if (autoDownload) {
+            Platform.runLater(this::autoStartDownload);
+        }
+    }
+
+    private void autoStartDownload() {
+        downloadButton.fire();
     }
 
     private void startDownload(GitHubRelease release, UpdateService service) {

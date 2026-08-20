@@ -87,7 +87,7 @@ public class UpdateService {
     }
 
     private void showUpdateDialog(GitHubRelease release) {
-        UpdateDialog dialog = new UpdateDialog(release, this);
+        UpdateDialog dialog = new UpdateDialog(release, this, settings.isAutoDownloadEnabled());
         dialog.showAndWait();
     }
 
