@@ -19,24 +19,50 @@ public class GitHubApiClient {
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
 
     private final HttpClient client;
+    private final String authToken;
 
     public GitHubApiClient() {
+        this(null);
+    }
+
+    public GitHubApiClient(String authToken) {
+        this.authToken = (authToken != null && !authToken.isBlank()) ? authToken : null;
         this.client = HttpClient.newBuilder()
             .connectTimeout(TIMEOUT)
             .build();
     }
 
     public CompletableFuture<GitHubRelease> fetchLatestRelease() {
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
             .uri(URI.create(API_URL))
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "ThorCash-App-Updater/1.0")
             .timeout(TIMEOUT)
-            .GET()
-            .build();
+            .GET();
+
+        if (authToken != null) {
+            builder.header("Authorization", "Bearer " + authToken);
+        }
+
+        HttpRequest request = builder.build();
 
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenApply(response -> {
+                if (response.statusCode() == 404) {
+                    throw new RuntimeException(
+                        "GitHub API returned 404 Not Found. The repository may be "
+                        + "private — set a GitHub Personal Access Token in Settings → Updates.");
+                }
+                if (response.statusCode() == 401) {
+                    throw new RuntimeException(
+                        "GitHub API returned 401 Unauthorized. The access token "
+                        + "may be invalid or expired — update it in Settings → Updates.");
+                }
+                if (response.statusCode() == 403) {
+                    throw new RuntimeException(
+                        "GitHub API returned 403 Forbidden. Rate limit exceeded "
+                        + "or access denied. Try again later or set a token in Settings → Updates.");
+                }
                 if (response.statusCode() != 200) {
                     throw new RuntimeException(
                         "GitHub API returned " + response.statusCode());
