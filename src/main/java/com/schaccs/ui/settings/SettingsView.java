@@ -7,9 +7,7 @@ import com.schaccs.config.db.DatasourceManager;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.repository.Database;
 import com.schaccs.repository.PersistenceService;
-import com.schaccs.service.setup.DemoDataSeeder;
 import com.schaccs.service.setup.SystemResetService;
-import com.schaccs.store.StudentStore;
 import com.schaccs.ui.layout.MainLayout;
 import com.schaccs.update.UpdateService;
 import com.schaccs.update.UpdateSettingsView;
@@ -71,8 +69,6 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
     private final TextField nextReceipt = new TextField();
     private final TextField currentUser = new TextField();
     private final TextArea cashPolicy = new TextArea();
-    private final javafx.scene.control.CheckBox siblingDiscount = new javafx.scene.control.CheckBox("Enable sibling discount");
-    private final TextField siblingRate = new TextField();
     private final TextField logoPath = new TextField();
     private final TextField stampPath = new TextField();
     private final TextField signaturePath = new TextField();
@@ -139,9 +135,6 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         cashPolicy.setPrefRowCount(3);
         cashPolicy.setWrapText(true);
         grid.add(cashPolicy, 1, r++);
-        grid.add(new Label("Sibling Discount"), 0, r);
-        siblingRate.setPromptText("e.g. 0.10 = 10%");
-        grid.add(new HBox(8, siblingDiscount, siblingRate), 1, r++);
         grid.add(new Label("PDF Stamp"), 0, r);
         grid.add(pdfStampToggle, 1, r++);
         grid.add(new Label("Receipt Logo"), 0, r);
@@ -210,12 +203,11 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
 
         VBox dbCard = buildDatabaseConfigCard();
         VBox dbStorageCard = buildDatabaseStorageCard();
-        VBox demoCard = buildDemoDataCard();
         VBox purgeCard = buildSystemPurgeCard();
 
         UpdateSettingsView updateCard = new UpdateSettingsView(updateService);
 
-        VBox allContent = new VBox(14, heading, card, paymentModesCard, historyCard, dbCard, dbStorageCard, demoCard, purgeCard, updateCard);
+        VBox allContent = new VBox(14, heading, card, paymentModesCard, historyCard, dbCard, dbStorageCard, purgeCard, updateCard);
         allContent.setPadding(new Insets(0, 0, 60, 0));
         ScrollPane mainScroll = new ScrollPane(allContent);
         mainScroll.setFitToWidth(true);
@@ -578,8 +570,6 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         nextReceipt.setText(String.valueOf(p.getNextReceiptNumber()));
         currentUser.setText(AppConfig.getInstance().getCurrentUser());
         cashPolicy.setText(p.getCashPolicy());
-        siblingDiscount.setSelected(p.isSiblingDiscountEnabled());
-        siblingRate.setText(p.getSiblingDiscountRate().toPlainString());
         pdfStampToggle.setSelected(p.isPdfStampEnabled());
         logoPath.setText(p.getLogoPath() == null ? "" : p.getLogoPath());
         stampPath.setText(p.getStampPath() == null ? "" : p.getStampPath());
@@ -759,52 +749,6 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         mockPreview.setImage(null);
     }
 
-    private VBox buildDemoDataCard() {
-        Label heading = new Label("Demo Data Seeding");
-        heading.getStyleClass().add("section-title");
-        Label sub = new Label("Seed a realistic 2-year dataset with 24 students, fee structures, payments, and deliberate arrears in Term 3 for testing.");
-        sub.setWrapText(true);
-        sub.getStyleClass().add("muted");
-
-        Button seedBtn = new Button("Seed Demo Environment");
-        seedBtn.getStyleClass().add("primary-button");
-        Label statusLabel = new Label("");
-        statusLabel.getStyleClass().add("muted");
-
-        seedBtn.setOnAction(e -> {
-            if (!AlertUtil.confirm("Seed Demo Environment",
-                    "This will DELETE all existing data and create a fresh demo dataset.\n\n"
-                            + "Current data will be permanently lost. Continue?")) {
-                return;
-            }
-            seedBtn.setDisable(true);
-            statusLabel.setText("Seeding in progress...");
-            statusLabel.setStyle("-fx-text-fill: #e65100;");
-            CompletableFuture.runAsync(() -> {
-                try {
-                    DemoDataSeeder.seed();
-                    Platform.runLater(() -> {
-                        seedBtn.setDisable(false);
-                        statusLabel.setText("Demo data seeded successfully! " + StudentStore.getInstance().getStudents().size()
-                                + " students loaded with fee structures and payment records.");
-                        statusLabel.setStyle("-fx-text-fill: #1a472a;");
-                        load();
-                    });
-                } catch (Exception ex) {
-                    Platform.runLater(() -> {
-                        seedBtn.setDisable(false);
-                        statusLabel.setText("Seeding failed: " + ex.getMessage());
-                        statusLabel.setStyle("-fx-text-fill: #b00020;");
-                        AlertUtil.error("Seeding Failed", ex.getMessage());
-                    });
-                }
-            });
-        });
-
-        VBox card = new VBox(10, heading, sub, seedBtn, statusLabel);
-        card.getStyleClass().add("card");
-        return card;
-    }
 
     private VBox buildSystemPurgeCard() {
         Label heading = new Label("System Purge & Reset");
@@ -915,9 +859,6 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
             p.setAcademicYear(Integer.parseInt(academicYear.getText().trim()));
             p.setNextReceiptNumber(Long.parseLong(nextReceipt.getText().trim()));
             p.setCashPolicy(cashPolicy.getText().trim());
-            p.setSiblingDiscountEnabled(siblingDiscount.isSelected());
-            p.setSiblingDiscountRate(CurrencyConfig.money(siblingRate.getText().trim().isEmpty()
-                    ? "0.00" : siblingRate.getText().trim()));
             p.setPdfStampEnabled(pdfStampToggle.isSelected());
             p.setLogoPath(logoPath.getText().trim().isEmpty() ? null : logoPath.getText().trim());
             p.setStampPath(stampPath.getText().trim().isEmpty() ? null : stampPath.getText().trim());
