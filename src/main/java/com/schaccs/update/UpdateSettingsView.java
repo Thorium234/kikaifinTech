@@ -11,7 +11,6 @@ public class UpdateSettingsView extends VBox {
     private final CheckBox autoCheck;
     private final CheckBox autoDownload;
     private final ComboBox<String> channelCombo;
-    private final TextField tokenField;
     private final Label statusLabel;
 
     public UpdateSettingsView(UpdateService updateService) {
@@ -42,16 +41,6 @@ public class UpdateSettingsView extends VBox {
         HBox channelRow = new HBox(8, channelLabel, channelCombo);
         channelRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label tokenLabel = new Label("GitHub Token (for private repo):");
-        tokenField = new TextField(settings.getGitHubToken());
-        tokenField.setPromptText("ghp_... or github_pat_...");
-        tokenField.setPrefWidth(300);
-        tokenField.setTooltip(new Tooltip(
-            "Personal Access Token needed for private repositories.\n"
-            + "Create at github.com → Settings → Developer settings → Tokens"));
-        HBox tokenRow = new HBox(8, tokenLabel, tokenField);
-        tokenRow.setAlignment(Pos.CENTER_LEFT);
-
         Button checkNow = new Button("Check Now");
         checkNow.getStyleClass().add("primary-button");
         statusLabel = new Label("");
@@ -63,7 +52,6 @@ public class UpdateSettingsView extends VBox {
 
         checkNow.setOnAction(e -> {
             saveSettings();
-            updateService.refreshApiClient();
             checkNow.setDisable(true);
             statusLabel.setText("Checking...");
             statusLabel.setStyle("-fx-text-fill: #e65100;");
@@ -73,7 +61,7 @@ public class UpdateSettingsView extends VBox {
             checkNow.setDisable(false);
         });
 
-        getChildren().addAll(heading, sub, autoCheck, autoDownload, channelRow, tokenRow, actionRow);
+        getChildren().addAll(heading, sub, autoCheck, autoDownload, channelRow, actionRow);
 
         autoCheck.selectedProperty().addListener((obs, old, val) -> saveSettings());
         autoDownload.selectedProperty().addListener((obs, old, val) -> saveSettings());
@@ -85,6 +73,5 @@ public class UpdateSettingsView extends VBox {
         settings.setAutoCheckEnabled(autoCheck.isSelected());
         settings.setAutoDownloadEnabled(autoDownload.isSelected());
         settings.setChannel(channelCombo.getValue());
-        settings.setGitHubToken(tokenField.getText());
     }
 }

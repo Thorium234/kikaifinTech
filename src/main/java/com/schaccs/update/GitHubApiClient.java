@@ -50,18 +50,12 @@ public class GitHubApiClient {
             .thenApply(response -> {
                 if (response.statusCode() == 404) {
                     throw new RuntimeException(
-                        "GitHub API returned 404 Not Found. The repository may be "
-                        + "private — set a GitHub Personal Access Token in Settings → Updates.");
+                        "Release not found (404). Check your internet connection.");
                 }
-                if (response.statusCode() == 401) {
+                if (response.statusCode() == 401 || response.statusCode() == 403) {
                     throw new RuntimeException(
-                        "GitHub API returned 401 Unauthorized. The access token "
-                        + "may be invalid or expired — update it in Settings → Updates.");
-                }
-                if (response.statusCode() == 403) {
-                    throw new RuntimeException(
-                        "GitHub API returned 403 Forbidden. Rate limit exceeded "
-                        + "or access denied. Try again later or set a token in Settings → Updates.");
+                        "Access denied (" + response.statusCode() + "). "
+                        + "Rate limit exceeded or authentication required.");
                 }
                 if (response.statusCode() != 200) {
                     throw new RuntimeException(

@@ -8,7 +8,7 @@ import javafx.application.Platform;
 
 public class UpdateService {
 
-    private GitHubApiClient apiClient;
+    private final GitHubApiClient apiClient;
     private final DownloadManager downloadManager;
     private final UpdateSettings settings;
     private final String currentVersion;
@@ -16,13 +16,8 @@ public class UpdateService {
     public UpdateService(String currentVersion) {
         this.currentVersion = currentVersion;
         this.settings = new UpdateSettings();
-        this.apiClient = new GitHubApiClient(settings.getGitHubToken());
+        this.apiClient = new GitHubApiClient();
         this.downloadManager = new DownloadManager();
-    }
-
-    public void refreshApiClient() {
-        // Rebuild client with latest token from settings
-        this.apiClient = new GitHubApiClient(settings.getGitHubToken());
     }
 
     public UpdateSettings getSettings() {
