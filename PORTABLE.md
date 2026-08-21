@@ -1,54 +1,89 @@
-# ThorCash — Portable ZIP Build (CLI)
+# ThorCash — Build & Installer Guide
 
-This document explains how to produce the **portable ZIP** distribution of ThorCash
-for future versions, and how the current app-image was produced.
+How to produce all three distribution artifacts from source.
 
-## What the portable ZIP is
+---
 
-`target\dist\ThorCash-Portable-1.0.1.zip` (~91 MB) is the finished application,
-fully self-contained:
+## Artifacts
 
-- `ThorCash.exe` — the launcher
-- `app\` — the main JAR, all dependency JARs, JavaFX native DLLs, launcher config
-- `runtime\` — a custom JVM created with `jlink` (includes `java.exe` / `javaw.exe`)
+| File | Location | What it is |
+|------|----------|------------|
+| `ThorCash-Portable-<ver>.zip` | `target\dist\` | **Portable package** — unzip anywhere, double-click `ThorCash.exe`. No install, no admin, no JVM needed. This is what clients use. |
+| `ThorCash-Setup-<ver>.exe` | `target\bootstrapper-output\` | **Shareable installer** — single EXE with EULA, install-folder picker, progress bar, admin elevation, desktop shortcut, Start Menu entry. Wraps the MSI. |
+| `ThorCash-<ver>.msi` | `target\installer\` | **MSI installer** — Windows Installer package for enterprise deployment (GPO / Intune / silent install). Not shared with clients. |
 
-The client just unzips it anywhere and double-clicks `ThorCash.exe`.
-**No installer is run, no JVM is installed on the client, no admin rights needed.**
-This is the package that was verified working on the client machine.
+All three are the same app — same JAR, same bundled JVM, same behavior. Pick based on deployment method.
 
-> Platform requirement: **Windows 10/11 (64-bit)**. The bundled JDK 26 runtime
-> cannot load on Windows 7/8 or 32-bit Windows.
+---
 
 ## Prerequisites (build machine)
 
-| Tool | Version | Check |
-|------|---------|-------|
+| Tool | Version | How to verify |
+|------|---------|---------------|
 | JDK | 26.0.2 | `"C:\Program Files\Java\jdk-26.0.2\bin\java" -version` |
 | Maven | 3.9+ | `mvn -version` |
+| WiX Toolset v3 | 3.14 | `candle -?` |
 | PowerShell | 5.1+ | `$PSVersionTable` |
 
-WiX is **not** needed for the ZIP (only for the MSI/bootstrapper).
+WiX is only needed for the MSI and bootstrapper EXE. The portable ZIP can be built without it.
 
-## How the app-image is produced — step by step
+Install WiX if missing:
+```
+winget install WiXToolset.WiXToolset
+```
+
+---
+
+## One-Command Build (recommended)
+
+From the project root:
+
+```
+build-installer.bat
+```
+
+This runs everything automatically:
+
+1. Verify environment (JDK, Maven, WiX)
+2. Run tests (`mvn clean test`)
+3. Package JAR + dependencies (`mvn package -DskipTests`)
+4. Create custom JVM runtime with `jlink`
+5. Assemble installer input (JARs + JavaFX native DLLs)
+6. Build MSI with `jpackage`
+7. Verify MSI contains runtime
+8. Build bootstrapper EXE with WiX Burn
+9. Build portable ZIP from app-image
+10. Generate SHA-256 checksums
+
+On success, all three artifacts exist:
+
+```
+target\dist\ThorCash-Portable-1.0.13.zip            (90 MB)
+target\bootstrapper-output\ThorCash-Setup-1.0.13.exe  (91 MB)
+target\installer\ThorCash-1.0.13.msi                (92 MB)
+```
+
+---
+
+## Manual Step-by-Step Build
+
+If you want to build individual artifacts or understand what the bat file does.
 
 All commands run from the project root.
 
-### 1. Build and test
+### Step 1 — Build and test
 
 ```
 mvn clean test
 mvn package -DskipTests
 ```
 
-`mvn package` produces:
+Produces:
+- `target\thorcash-<version>.jar` — executable JAR
+- `target\libs\*.jar` — dependency JARs
+- `target\installer-input\` — main JAR + all dependencies (pre-assembled by Maven)
 
-| Output | Purpose |
-|--------|---------|
-| `target\thorcash-<version>.jar` | executable application JAR |
-| `target\libs\*.jar` | runtime dependency JARs |
-| `target\installer-input\` | main JAR + all dependencies (pre-assembled by the Maven dependency plugin) |
-
-### 2. Create the custom JVM runtime (jlink)
+### Step 2 — Create custom JVM runtime (jlink)
 
 ```
 "C:\Program Files\Java\jdk-26.0.2\bin\jlink.exe" ^
@@ -61,24 +96,19 @@ mvn package -DskipTests
     --output target\runtime
 ```
 
-Produces `target\runtime\` with `bin\java.exe` and `bin\javaw.exe`.
+Produces `target\runtime\` (~52 MB) with `bin\java.exe` and `bin\javaw.exe`.
 
-> **Keep the module list in sync** with `build-installer.bat` and `pom.xml`.
-> Missing modules (e.g. `java.net.http` for the update checker) caused the
-> original "Failed to launch JVM" failure.
+> Keep the module list in sync with `build-installer.bat`. Missing modules cause "Failed to launch JVM" at runtime.
 
-### 3. Extract the JavaFX native DLLs into the input dir
+### Step 3 — Extract JavaFX native DLLs
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File src\main\installer\extract-javafx-dlls.ps1 -OutputDir target\installer-input
 ```
 
-Copies the JavaFX `*.dll` files (glass.dll, prism_d3d.dll, etc.) out of the
-Gluon `-win` jars in `%UserProfile%\.m2` into `target\installer-input\`.
+Copies `glass.dll`, `prism_d3d.dll`, etc. from the Gluon `-win` JARs in your Maven cache into `target\installer-input\`.
 
-### 4. Create the application image (jpackage)
-
-**This is the command that produces the app-image:**
+### Step 4a — Portable ZIP
 
 ```
 "C:\Program Files\Java\jdk-26.0.2\bin\jpackage.exe" ^
@@ -86,9 +116,9 @@ Gluon `-win` jars in `%UserProfile%\.m2` into `target\installer-input\`.
     --runtime-image target\runtime ^
     --dest target\app-image ^
     --name ThorCash ^
-    --app-version 1.0.1 ^
+    --app-version 1.0.13 ^
     --input target\installer-input ^
-    --main-jar thorcash-1.0.1.jar ^
+    --main-jar thorcash-1.0.13.jar ^
     --main-class com.schaccs.Launcher ^
     --icon src\main\resources\icon.ico ^
     --vendor "Thor Technologies" ^
@@ -97,70 +127,15 @@ Gluon `-win` jars in `%UserProfile%\.m2` into `target\installer-input\`.
     --java-options "-Djava.library.path=."
 ```
 
-Output: `target\app-image\ThorCash\` containing `ThorCash.exe`, `app\`, and `runtime\`.
-
-Notes:
-- `--runtime-image target\runtime` makes jpackage bundle *our* jlink runtime
-  (which includes `java.exe`/`javaw.exe`) instead of building its own.
-- `--main-jar thorcash-1.0.1.jar` must match the jar name in `target\installer-input\`
-  (it is derived from the version in `pom.xml`).
-
-### 5. Zip the app-image
+Then zip it:
 
 ```
-powershell -NoProfile -Command "Compress-Archive -Path 'target\app-image\ThorCash\*' -DestinationPath 'target\dist\ThorCash-Portable-1.0.1.zip' -Force"
+powershell -NoProfile -Command "Compress-Archive -Path 'target\app-image\ThorCash\*' -DestinationPath 'target\dist\ThorCash-Portable-1.0.13.zip' -Force"
 ```
 
-Output: `target\dist\ThorCash-Portable-1.0.1.zip` (~91 MB) — **this is the file to hand to clients.**
+Output: `target\dist\ThorCash-Portable-1.0.13.zip` — **this is the file to give clients.**
 
-## Quick path for a future version
-
-`build-installer.bat` now performs steps 1–3 **and** the ZIP (its step 7b creates the
-app-image and `target\dist\ThorCash-Portable-<version>.zip`), so the whole portable
-package is produced by the one command alongside the MSI and bootstrapper EXE.
-
-## Smoke test (verify before shipping)
-
-1. Extract the ZIP anywhere (e.g. `D:\ThorCash`).
-2. Double-click `ThorCash.exe` — splash screen then main window must appear.
-3. Prove the bundled JVM works with **no system Java**:
-   - In a fresh PowerShell: `$env:PATH = "C:\Windows\System32;C:\Windows"; Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue`
-   - Run `.\ThorCash.exe` from the extracted folder — the app must still launch.
-4. Check the database landed beside the app: after first launch there must be a
-   `database` folder containing `schaccs.db` in the same directory as `ThorCash.exe`. Settings →
-   **Database Location & Retrieval** shows that exact path and can open the folder,
-   copy the path, or export a copy of the database for safe-keeping. The app never
-   writes to `~\.schaccs` in packaged mode (it only migrates a pre-existing
-   `~\.schaccs\schaccs.db` in on the very first packaged run).
-
-## Version bump checklist (new release)
-
-| Location | Change |
-|----------|--------|
-| `pom.xml` (`<version>`) | new version — controls jar name + `version.properties` |
-| `build-installer.bat` (`APP_VERSION`) | new version |
-| `src\main\installer\extract-javafx-dlls.ps1` | only when upgrading JavaFX (currently 21.0.6) |
-| `src\main\installer\wix\Bundle.wxs`, `build-bootstrapper.bat` | auto — version read from the MSI filename |
-
-Then update `--app-version`, `--main-jar`, and the ZIP name in steps 4–5 above.
-
----
-
-## Generating a new MSI installer
-
-The MSI is the Windows Installer package — the same self-contained app, but
-installable via the standard "run the installer" flow. It never needs a JVM.
-
-**Recommended:** run the one-command pipeline which builds everything (tests,
-runtime, MSI, bootstrapper EXE, checksums):
-
-```
-build-installer.bat
-```
-
-**Or, from an existing build** (when `target\runtime` and `target\installer-input`
-already exist — e.g. right after `build-installer.bat` or after the portable steps
-1–3 above), run jpackage directly:
+### Step 4b — MSI installer
 
 ```
 "C:\Program Files\Java\jdk-26.0.2\bin\jpackage.exe" ^
@@ -168,9 +143,9 @@ already exist — e.g. right after `build-installer.bat` or after the portable s
     --runtime-image target\runtime ^
     --dest target\installer ^
     --name ThorCash ^
-    --app-version 1.0.1 ^
+    --app-version 1.0.13 ^
     --input target\installer-input ^
-    --main-jar thorcash-1.0.1.jar ^
+    --main-jar thorcash-1.0.13.jar ^
     --main-class com.schaccs.Launcher ^
     --icon src\main\resources\icon.ico ^
     --vendor "Thor Technologies" ^
@@ -183,94 +158,89 @@ already exist — e.g. right after `build-installer.bat` or after the portable s
     --java-options "-Djava.library.path=."
 ```
 
-Output: `target\installer\ThorCash-1.0.1.msi` (~92 MB).
+Output: `target\installer\ThorCash-1.0.13.msi`
 
-### Per-user MSI (no admin rights needed)
+### Step 4c — Bootstrapper EXE (wraps MSI)
 
-Add `--win-per-user-install`. This installs to `%LOCALAPPDATA%\ThorCash` instead of
-`Program Files` and can be installed without elevation:
-
-```
-... --type msi --win-per-user-install ...
-```
-
-> Verified: a per-user MSI built this way installed and launched on this machine
-> with no system Java (identical layout to the ZIP). Both MSI variants are
-> byte-for-byte the same app as the portable ZIP — if the ZIP runs on a machine,
-> the current MSI/EXE build runs there too.
-
-## Generating a new bootstrapper EXE
-
-The bootstrapper (`ThorCash-Setup-1.0.1.exe`) is a WiX Burn bundle that wraps the
-MSI with the license page, install-folder picker, progress bar and admin
-elevation. It is produced by `build-installer.bat` automatically. To build it
-manually after generating the MSI:
+Requires WiX Toolset v3.14 (`candle.exe` and `light.exe` on PATH).
 
 ```
 set "WIX=C:\Program Files (x86)\WiX Toolset v3.14\bin"
-"%WIX%\candle.exe" -nologo -out target\bootstrapper\Bundle.wixobj ^
+
+"%WIX%\candle.exe" -nologo ^
+    -out target\bootstrapper\Bundle.wixobj ^
     -ext WixBalExtension -ext WixUtilExtension ^
     -dProjectDir="src\main\installer\wix" ^
-    -dMsiPath="target\installer\ThorCash-1.0.1.msi" ^
-    -dVersion=1.0.1 ^
+    -dMsiPath="target\installer\ThorCash-1.0.13.msi" ^
+    -dVersion=1.0.13 ^
     -dIconPath="src\main\resources\icon.ico" ^
     src\main\installer\wix\Bundle.wxs
-"%WIX%\light.exe" -nologo -out target\bootstrapper-output\ThorCash-Setup-1.0.1.exe ^
+
+"%WIX%\light.exe" -nologo ^
+    -out target\bootstrapper-output\ThorCash-Setup-1.0.13.exe ^
     -ext WixBalExtension -ext WixUtilExtension ^
     target\bootstrapper\Bundle.wixobj
 ```
 
-Output: `target\bootstrapper-output\ThorCash-Setup-1.0.1.exe` (~91 MB).
+Output: `target\bootstrapper-output\ThorCash-Setup-1.0.13.exe`
 
-## Which distribution to hand to clients
+---
 
-| File | When to use |
-|------|-------------|
-| `ThorCash-Portable-1.0.1.zip` | **Most reliable.** No install, no admin, runs anywhere — proven working on the client machine. |
-| `ThorCash-Setup-1.0.1.exe` | Standard "run the installer" flow (EULA + shortcut, admin). Same app as the ZIP. |
-| `ThorCash-1.0.1.msi` | Enterprise deployment (GPO / Intune / silent install). |
+## Version Bump Checklist
 
-If a machine reports "Failed to launch JVM" from the installed EXE but the ZIP
-runs fine on the same machine, it is **not** the package — it is either a stale
-(pre-fix) installer being re-run, or antivirus/permission interference on the
-Program Files path. Use the ZIP there.
+When releasing a new version, update these files **before** running `build-installer.bat`:
 
-## Windows compatibility (important)
+| File | What to change |
+|------|----------------|
+| `pom.xml` | `<version>X.Y.Z</version>` (line 9) |
+| `build-installer.bat` | `set "APP_VERSION=X.Y.Z"` (line 5) |
+| `src\main\java\com\schaccs\ui\layout\Sidebar.java` | `"Version X.Y.Z"` (line 91) |
 
-### Requirements
+The bootstrapper EXE reads the version from the MSI filename automatically — no manual change needed in `Bundle.wxs` or `build-bootstrapper.bat`.
 
-The bundled runtime is built by **JDK 26, which only runs on Windows 10/11
-(64-bit)**. On Windows 7/8/8.1 or 32-bit Windows the bundled `jvm.dll` cannot load
-and the app shows "Failed to launch JVM" — for the ZIP, MSI and EXE alike.
+---
 
-### 32-bit Windows is not possible (verified)
+## Smoke Test (verify before shipping)
 
-32-bit Windows support is **impossible for this app** — not because of packaging,
-but because **OpenJFX (JavaFX 9+, including the 21 we use) has no 32-bit Windows
-build at all**. The `org.openjfx` artifacts on Maven Central ship exactly these
-classifiers: `linux`, `mac`, `mac-aarch64`, `win` — the `win` jars/DLLs are 64-bit
-only. No JDK (32-bit or otherwise) can load x64 JavaFX native DLLs on a 32-bit OS.
-A full Swing or web-based rewrite (~33k lines of JavaFX) would be the only path.
-
-### The cost myth — you do NOT need an expensive machine
-
-ThorCash runs fine on any 64-bit PC with 4 GB RAM, which costs **$80–400**
-(used business desktops are cheapest) — not $40,000. Before buying anything:
-
-1. Check whether the school's "old" PCs are actually 64-bit capable. On each
-   machine, run:
+1. Extract the portable ZIP anywhere (e.g. `D:\ThorCash`).
+2. Double-click `ThorCash.exe` — splash screen then main window must appear.
+3. Prove the bundled JVM works with **no system Java**:
+   ```powershell
+   $env:PATH = "C:\Windows\System32;C:\Windows"
+   Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+   .\ThorCash.exe
    ```
-   wmic cpu get AddressWidth
-   ```
-   - `AddressWidth` = 64 → hardware is 64-bit, the PC just runs 32-bit Windows.
-     Install **64-bit Windows 10/11** (free reinstall) and the existing ZIP works
-     with zero new hardware.
-   - `AddressWidth` = 32 → genuine 32-bit hardware (pre-2006 era). No modern
-     software runs there (Chrome, Firefox, LibreOffice have all dropped 32-bit
-     Windows too), so it is not a ThorCash-specific problem.
+   The app must still launch.
+4. Check database: after first launch a `database\schaccs.db` folder must appear next to the app. Settings > Database Location shows the path and can open/copy/export it.
 
-2. If any genuinely 32-bit-only machines must be used, the realistic options are:
-   - Run ThorCash on one 64-bit PC and access it remotely (Remote Desktop) from the
-     32-bit machines, or
-   - Replace the handful of 32-bit units with used 64-bit desktops (~$80 each),
-     which is far cheaper than any software workaround.
+---
+
+## Which File to Give to Clients
+
+| Scenario | File |
+|----------|------|
+| Normal client — just needs it to work | `ThorCash-Portable-<ver>.zip` |
+| Client wants a proper Windows installer | `ThorCash-Setup-<ver>.exe` |
+| Enterprise / IT department deploying to many PCs | `ThorCash-<ver>.msi` |
+
+**The portable ZIP is the most reliable.** If an installed EXE fails to launch but the ZIP works on the same machine, it is usually a stale installer or antivirus interference — not a packaging bug. Use the ZIP.
+
+---
+
+## Windows Compatibility
+
+- **Required:** Windows 10/11 (64-bit)
+- **Not supported:** Windows 7/8/8.1 or 32-bit Windows (JDK 26 runtime cannot load)
+- **Impossible:** 32-bit support requires a full rewrite — OpenJFX has no 32-bit Windows build
+- **Any 64-bit PC with 4 GB RAM** works fine (used desktops cost ~$80)
+
+Check if a PC is 64-bit capable:
+```
+wmic cpu get AddressWidth
+```
+- `64` = hardware is 64-bit, just install 64-bit Windows
+- `32` = pre-2006 hardware, no modern software runs there
+
+---
+
+**Thor Technologies**
