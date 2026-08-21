@@ -90,7 +90,7 @@ class PayAfterArrearsReproTest {
         ledger.pay("TUITION", CurrencyConfig.money("400"));
 
         // End of Term 1: unpaid 600 rolls to arrears, Term 2 is billed 1000.
-        calendar.rolloverIfDue(LocalDate.of(2026, 4, 25));
+        calendar.rolloverIfDue(LocalDate.of(2026, 5, 5));
         assertEquals(AcademicTerm.TERM_2, ledger.getCurrentTerm());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("600")));
         assertEquals(0, ledger.getTotalCharged().compareTo(CurrencyConfig.money("1000")),

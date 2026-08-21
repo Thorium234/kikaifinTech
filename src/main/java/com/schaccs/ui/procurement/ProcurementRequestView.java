@@ -69,19 +69,19 @@ public class ProcurementRequestView extends VBox implements MainLayout.Refreshab
         setupTable();
 
         Button createBtn = new Button("Create Request");
-        createBtn.getStyleClass().add("btn-primary");
+        createBtn.getStyleClass().add("primary-button");
         createBtn.setOnAction(e -> createRequest());
 
         Button submitBtn = new Button("Submit for Approval");
-        submitBtn.getStyleClass().add("btn-secondary");
+        submitBtn.getStyleClass().add("secondary-button");
         submitBtn.setOnAction(e -> submitRequest());
 
         Button approveBtn = new Button("Approve");
-        approveBtn.getStyleClass().add("btn-primary");
+        approveBtn.getStyleClass().add("success-button");
         approveBtn.setOnAction(e -> approveRequest());
 
         Button rejectBtn = new Button("Reject");
-        rejectBtn.getStyleClass().add("btn-secondary");
+        rejectBtn.getStyleClass().add("danger-button");
         rejectBtn.setOnAction(e -> rejectRequest());
 
         HBox buttons = new HBox(10, createBtn, submitBtn, approveBtn, rejectBtn);

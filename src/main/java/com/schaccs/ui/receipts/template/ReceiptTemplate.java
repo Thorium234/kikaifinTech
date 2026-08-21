@@ -190,8 +190,12 @@ public class ReceiptTemplate extends BorderPane {
     }
 
     private BigDecimal fetchCurrentBalance(Receipt r) {
-        // conservative: use previous balance minus payment amount
-        return fetchPreviousBalance(r).subtract(r != null ? r.getAmount() : BigDecimal.ZERO);
+        if (r == null) return BigDecimal.ZERO;
+        try {
+            return StudentStore.getInstance().getLedger(r.getStudentId()).getBalance();
+        } catch (Exception e) {
+            return fetchPreviousBalance(r).subtract(r.getAmount());
+        }
     }
 
     private BigDecimal fetchCarryForwardCredit(Receipt r) {

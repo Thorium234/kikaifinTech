@@ -1,5 +1,6 @@
 package com.schaccs.service;
 
+import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
@@ -31,6 +32,7 @@ class RecycleBinTest {
     @BeforeEach
     void setUp() {
         PersistenceService.getInstance().clearAll();
+        AppConfig.getInstance().setCurrentUserRole("PRINCIPAL");
         service = new StudentService();
     }
 

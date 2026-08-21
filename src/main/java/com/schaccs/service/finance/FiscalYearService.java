@@ -36,6 +36,7 @@ public class FiscalYearService {
     }
 
     public FiscalYear openFiscalYear(int year) {
+        com.schaccs.util.RoleGuard.requireFinanceAdmin();
         Optional<FiscalYear> existing = accountStore.findFiscalYearByYear(year);
         if (existing.isPresent()) {
             throw new IllegalStateException("Fiscal year " + year + " already exists");
@@ -67,6 +68,7 @@ public class FiscalYearService {
     }
 
     public void closeFiscalYear(FiscalYear fy) {
+        com.schaccs.util.RoleGuard.requireFinanceAdmin();
         if (!fy.isOpen()) {
             throw new IllegalStateException("Fiscal year " + fy.getYear() + " is not open");
         }

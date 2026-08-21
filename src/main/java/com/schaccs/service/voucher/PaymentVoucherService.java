@@ -96,6 +96,8 @@ public class PaymentVoucherService {
 
     public List<String> payVoucher(Commitment commitment, BigDecimal amount, PaymentMode mode,
                                    String bankReference, LocalDate date, String notes) {
+        com.schaccs.util.RoleGuard.requireFinanceAdmin();
+
         List<String> errors = new ArrayList<>();
         if (commitment == null) {
             errors.add("Select a commitment.");

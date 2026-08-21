@@ -85,23 +85,23 @@ public class ContractView extends VBox implements MainLayout.Refreshable {
         setupContractTable();
 
         Button createBtn = new Button("Create Contract");
-        createBtn.getStyleClass().add("btn-primary");
+        createBtn.getStyleClass().add("primary-button");
         createBtn.setOnAction(e -> createContract());
 
         Button activateBtn = new Button("Activate");
-        activateBtn.getStyleClass().add("btn-secondary");
+        activateBtn.getStyleClass().add("success-button");
         activateBtn.setOnAction(e -> activateContract());
 
         Button completeBtn = new Button("Complete");
-        completeBtn.getStyleClass().add("btn-secondary");
+        completeBtn.getStyleClass().add("secondary-button");
         completeBtn.setOnAction(e -> completeContract());
 
         Button extendBtn = new Button("Extend");
-        extendBtn.getStyleClass().add("btn-secondary");
+        extendBtn.getStyleClass().add("secondary-button");
         extendBtn.setOnAction(e -> extendContract());
 
         Button terminateBtn = new Button("Terminate");
-        terminateBtn.getStyleClass().add("btn-secondary");
+        terminateBtn.getStyleClass().add("danger-button");
         terminateBtn.setOnAction(e -> terminateContract());
 
         FlowPane buttons = new FlowPane(10, 10, createBtn, activateBtn, completeBtn, extendBtn, terminateBtn);
@@ -339,11 +339,11 @@ public class ContractView extends VBox implements MainLayout.Refreshable {
         setupMilestoneTable();
 
         Button addBtn = new Button("Add Milestone");
-        addBtn.getStyleClass().add("btn-primary");
+        addBtn.getStyleClass().add("primary-button");
         addBtn.setOnAction(e -> addMilestone());
 
         Button completeBtn = new Button("Complete Milestone");
-        completeBtn.getStyleClass().add("btn-secondary");
+        completeBtn.getStyleClass().add("success-button");
         completeBtn.setOnAction(e -> completeMilestone());
 
         HBox buttons = new HBox(10, addBtn, completeBtn);

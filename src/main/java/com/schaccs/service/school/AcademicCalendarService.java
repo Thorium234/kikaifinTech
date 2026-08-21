@@ -477,18 +477,22 @@ public class AcademicCalendarService {
     // ------------------------------------------------------------------
 
     /**
-     * Seeds the 2026 sample periods (Term 1 20/01/2026–19/04/2026, Term 2
-     * 05/05/2026–28/07/2026, Term 3 24/08/2026–25/10/2026) when the calendar is
-     * empty. Never overwrites existing (customized) periods. Returns true when
-     * the sample data was inserted.
+     * Seeds standard term periods for the current year when the calendar is
+     * empty: Term 1 (Jan 1 – Apr 30), Term 2 (May 1 – Aug 31), Term 3
+     * (Sep 1 – Dec 31). Never overwrites existing (customized) periods.
+     * Returns true when the sample data was inserted.
      */
     public boolean seedIfEmpty() {
         if (!store.getPeriods().isEmpty()) {
             return false;
         }
-        store.add(new TermPeriod(AcademicTerm.TERM_1, LocalDate.of(2026, 1, 20), LocalDate.of(2026, 4, 19)));
-        store.add(new TermPeriod(AcademicTerm.TERM_2, LocalDate.of(2026, 5, 5), LocalDate.of(2026, 7, 28)));
-        store.add(new TermPeriod(AcademicTerm.TERM_3, LocalDate.of(2026, 8, 24), LocalDate.of(2026, 10, 25)));
+        int year = LocalDate.now().getYear();
+        store.add(new TermPeriod(AcademicTerm.TERM_1,
+                LocalDate.of(year, 1, 1), LocalDate.of(year, 4, 30)));
+        store.add(new TermPeriod(AcademicTerm.TERM_2,
+                LocalDate.of(year, 5, 1), LocalDate.of(year, 8, 31)));
+        store.add(new TermPeriod(AcademicTerm.TERM_3,
+                LocalDate.of(year, 9, 1), LocalDate.of(year, 12, 31)));
         PersistenceService.getInstance().saveAll();
         return true;
     }

@@ -63,16 +63,17 @@ class AcademicCalendarServiceTest {
     }
 
     @Test
-    @DisplayName("Seed inserts the 2026 sample periods and is idempotent")
+    @DisplayName("Seed inserts current-year sample periods and is idempotent")
     void seedSeedsSampleDataOnce() {
         assertTrue(service.seedIfEmpty());
         assertEquals(3, service.getPeriods().size());
         assertFalse(service.seedIfEmpty());
 
-        Optional<TermPeriod> t1 = service.periodForTerm(AcademicTerm.TERM_1, LocalDate.of(2026, 6, 1));
+        int year = LocalDate.now().getYear();
+        Optional<TermPeriod> t1 = service.periodForTerm(AcademicTerm.TERM_1, LocalDate.of(year, 6, 1));
         assertTrue(t1.isPresent());
-        assertEquals(LocalDate.of(2026, 1, 20), t1.get().getFrom());
-        assertEquals(LocalDate.of(2026, 4, 19), t1.get().getTo());
+        assertEquals(LocalDate.of(year, 1, 1), t1.get().getFrom());
+        assertEquals(LocalDate.of(year, 4, 30), t1.get().getTo());
     }
 
     @Test
@@ -98,15 +99,16 @@ class AcademicCalendarServiceTest {
     @DisplayName("Service knows the current term, next term start and days remaining")
     void dateAwareness() {
         seed();
+        int year = LocalDate.now().getYear();
         assertEquals(AcademicTerm.TERM_2,
-                service.currentTerm(LocalDate.of(2026, 6, 1)).orElse(null));
+                service.currentTerm(LocalDate.of(year, 6, 1)).orElse(null));
         assertEquals(AcademicTerm.TERM_3,
-                service.currentOrNextPeriod(LocalDate.of(2026, 8, 1)).orElseThrow().getTerm());
-        assertEquals(LocalDate.of(2026, 8, 24),
-                service.nextTermStart(LocalDate.of(2026, 6, 1)).orElse(null));
-        assertEquals(1, service.daysRemaining(LocalDate.of(2026, 4, 18)));
+                service.currentOrNextPeriod(LocalDate.of(year, 9, 1)).orElseThrow().getTerm());
+        assertEquals(LocalDate.of(year, 9, 1),
+                service.nextTermStart(LocalDate.of(year, 6, 1)).orElse(null));
+        assertEquals(1, service.daysRemaining(LocalDate.of(year, 4, 29)));
         assertEquals(AcademicTerm.TERM_1,
-                service.periodFor(LocalDate.of(2026, 3, 1)).orElseThrow().getTerm());
+                service.periodFor(LocalDate.of(year, 3, 1)).orElseThrow().getTerm());
     }
 
     @Test
@@ -119,7 +121,7 @@ class AcademicCalendarServiceTest {
         ledger.pay("TUITION", CurrencyConfig.money("400"));
 
         AcademicCalendarService.RolloverResult result =
-                service.rolloverIfDue(LocalDate.of(2026, 4, 25));
+                service.rolloverIfDue(LocalDate.of(2026, 5, 5));
 
         assertEquals(1, result.studentsRolled());
         assertEquals(0, result.classPromotions());
@@ -139,9 +141,9 @@ class AcademicCalendarServiceTest {
         ledger.charge("TUITION", CurrencyConfig.money("1000"));
         ledger.pay("TUITION", CurrencyConfig.money("400"));
 
-        service.rolloverIfDue(LocalDate.of(2026, 4, 25));
+        service.rolloverIfDue(LocalDate.of(2026, 5, 5));
         AcademicCalendarService.RolloverResult second =
-                service.rolloverIfDue(LocalDate.of(2026, 4, 25));
+                service.rolloverIfDue(LocalDate.of(2026, 5, 5));
 
         assertEquals(0, second.studentsRolled());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("600")));
@@ -158,7 +160,7 @@ class AcademicCalendarServiceTest {
         ledger.pay("TUITION", CurrencyConfig.money("400"));
 
         AcademicCalendarService.RolloverResult result =
-                service.rolloverIfDue(LocalDate.of(2026, 8, 1));
+                service.rolloverIfDue(LocalDate.of(2026, 9, 5));
 
         assertEquals(1, result.studentsRolled(), "One student, counted once despite two terms caught up");
         assertEquals(0, result.arrearsRolled().compareTo(CurrencyConfig.money("600")));
@@ -176,7 +178,7 @@ class AcademicCalendarServiceTest {
         ledger.pay("TUITION", CurrencyConfig.money("200"));
 
         AcademicCalendarService.RolloverResult result =
-                service.rolloverIfDue(LocalDate.of(2026, 10, 30));
+                service.rolloverIfDue(LocalDate.of(2027, 1, 5));
 
         assertEquals(1, result.studentsRolled());
         assertEquals(1, result.classPromotions());
@@ -196,12 +198,12 @@ class AcademicCalendarServiceTest {
         ledger.pay("TUITION", CurrencyConfig.money("300"));
 
         AcademicCalendarService.RolloverPreview ended =
-                service.overduePreview(LocalDate.of(2026, 4, 25));
+                service.overduePreview(LocalDate.of(2026, 5, 5));
         assertEquals(1, ended.studentsOverdue());
         assertEquals(0, ended.totalUnpaid().compareTo(CurrencyConfig.money("700")));
 
         AcademicCalendarService.RolloverPreview inSession =
-                service.overduePreview(LocalDate.of(2026, 4, 1));
+                service.overduePreview(LocalDate.of(2026, 4, 15));
         assertEquals(0, inSession.studentsOverdue());
     }
 
@@ -309,7 +311,7 @@ class AcademicCalendarServiceTest {
         ledger.charge("TUITION", CurrencyConfig.money("800"));
 
         AcademicCalendarService.RolloverResult result =
-                service.rolloverIfDue(LocalDate.of(2026, 10, 30));
+                service.rolloverIfDue(LocalDate.of(2027, 1, 5));
 
         assertEquals(0, result.studentsRolled());
         assertEquals(AcademicTerm.TERM_3, ledger.getCurrentTerm(),

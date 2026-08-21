@@ -97,6 +97,8 @@ public class ReceiptService {
 
     public Result receivePayment(Student student, BigDecimal amount, PaymentMode mode,
                                  String bankReference, LocalDate date, String notes) {
+        com.schaccs.util.RoleGuard.requireReceiptCreation();
+
         List<String> errors = validator.validate(student, amount, mode, bankReference);
         if (!errors.isEmpty()) {
             return Result.failure(errors);

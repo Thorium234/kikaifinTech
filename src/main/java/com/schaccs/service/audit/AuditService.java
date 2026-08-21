@@ -34,6 +34,7 @@ public class AuditService {
     public void logFieldChange(String entityType, String entityId, String fieldName,
                                String oldValue, String newValue, String changedBy) {
         AuditLog log = new AuditLog();
+        log.setActionType("UPDATE");
         log.setEntityType(entityType);
         log.setEntityId(entityId);
         log.setFieldName(fieldName);

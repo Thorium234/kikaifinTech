@@ -112,7 +112,7 @@ class ContinuousChargingFullYearTest {
         assertEquals(0, ledger.getTotalPaid().compareTo(CurrencyConfig.money("600")));
 
         // Term 1 ends: unpaid 400 rolls to arrears, Term 2 billed 1000.
-        calendar.rolloverIfDue(LocalDate.of(2026, 4, 25));
+        calendar.rolloverIfDue(LocalDate.of(2026, 5, 5));
         assertEquals(AcademicTerm.TERM_2, ledger.getCurrentTerm());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("400")));
         assertEquals(0, ledger.getTotalCharged().compareTo(CurrencyConfig.money("1000")),
@@ -135,7 +135,7 @@ class ContinuousChargingFullYearTest {
         assertEquals(0, ledger.getBalance().compareTo(CurrencyConfig.money("700")));
 
         // Term 2 ends: unpaid 700 rolls to arrears, Term 3 billed 1000.
-        calendar.rolloverIfDue(LocalDate.of(2026, 8, 1));
+        calendar.rolloverIfDue(LocalDate.of(2026, 9, 5));
         assertEquals(AcademicTerm.TERM_3, ledger.getCurrentTerm());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("700")));
         assertEquals(0, ledger.getTotalCharged().compareTo(CurrencyConfig.money("1000")),
@@ -157,7 +157,7 @@ class ContinuousChargingFullYearTest {
         assertEquals(0, ledger.getBalance().compareTo(CurrencyConfig.money("800")));
 
         // ── Term 3 ends: unpaid 800 → yearly arrears, promoted into 2027 ──
-        AcademicCalendarService.RolloverResult roll = calendar.rolloverIfDue(LocalDate.of(2026, 10, 30));
+        AcademicCalendarService.RolloverResult roll = calendar.rolloverIfDue(LocalDate.of(2027, 1, 5));
         assertEquals(1, roll.classPromotions());
         assertEquals(AcademicTerm.TERM_1, ledger.getCurrentTerm());
         assertEquals(2027, s.getAcademicYear());
@@ -180,17 +180,17 @@ class ContinuousChargingFullYearTest {
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(s.getId());
 
         feeCalc.chargeTermFees(s, AcademicTerm.TERM_1);
-        calendar.rolloverIfDue(LocalDate.of(2026, 4, 25));
+        calendar.rolloverIfDue(LocalDate.of(2026, 5, 5));
         assertEquals(AcademicTerm.TERM_2, ledger.getCurrentTerm());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("1000")),
                 "Term 1 unpaid → arrears");
 
-        calendar.rolloverIfDue(LocalDate.of(2026, 8, 1));
+        calendar.rolloverIfDue(LocalDate.of(2026, 9, 5));
         assertEquals(AcademicTerm.TERM_3, ledger.getCurrentTerm());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("2000")),
                 "Term 1 + Term 2 unpaid → 2000 arrears");
 
-        calendar.rolloverIfDue(LocalDate.of(2026, 10, 30));
+        calendar.rolloverIfDue(LocalDate.of(2027, 1, 5));
         assertEquals(AcademicTerm.TERM_1, ledger.getCurrentTerm());
         assertEquals(2027, s.getAcademicYear());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("3000")),

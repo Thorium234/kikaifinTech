@@ -763,6 +763,12 @@ public class SettingsView extends VBox implements MainLayout.Refreshable {
         statusLabel.getStyleClass().add("muted");
 
         purgeBtn.setOnAction(e -> {
+            try {
+                com.schaccs.util.RoleGuard.requireFullAccess();
+            } catch (SecurityException ex) {
+                AlertUtil.error("Access Denied", ex.getMessage());
+                return;
+            }
             if (!confirmPurge()) {
                 return;
             }

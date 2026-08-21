@@ -149,44 +149,6 @@ public final class FinancialConstraintService {
     }
 
     /**
-     * Determines which ring-fenced bank account an income account should deposit into,
-     * based on the restricted-group mapping. Returns null if the income account is
-     * unrestricted (caller should use CASH_AT_BANK as fallback).
-     *
-     * @deprecated Use {@link com.schaccs.accounting.DoubleEntryEngine#resolveBankForIncome} instead.
-     */
-    @Deprecated
-    public static AccountType bankAccountForIncome(AccountType incomeAccount) {
-        if (incomeAccount == null) return null;
-        String group = incomeAccount.getRestrictedGroup();
-        if (group == null) return null;
-        return switch (group) {
-            case "GOVT" -> AccountType.BANK_TUITION;
-            case "PARENT" -> AccountType.BANK_BOARDING;
-            default -> null;
-        };
-    }
-
-    /**
-     * Determines which ring-fenced bank account an expense should draw from,
-     * based on the restricted-group mapping. Returns null if the expense account is
-     * unrestricted (caller should use CASH_AT_BANK as fallback).
-     *
-     * @deprecated Use {@link com.schaccs.accounting.DoubleEntryEngine#resolveBankForExpense} instead.
-     */
-    @Deprecated
-    public static AccountType bankAccountForExpense(AccountType expenseAccount) {
-        if (expenseAccount == null) return null;
-        String group = expenseAccount.getRestrictedGroup();
-        if (group == null) return null;
-        return switch (group) {
-            case "GOVT" -> AccountType.BANK_TUITION;
-            case "PARENT" -> AccountType.BANK_BOARDING;
-            default -> null;
-        };
-    }
-
-    /**
      * Runs all constraint checks for a proposed payment. Returns a list of error
      * messages; empty list means all checks passed.
      */

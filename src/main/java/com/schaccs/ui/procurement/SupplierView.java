@@ -57,19 +57,19 @@ public class SupplierView extends VBox implements MainLayout.Refreshable {
         setupTable();
 
         Button addBtn = new Button("Add Supplier");
-        addBtn.getStyleClass().add("btn-primary");
+        addBtn.getStyleClass().add("primary-button");
         addBtn.setOnAction(e -> addSupplier());
 
         Button updateBtn = new Button("Update");
-        updateBtn.getStyleClass().add("btn-secondary");
+        updateBtn.getStyleClass().add("secondary-button");
         updateBtn.setOnAction(e -> updateSupplier());
 
         Button toggleBtn = new Button("Deactivate");
-        toggleBtn.getStyleClass().add("btn-secondary");
+        toggleBtn.getStyleClass().add("secondary-button");
         toggleBtn.setOnAction(e -> toggleActive());
 
         Button blacklistBtn = new Button("Blacklist");
-        blacklistBtn.getStyleClass().add("btn-secondary");
+        blacklistBtn.getStyleClass().add("danger-button");
         blacklistBtn.setOnAction(e -> toggleBlacklist());
 
         HBox buttons = new HBox(10, addBtn, updateBtn, toggleBtn, blacklistBtn);

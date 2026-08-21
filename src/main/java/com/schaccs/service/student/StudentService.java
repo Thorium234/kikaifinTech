@@ -5,6 +5,7 @@ import com.schaccs.model.student.DeletedStudent;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.RecycleBinStore;
 import com.schaccs.store.StudentStore;
+import com.schaccs.util.RoleGuard;
 import com.schaccs.validation.StudentValidator;
 import javafx.collections.ObservableList;
 
@@ -39,6 +40,7 @@ public class StudentService {
     }
 
     public List<String> addStudent(Student student) {
+        RoleGuard.requireDataEntry();
         List<String> errors = validator.validate(student, true);
         if (errors.isEmpty()) {
             try {
@@ -52,6 +54,7 @@ public class StudentService {
     }
 
     public List<String> updateStudent(Student student) {
+        RoleGuard.requireDataEntry();
         List<String> errors = validator.validate(student, false);
         if (errors.isEmpty()) {
             store.findByAdmissionNumber(student.getAdmissionNumber()).ifPresent(other -> {
@@ -78,6 +81,7 @@ public class StudentService {
      * and ledger transactions are kept as financial records.
      */
     public void deleteToRecycleBin(List<Student> students) {
+        RoleGuard.requireFullAccess();
         for (Student s : students) {
             RecycleBinStore.getInstance().add(DeletedStudent.from(s));
             store.remove(s);

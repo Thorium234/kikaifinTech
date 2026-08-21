@@ -88,7 +88,7 @@ public class Sidebar extends VBox {
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
-        Label version = new Label("Version 1.0.12");
+        Label version = new Label("Version 1.0.13");
         version.getStyleClass().add("sidebar-sub");
         version.setPadding(new Insets(12, 16, 16, 16));
         navContent.getChildren().addAll(spacer, version);

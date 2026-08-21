@@ -105,23 +105,23 @@ public class TenderView extends VBox implements MainLayout.Refreshable {
         setupTenderTable();
 
         Button createBtn = new Button("Create Tender");
-        createBtn.getStyleClass().add("btn-primary");
+        createBtn.getStyleClass().add("primary-button");
         createBtn.setOnAction(e -> createTender());
 
         Button publishBtn = new Button("Publish");
-        publishBtn.getStyleClass().add("btn-secondary");
+        publishBtn.getStyleClass().add("secondary-button");
         publishBtn.setOnAction(e -> publishTender());
 
         Button closeBtn = new Button("Close");
-        closeBtn.getStyleClass().add("btn-secondary");
+        closeBtn.getStyleClass().add("secondary-button");
         closeBtn.setOnAction(e -> closeTender());
 
         Button evalStartBtn = new Button("Start Evaluation");
-        evalStartBtn.getStyleClass().add("btn-secondary");
+        evalStartBtn.getStyleClass().add("secondary-button");
         evalStartBtn.setOnAction(e -> startEvaluation());
 
         Button cancelBtn = new Button("Cancel");
-        cancelBtn.getStyleClass().add("btn-secondary");
+        cancelBtn.getStyleClass().add("danger-button");
         cancelBtn.setOnAction(e -> cancelTender());
 
         FlowPane buttons = new FlowPane(10, 10, createBtn, publishBtn, closeBtn, evalStartBtn, cancelBtn);
@@ -345,11 +345,11 @@ public class TenderView extends VBox implements MainLayout.Refreshable {
         setupBidTable();
 
         Button submitBidBtn = new Button("Submit Bid");
-        submitBidBtn.getStyleClass().add("btn-primary");
+        submitBidBtn.getStyleClass().add("primary-button");
         submitBidBtn.setOnAction(e -> submitBid());
 
         Button rankBtn = new Button("Rank Bids");
-        rankBtn.getStyleClass().add("btn-secondary");
+        rankBtn.getStyleClass().add("secondary-button");
         rankBtn.setOnAction(e -> rankBids());
 
         HBox buttons = new HBox(10, submitBidBtn, rankBtn);
@@ -532,7 +532,7 @@ public class TenderView extends VBox implements MainLayout.Refreshable {
         setupEvalTable();
 
         Button recordBtn = new Button("Record Evaluation");
-        recordBtn.getStyleClass().add("btn-primary");
+        recordBtn.getStyleClass().add("primary-button");
         recordBtn.setOnAction(e -> recordEvaluation());
 
         GridPane form = new GridPane();

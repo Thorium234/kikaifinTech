@@ -167,7 +167,7 @@ class MidTermEnrollmentServiceTest {
         ledger.setCurrentTerm(AcademicTerm.TERM_1);
 
         AcademicCalendarService.RolloverResult result =
-                calendar.rolloverIfDue(LocalDate.of(2026, 4, 25));
+                calendar.rolloverIfDue(LocalDate.of(2026, 5, 5));
 
         assertEquals(1, result.studentsRolled());
         assertEquals(AcademicTerm.TERM_2, ledger.getCurrentTerm());
@@ -187,7 +187,7 @@ class MidTermEnrollmentServiceTest {
         ledger.charge("TUITION", CurrencyConfig.money("1000"));
         ledger.pay("TUITION", CurrencyConfig.money("400"));
 
-        calendar.rolloverIfDue(LocalDate.of(2026, 4, 25));
+        calendar.rolloverIfDue(LocalDate.of(2026, 5, 5));
 
         assertEquals(AcademicTerm.TERM_2, ledger.getCurrentTerm());
         assertEquals(0, ledger.getArrears().compareTo(CurrencyConfig.money("600")));

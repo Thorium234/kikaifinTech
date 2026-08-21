@@ -349,6 +349,10 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
             return;
         }
         BigDecimal amount = amountField.getAmount();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            AlertUtil.warn("Invalid amount", "Please enter an amount greater than zero.");
+            return;
+        }
         ReceiptService.Result result = receiptService.receivePayment(
                 selected, amount, modeBox.getValue(), refField.getText(),
                 datePicker.getValue(), null);
