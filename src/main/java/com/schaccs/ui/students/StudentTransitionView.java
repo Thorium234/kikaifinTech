@@ -47,6 +47,7 @@ public class StudentTransitionView extends VBox implements MainLayout.Refreshabl
     public StudentTransitionView(StudentTransitionService service, javafx.collections.ObservableList<Student> source) {
         this.service = service;
         this.filtered = new FilteredList<>(source, s -> s != null
+                && !s.isDeleted()
                 && s.getStatus() == com.schaccs.enums.StudentStatus.ACTIVE);
         setSpacing(14);
         setPadding(new Insets(4));
@@ -65,6 +66,7 @@ public class StudentTransitionView extends VBox implements MainLayout.Refreshabl
 
         searchBar.textProperty().addListener((obs, o, q) ->
                 filtered.setPredicate(s -> s != null
+                        && !s.isDeleted()
                         && s.getStatus() == com.schaccs.enums.StudentStatus.ACTIVE
                         && s.matchesSearch(q)));
 

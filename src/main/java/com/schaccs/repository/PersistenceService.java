@@ -45,6 +45,7 @@ import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.model.student.MidTermStudent;
 import com.schaccs.model.student.DeletedStudent;
+import com.schaccs.model.student.StudentTermBalance;
 import com.schaccs.model.CleanDataEntry;
 import com.schaccs.model.voucher.Commitment;
 import com.schaccs.model.voucher.Creditor;
@@ -76,6 +77,7 @@ import com.schaccs.store.EmployeeStore;
 import com.schaccs.store.PayrollStore;
 import com.schaccs.store.ProcurementStore;
 import com.schaccs.store.RecycleBinStore;
+import com.schaccs.store.StudentTermBalanceStore;
 import com.schaccs.store.CleanDataStore;
 import com.schaccs.store.CleanDataCodec;
 
@@ -141,6 +143,7 @@ public final class PersistenceService {
         PayrollStore.getInstance().clear();
         ProcurementStore.getInstance().clear();
         RecycleBinStore.getInstance().clear();
+        StudentTermBalanceStore.getInstance().clear();
         CleanDataStore.getInstance().clear();
     }
 
@@ -166,6 +169,7 @@ public final class PersistenceService {
             saveAcademicCalendar(conn);
             saveMidTermEnrollments(conn);
             saveRecycleBin(conn);
+            saveStudentTermBalances(conn);
             saveCleanData(conn);
             saveAccountStoreEntities(conn);
             saveEmployees(conn);
@@ -224,6 +228,7 @@ public final class PersistenceService {
             PayrollStore.getInstance().clear();
             ProcurementStore.getInstance().clear();
             RecycleBinStore.getInstance().clear();
+            StudentTermBalanceStore.getInstance().clear();
             CleanDataStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
@@ -244,6 +249,7 @@ public final class PersistenceService {
             loadAcademicCalendar(conn);
             loadMidTermEnrollments(conn);
             loadRecycleBin(conn);
+            loadStudentTermBalances(conn);
             loadCleanData(conn);
             loadAccountStoreEntities(conn);
             loadEmployees(conn);
@@ -329,6 +335,7 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM tender_bids");
             st.executeUpdate("DELETE FROM tenders");
             st.executeUpdate("DELETE FROM procurement_requests");
+            st.executeUpdate("DELETE FROM student_term_balances");
             st.executeUpdate("DELETE FROM suppliers");
         }
     }
@@ -628,14 +635,18 @@ public final class PersistenceService {
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO students (id, admission_number, name, gender, form_class, stream,
                     boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status,
-                    course_code, duration_value, duration_unit, enrollment_date, expected_completion_date)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    course_code, duration_value, duration_unit, enrollment_date, expected_completion_date,
+                    lifecycle_status, is_deleted, deleted_at, deletion_reason, course_duration_years)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, stream=excluded.stream,
                     boarding_status=excluded.boarding_status, parent_name=excluded.parent_name, phone=excluded.phone,
                     avatar_path=excluded.avatar_path, year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, status=excluded.status,
                     course_code=excluded.course_code, duration_value=excluded.duration_value, duration_unit=excluded.duration_unit,
-                    enrollment_date=excluded.enrollment_date, expected_completion_date=excluded.expected_completion_date
+                    enrollment_date=excluded.enrollment_date, expected_completion_date=excluded.expected_completion_date,
+                    lifecycle_status=excluded.lifecycle_status, is_deleted=excluded.is_deleted,
+                    deleted_at=excluded.deleted_at, deletion_reason=excluded.deletion_reason,
+                    course_duration_years=excluded.course_duration_years
                 """)) {
             for (Student s : store.getStudents()) {
                 ps.setString(1, s.getId());
@@ -656,6 +667,11 @@ public final class PersistenceService {
                 ps.setString(16, enumName(s.getDurationUnit()));
                 ps.setString(17, date(s.getEnrollmentDate()));
                 ps.setString(18, date(s.getExpectedCompletionDate()));
+                ps.setString(19, s.getLifecycleStatus());
+                ps.setInt(20, s.isDeleted() ? 1 : 0);
+                ps.setString(21, dateTime(s.getDeletedAt()));
+                ps.setString(22, s.getDeletionReason());
+                ps.setObject(23, s.getCourseDurationYears());
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -802,6 +818,23 @@ public final class PersistenceService {
                 }
                 s.setEnrollmentDate(parseDate(rs.getString("enrollment_date")));
                 s.setExpectedCompletionDate(parseDate(rs.getString("expected_completion_date")));
+                String lifecycleStatus = rs.getString("lifecycle_status");
+                if (lifecycleStatus != null && !lifecycleStatus.isBlank()) {
+                    s.setLifecycleStatus(lifecycleStatus);
+                }
+                int deleted = rs.getInt("is_deleted");
+                if (!rs.wasNull() && deleted != 0) {
+                    s.setDeleted(true);
+                }
+                String deletedAtStr = rs.getString("deleted_at");
+                if (deletedAtStr != null) {
+                    s.setDeletedAt(LocalDateTime.parse(deletedAtStr));
+                }
+                s.setDeletionReason(rs.getString("deletion_reason"));
+                int courseDur = rs.getInt("course_duration_years");
+                if (!rs.wasNull()) {
+                    s.setCourseDurationYears(courseDur);
+                }
                 try {
                     store.add(s);
                 } catch (IllegalArgumentException duplicateAdmission) {
@@ -1633,14 +1666,14 @@ public final class PersistenceService {
         RecycleBinStore store = RecycleBinStore.getInstance();
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO recycle_bin (id, admission_number, name, gender, form_class, stream, "
-                        + "boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status, deleted_at) "
-                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                        + "boarding_status, parent_name, phone, avatar_path, year_of_admission, academic_year, status, deleted_at, deletion_reason) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                         + "ON CONFLICT(id) DO UPDATE SET admission_number=excluded.admission_number, "
                         + "name=excluded.name, gender=excluded.gender, form_class=excluded.form_class, "
                         + "stream=excluded.stream, boarding_status=excluded.boarding_status, "
                         + "parent_name=excluded.parent_name, phone=excluded.phone, avatar_path=excluded.avatar_path, "
                         + "year_of_admission=excluded.year_of_admission, academic_year=excluded.academic_year, "
-                        + "status=excluded.status, deleted_at=excluded.deleted_at")) {
+                        + "status=excluded.status, deleted_at=excluded.deleted_at, deletion_reason=excluded.deletion_reason")) {
             for (DeletedStudent d : store.getItems()) {
                 ps.setString(1, d.getId());
                 ps.setString(2, d.getAdmissionNumber());
@@ -1656,6 +1689,7 @@ public final class PersistenceService {
                 ps.setObject(12, d.getAcademicYear());
                 ps.setString(13, enumName(d.getStatus()));
                 ps.setString(14, dateTime(d.getDeletedAt()));
+                ps.setString(15, d.getDeletionReason());
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -1689,7 +1723,59 @@ public final class PersistenceService {
                         yearOfAdmission,
                         academicYear,
                         status != null ? StudentStatus.valueOf(status) : null,
-                        deletedAt != null ? LocalDateTime.parse(deletedAt) : LocalDateTime.now()));
+                        deletedAt != null ? LocalDateTime.parse(deletedAt) : LocalDateTime.now(),
+                        rs.getString("deletion_reason")));
+            }
+        }
+    }
+
+    private void saveStudentTermBalances(Connection conn) throws SQLException {
+        StudentTermBalanceStore store = StudentTermBalanceStore.getInstance();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO student_term_balances (id, student_id, academic_year, term, "
+                        + "fee_billed, arrears_brought_forward, amount_paid, closing_balance, "
+                        + "created_at, updated_at) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?) "
+                        + "ON CONFLICT(student_id, academic_year, term) DO UPDATE SET "
+                        + "id=excluded.id, fee_billed=excluded.fee_billed, "
+                        + "arrears_brought_forward=excluded.arrears_brought_forward, "
+                        + "amount_paid=excluded.amount_paid, closing_balance=excluded.closing_balance, "
+                        + "updated_at=excluded.updated_at")) {
+            for (StudentTermBalance b : store.getItems()) {
+                ps.setString(1, b.getId());
+                ps.setString(2, b.getStudentId());
+                ps.setInt(3, b.getAcademicYear());
+                ps.setString(4, enumName(b.getTerm()));
+                ps.setString(5, money(b.getFeeBilled()));
+                ps.setString(6, money(b.getArrearsBroughtForward()));
+                ps.setString(7, money(b.getAmountPaid()));
+                ps.setString(8, money(b.getClosingBalance()));
+                ps.setString(9, dateTime(b.getCreatedAt()));
+                ps.setString(10, dateTime(b.getUpdatedAt()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadStudentTermBalances(Connection conn) throws SQLException {
+        StudentTermBalanceStore store = StudentTermBalanceStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM student_term_balances ORDER BY academic_year, term")) {
+            while (rs.next()) {
+                String termStr = rs.getString("term");
+                if (termStr == null) continue;
+                store.add(StudentTermBalance.restore(
+                        rs.getString("id"),
+                        rs.getString("student_id"),
+                        rs.getInt("academic_year"),
+                        AcademicTerm.valueOf(termStr),
+                        parseMoney(rs.getString("fee_billed")),
+                        parseMoney(rs.getString("arrears_brought_forward")),
+                        parseMoney(rs.getString("amount_paid")),
+                        parseMoney(rs.getString("closing_balance")),
+                        rs.getString("created_at") != null ? LocalDateTime.parse(rs.getString("created_at")) : LocalDateTime.now(),
+                        rs.getString("updated_at") != null ? LocalDateTime.parse(rs.getString("updated_at")) : LocalDateTime.now()));
             }
         }
     }

@@ -6,6 +6,7 @@ import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.fee.FeeCalculationService;
+import com.schaccs.service.school.AcademicCalendarService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.store.StudentStore;
 import com.schaccs.validation.StudentValidator;
@@ -32,20 +33,28 @@ public class StudentImportService {
 
     private final StudentService studentService;
     private final FeeCalculationService feeCalculationService;
+    private final AcademicCalendarService academicCalendarService;
     private final StudentStore studentStore;
     private final StudentValidator studentValidator;
 
     public StudentImportService() {
-        this(new StudentService(), new FeeCalculationService(), StudentStore.getInstance());
+        this(new StudentService(), new FeeCalculationService(), new AcademicCalendarService(), StudentStore.getInstance());
     }
 
     public StudentImportService(StudentService studentService, FeeCalculationService feeCalculationService) {
-        this(studentService, feeCalculationService, StudentStore.getInstance());
+        this(studentService, feeCalculationService, new AcademicCalendarService(), StudentStore.getInstance());
     }
 
-    public StudentImportService(StudentService studentService, FeeCalculationService feeCalculationService, StudentStore studentStore) {
+    public StudentImportService(StudentService studentService, FeeCalculationService feeCalculationService,
+                                StudentStore studentStore) {
+        this(studentService, feeCalculationService, new AcademicCalendarService(), studentStore);
+    }
+
+    public StudentImportService(StudentService studentService, FeeCalculationService feeCalculationService,
+                                AcademicCalendarService academicCalendarService, StudentStore studentStore) {
         this.studentService = studentService;
         this.feeCalculationService = feeCalculationService;
+        this.academicCalendarService = academicCalendarService;
         this.studentStore = studentStore;
         this.studentValidator = new StudentValidator(studentStore);
     }
@@ -193,8 +202,34 @@ public class StudentImportService {
             imported++;
         }
         if (commit && imported > 0) {
+            // Collect unique cohort years to scaffold academic calendars
+            java.util.Set<Integer> cohortYears = new java.util.TreeSet<>();
+            for (Student student : stagedStudents) {
+                Integer admissionYear = student.getYearOfAdmission();
+                Integer duration = student.getCourseDurationYears();
+                if (duration == null || duration <= 0) {
+                    duration = student.getDurationValue();
+                }
+                if (admissionYear != null && duration != null && duration > 0) {
+                    for (int y = admissionYear; y <= admissionYear + duration; y++) {
+                        cohortYears.add(y);
+                    }
+                }
+            }
+            // Scaffold multi-year academic calendars for the cohort
+            for (int year : cohortYears) {
+                academicCalendarService.ensureYearCalendar(year);
+            }
             for (Student student : stagedStudents) {
                 try {
+                    // Set lifecycle status and expected completion year for cohort tracking
+                    if (student.getLifecycleStatus() == null || student.getLifecycleStatus().isBlank()) {
+                        student.setLifecycleStatus("ACTIVE");
+                    }
+                    Integer completionYear = student.computeExpectedCompletionYear();
+                    if (completionYear != null) {
+                        student.setCourseDurationYears(completionYear - student.getYearOfAdmission());
+                    }
                     studentStore.add(student);
                     feeCalculationService.chargeTermFees(student, AcademicTerm.TERM_1);
                 } catch (IllegalArgumentException e) {
@@ -230,6 +265,17 @@ public class StudentImportService {
         }
         if (yearOfAdmission != null) {
             student.setYearOfAdmission(yearOfAdmission);
+        }
+        Integer courseDuration = parseInteger(value(row, "coursedurationyears", "courseduration",
+                "durationyears", "duration"));
+        if (courseDuration != null) {
+            student.setCourseDurationYears(courseDuration);
+        }
+        String lifecycleStatus = value(row, "lifecyclestatus", "lifecycle");
+        if (lifecycleStatus != null && !lifecycleStatus.isBlank()) {
+            student.setLifecycleStatus(lifecycleStatus);
+        } else {
+            student.setLifecycleStatus("ACTIVE");
         }
         return student;
     }

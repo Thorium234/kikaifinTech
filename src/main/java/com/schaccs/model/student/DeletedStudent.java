@@ -27,11 +27,12 @@ public class DeletedStudent {
     private final Integer academicYear;
     private final StudentStatus status;
     private final LocalDateTime deletedAt;
+    private final String deletionReason;
 
     private DeletedStudent(String id, String admissionNumber, String name, String gender, String formClass,
                            String stream, BoardingStatus boardingStatus, String parentName, String phone,
                            String avatarPath, Integer yearOfAdmission, Integer academicYear,
-                           StudentStatus status, LocalDateTime deletedAt) {
+                           StudentStatus status, LocalDateTime deletedAt, String deletionReason) {
         this.id = id;
         this.admissionNumber = admissionNumber;
         this.name = name;
@@ -46,6 +47,7 @@ public class DeletedStudent {
         this.academicYear = academicYear;
         this.status = status;
         this.deletedAt = deletedAt;
+        this.deletionReason = deletionReason;
     }
 
     public static DeletedStudent from(Student s) {
@@ -63,7 +65,8 @@ public class DeletedStudent {
                 s.getYearOfAdmission(),
                 s.getAcademicYear(),
                 s.getStatus(),
-                LocalDateTime.now());
+                s.getDeletedAt() != null ? s.getDeletedAt() : LocalDateTime.now(),
+                s.getDeletionReason());
     }
 
     /** Reconstruct a snapshot from the database. */
@@ -71,10 +74,10 @@ public class DeletedStudent {
                                          String formClass, String stream, BoardingStatus boardingStatus,
                                          String parentName, String phone, String avatarPath,
                                          Integer yearOfAdmission, Integer academicYear,
-                                         StudentStatus status, LocalDateTime deletedAt) {
+                                         StudentStatus status, LocalDateTime deletedAt, String deletionReason) {
         return new DeletedStudent(id, admissionNumber, name, gender, formClass, stream,
                 boardingStatus, parentName, phone, avatarPath, yearOfAdmission, academicYear,
-                status, deletedAt);
+                status, deletedAt, deletionReason);
     }
 
     public Student toStudent() {
@@ -97,6 +100,7 @@ public class DeletedStudent {
         if (status != null) {
             s.setStatus(status);
         }
+        s.setLifecycleStatus("ACTIVE");
         return s;
     }
 
@@ -154,6 +158,10 @@ public class DeletedStudent {
 
     public LocalDateTime getDeletedAt() {
         return deletedAt;
+    }
+
+    public String getDeletionReason() {
+        return deletionReason;
     }
 
     public String getClassLabel() {

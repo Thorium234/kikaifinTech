@@ -290,18 +290,37 @@ public class AcademicCalendarService {
     }
 
     /**
-     * Mark students whose expected completion date has passed as COMPLETED
-     * (GRADUATED when the class was already promoted past the top form). Returns
-     * the number of students whose status changed.
+     * Mark students whose expected completion date or year has passed as COMPLETED
+     * (GRADUATED when the class was already promoted past the top form). Also
+     * updates the lifecycle_status field. Returns the number of students whose
+     * status changed.
      */
     public int checkCompletions(LocalDate today) {
         int completed = 0;
+        int currentYear = today.getYear();
         for (Student s : studentStore.getStudents()) {
             if (s.getStatus() != StudentStatus.ACTIVE) {
                 continue;
             }
-            if (s.isCourseCompleted(today)) {
-                s.setStatus(StudentStatus.COMPLETED);
+            boolean shouldComplete = s.isCourseCompleted(today);
+            // Also check year-based completion for cohort lifecycle
+            if (!shouldComplete) {
+                Integer expectedYear = s.computeExpectedCompletionYear();
+                if (expectedYear != null && currentYear > expectedYear) {
+                    shouldComplete = true;
+                }
+            }
+            if (shouldComplete) {
+                // Graduate if already past Form 6, otherwise mark completed
+                String formClass = s.getFormClass();
+                boolean pastForm6 = formClass != null && formClass.matches("(?i).*form\\s*6.*");
+                if (pastForm6) {
+                    s.setStatus(StudentStatus.GRADUATED);
+                    s.setLifecycleStatus("GRADUATED");
+                } else {
+                    s.setStatus(StudentStatus.COMPLETED);
+                    s.setLifecycleStatus("COMPLETED");
+                }
                 completed++;
             }
         }
@@ -390,8 +409,9 @@ public class AcademicCalendarService {
                         || period.get().getYear() != effectiveYear(s)) {
                     break;
                 }
-                if (s.isCourseCompleted(today)) {
+                if (s.isCourseCompleted(today) || isYearComplete(s, today)) {
                     s.setStatus(StudentStatus.COMPLETED);
+                    s.setLifecycleStatus("COMPLETED");
                     break;
                 }
                 BigDecimal unpaid = unpaid(ledger);
@@ -466,6 +486,12 @@ public class AcademicCalendarService {
         }
         s.setFormClass(m.replaceFirst(m.group(1) + (current + 1)));
         return true;
+    }
+
+    /** Year-based completion check using cohort lifecycle data. */
+    private boolean isYearComplete(Student s, LocalDate today) {
+        Integer expectedYear = s.computeExpectedCompletionYear();
+        return expectedYear != null && today.getYear() > expectedYear;
     }
 
     public LocalDate getLastRolloverDate() {

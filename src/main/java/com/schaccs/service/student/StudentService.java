@@ -1,7 +1,10 @@
 package com.schaccs.service.student;
 
+import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.DeletedStudent;
+import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.store.RecycleBinStore;
 import com.schaccs.store.StudentStore;
@@ -70,38 +73,60 @@ public class StudentService {
     }
 
     public void markInactive(Student student) {
-        student.setStatus(com.schaccs.enums.StudentStatus.INACTIVE);
+        student.setStatus(StudentStatus.INACTIVE);
         PersistenceService.getInstance().saveAll();
     }
 
     /**
-     * Move students to the recycle bin and deallocate them from the financial
-     * records: the fee ledger (charges, payments, arrears, advance) is removed so
-     * they no longer appear in student fee/arrears reports. Historical receipts
-     * and ledger transactions are kept as financial records.
+     * Soft-delete students: mark them as deleted with a reason, snapshot into the
+     * recycle bin for audit traceability, and keep all financial records intact.
+     * Students with outstanding balances cannot be deleted.
      */
-    public void deleteToRecycleBin(List<Student> students) {
+    public List<String> deleteToRecycleBin(List<Student> students, String reason) {
         RoleGuard.requireFullAccess();
+        List<String> errors = new ArrayList<>();
         for (Student s : students) {
+            if (hasOutstandingBalance(s)) {
+                errors.add(s.getAdmissionNumber() + ": Cannot delete \u2014 outstanding balance exists. "
+                        + "Clear all fees before removing this student.");
+                continue;
+            }
+            s.markDeleted(reason);
             RecycleBinStore.getInstance().add(DeletedStudent.from(s));
-            store.remove(s);
         }
         PersistenceService.getInstance().saveAll();
+        return errors;
+    }
+
+    /** Backward-compatible overload without explicit reason. */
+    public void deleteToRecycleBin(List<Student> students) {
+        deleteToRecycleBin(students, null);
     }
 
     /**
-     * Restore deleted students back into the registry (same ids, fresh fee
-     * ledger). Returns errors for records that could not be restored, e.g. when
-     * the admission number is already in use again.
+     * Restore soft-deleted students back into the active registry.
+     * Clears deletion flags on the existing student records and removes
+     * the recycle bin snapshots.
      */
     public List<String> restore(List<DeletedStudent> deleted) {
         List<String> errors = new ArrayList<>();
         for (DeletedStudent d : deleted) {
-            try {
-                store.add(d.toStudent());
+            Optional<Student> existing = store.findById(d.getId());
+            if (existing.isEmpty()) {
+                // Fallback: re-add from snapshot (handles edge case where student was purged from store)
+                try {
+                    Student restored = d.toStudent();
+                    restored.clearDeleted();
+                    store.add(restored);
+                    RecycleBinStore.getInstance().remove(d);
+                } catch (IllegalArgumentException e) {
+                    errors.add(d.getAdmissionNumber() + ": " + e.getMessage());
+                }
+            } else {
+                // Normal path: clear deleted flags on the existing student
+                Student s = existing.get();
+                s.clearDeleted();
                 RecycleBinStore.getInstance().remove(d);
-            } catch (IllegalArgumentException e) {
-                errors.add(d.getAdmissionNumber() + ": " + e.getMessage());
             }
         }
         PersistenceService.getInstance().saveAll();
@@ -118,7 +143,39 @@ public class StudentService {
 
     public long activeCount() {
         return store.getStudents().stream()
-                .filter(s -> s.getStatus() == com.schaccs.enums.StudentStatus.ACTIVE)
+                .filter(s -> s.getStatus() == StudentStatus.ACTIVE && !s.isDeleted())
                 .count();
+    }
+
+    /**
+     * Students whose lifecycle status indicates graduation or completion.
+     */
+    public List<Student> alumni() {
+        return store.getStudents().stream()
+                .filter(s -> !s.isDeleted()
+                        && (s.getStatus() == StudentStatus.COMPLETED
+                            || s.getStatus() == StudentStatus.GRADUATED))
+                .toList();
+    }
+
+    /**
+     * Students marked as soft-deleted (visible only in recycle bin views).
+     */
+    public List<Student> deletedStudents() {
+        return store.getStudents().stream()
+                .filter(Student::isDeleted)
+                .toList();
+    }
+
+    /**
+     * Check if a student has any outstanding financial balance that would prevent
+     * deletion. A student with non-zero ledger balance, arrears, or advance cannot
+     * be soft-deleted.
+     */
+    private boolean hasOutstandingBalance(Student student) {
+        StudentFeeLedger ledger = store.getLedger(student.getId());
+        return ledger.getBalance().compareTo(CurrencyConfig.zero()) != 0
+                || ledger.getArrears().compareTo(CurrencyConfig.zero()) > 0
+                || ledger.getAdvance().compareTo(CurrencyConfig.zero()) > 0;
     }
 }

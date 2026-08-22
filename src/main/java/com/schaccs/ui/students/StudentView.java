@@ -96,9 +96,9 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         setSpacing(14);
         setPadding(new Insets(4));
 
-        filtered = new FilteredList<>(studentService.getAll(), s -> true);
+        filtered = new FilteredList<>(studentService.getAll(), s -> !s.isDeleted());
         searchBar.textProperty().addListener((obs, o, q) ->
-                filtered.setPredicate(s -> s.matchesSearch(q)));
+                filtered.setPredicate(s -> !s.isDeleted() && s.matchesSearch(q)));
 
         Label heading = new Label("Student Registry");
         heading.getStyleClass().add("section-title");

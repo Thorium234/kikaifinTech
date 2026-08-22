@@ -36,7 +36,7 @@ public class StudentPicker extends VBox {
         setSpacing(8);
 
         ObservableList<Student> source = FXCollections.observableArrayList(candidates);
-        filtered = new FilteredList<>(source, s -> true);
+        filtered = new FilteredList<>(source, s -> !s.isDeleted());
 
         SearchBar searchBar = new SearchBar("Search by name, admission no, class…");
         searchBar.textProperty().addListener((o, ov, q) -> applyFilters(q));
@@ -101,7 +101,7 @@ public class StudentPicker extends VBox {
     private void applyFilters(String query) {
         String form = formBox.getValue();
         String stream = streamBox.getValue();
-        filtered.setPredicate(s -> s.matchesSearch(query)
+        filtered.setPredicate(s -> !s.isDeleted() && s.matchesSearch(query)
                 && (form == null || ALL_FORMS.equals(form) || form.equals(s.getFormClass()))
                 && (stream == null || ALL_STREAMS.equals(stream) || stream.equals(s.getStream())));
     }

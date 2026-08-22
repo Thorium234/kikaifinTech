@@ -355,7 +355,8 @@ public final class Database {
                 new MigrationV24EnabledPaymentModes(),
                 new MigrationV25CleanData(),
                 new MigrationV26TermStatusAndCourseTracking(),
-                new com.schaccs.repository.migration.MigrationV27LedgerHashChain()
+                new com.schaccs.repository.migration.MigrationV27LedgerHashChain(),
+                new com.schaccs.repository.migration.MigrationV28StudentCohortLifecycle()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -468,7 +469,12 @@ public final class Database {
                         duration_value INTEGER,
                         duration_unit TEXT,
                         enrollment_date TEXT,
-                        expected_completion_date TEXT
+                        expected_completion_date TEXT,
+                        lifecycle_status TEXT,
+                        is_deleted INTEGER DEFAULT 0,
+                        deleted_at TEXT,
+                        deletion_reason TEXT,
+                        course_duration_years INTEGER DEFAULT 4
                     )
                     """);
             st.execute("""
@@ -487,6 +493,40 @@ public final class Database {
                         kind TEXT,
                         amount TEXT,
                         PRIMARY KEY (student_id, votehead_code, kind)
+                    )
+                    """);
+            st.execute("""
+                    CREATE TABLE IF NOT EXISTS recycle_bin (
+                        id TEXT PRIMARY KEY,
+                        admission_number TEXT,
+                        name TEXT,
+                        gender TEXT,
+                        form_class TEXT,
+                        stream TEXT,
+                        boarding_status TEXT,
+                        parent_name TEXT,
+                        phone TEXT,
+                        avatar_path TEXT,
+                        year_of_admission INTEGER,
+                        academic_year INTEGER,
+                        status TEXT,
+                        deleted_at TEXT,
+                        deletion_reason TEXT
+                    )
+                    """);
+            st.execute("""
+                    CREATE TABLE IF NOT EXISTS student_term_balances (
+                        id TEXT PRIMARY KEY,
+                        student_id TEXT NOT NULL,
+                        academic_year INTEGER NOT NULL,
+                        term TEXT NOT NULL,
+                        fee_billed TEXT DEFAULT '0.00',
+                        arrears_brought_forward TEXT DEFAULT '0.00',
+                        amount_paid TEXT DEFAULT '0.00',
+                        closing_balance TEXT DEFAULT '0.00',
+                        created_at TEXT,
+                        updated_at TEXT,
+                        UNIQUE(student_id, academic_year, term)
                     )
                     """);
             st.execute("""

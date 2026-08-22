@@ -21,9 +21,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Recycle bin: deleting students moves them out of the registry (deallocating
- * their fee ledger from the school financial records) and into the recycle bin,
- * from where they can be restored or purged permanently.
+ * Recycle bin: soft-deleting students marks them as deleted with a reason,
+ * snapshots them into the recycle bin for audit traceability, and keeps all
+ * financial records intact. Students with outstanding balances cannot be
+ * soft-deleted.
  */
 class RecycleBinTest {
 
@@ -55,43 +56,66 @@ class RecycleBinTest {
     }
 
     @Test
-    @DisplayName("Delete moves the student to the recycle bin and removes them from the registry")
-    void deleteMovesStudentToRecycleBinAndRemovesFromRegistry() {
+    @DisplayName("Delete marks student as soft-deleted and creates recycle bin snapshot")
+    void deleteMarksStudentAsSoftDeletedAndCreatesSnapshot() {
         Student s = createStudent("ADM-1");
         assertTrue(StudentStore.getInstance().findById(s.getId()).isPresent());
 
-        service.deleteToRecycleBin(List.of(s));
+        List<String> errors = service.deleteToRecycleBin(List.of(s), "Transferred to another school");
 
-        assertTrue(StudentStore.getInstance().findById(s.getId()).isEmpty());
+        assertTrue(errors.isEmpty());
         assertTrue(RecycleBinStore.getInstance().findById(s.getId()).isPresent(),
                 "The deleted student lands in the recycle bin");
+        Student fromStore = StudentStore.getInstance().findById(s.getId()).orElseThrow();
+        assertTrue(fromStore.isDeleted(), "Student should be marked as soft-deleted");
+        assertEquals("WITHDRAWN", fromStore.getLifecycleStatus());
+        assertEquals("Transferred to another school", fromStore.getDeletionReason());
     }
 
     @Test
-    @DisplayName("A student with a paid fee ledger can be deleted (financials deallocated)")
+    @DisplayName("A student with a fully-paid fee ledger can be soft-deleted")
     void deleteDeallocatesFinancialRecords() {
         Student s = createStudent("ADM-2");
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(s.getId());
         ledger.charge("TUITION", CurrencyConfig.money("5000"));
-        ledger.pay("TUITION", CurrencyConfig.money("2000"));
+        ledger.pay("TUITION", CurrencyConfig.money("5000"));
 
-        service.deleteToRecycleBin(List.of(s));
+        List<String> errors = service.deleteToRecycleBin(List.of(s), "Graduated");
 
-        assertTrue(StudentStore.getInstance().findById(s.getId()).isEmpty(),
-                "Students with financial records are not blocked from deletion");
+        assertTrue(errors.isEmpty(),
+                "Students with zero balance can be soft-deleted");
         assertTrue(RecycleBinStore.getInstance().findById(s.getId()).isPresent());
+        assertTrue(s.isDeleted());
     }
 
     @Test
-    @DisplayName("Deleting several students at once moves them all to the recycle bin")
-    void deleteBatchMovesAll() {
+    @DisplayName("A student with outstanding balance cannot be soft-deleted")
+    void deleteBlockedForOutstandingBalance() {
+        Student s = createStudent("ADM-2B");
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(s.getId());
+        ledger.charge("TUITION", CurrencyConfig.money("5000"));
+        ledger.pay("TUITION", CurrencyConfig.money("2000"));
+
+        List<String> errors = service.deleteToRecycleBin(List.of(s), "Withdrawing");
+
+        assertFalse(errors.isEmpty(), "Should report error for outstanding balance");
+        assertFalse(s.isDeleted(), "Student should NOT be marked as deleted");
+        assertTrue(RecycleBinStore.getInstance().findById(s.getId()).isEmpty(),
+                "Student should NOT be in the recycle bin");
+    }
+
+    @Test
+    @DisplayName("Deleting several students at once marks them all as deleted")
+    void deleteBatchMarksAll() {
         Student a = createStudent("ADM-B1");
         Student b = createStudent("ADM-B2");
 
-        service.deleteToRecycleBin(List.of(a, b));
+        List<String> errors = service.deleteToRecycleBin(List.of(a, b), "Batch removal");
 
+        assertTrue(errors.isEmpty());
         assertEquals(2, RecycleBinStore.getInstance().getItems().size());
-        assertTrue(StudentStore.getInstance().getStudents().isEmpty());
+        assertTrue(a.isDeleted());
+        assertTrue(b.isDeleted());
     }
 
     @Test
@@ -99,7 +123,7 @@ class RecycleBinTest {
     void restoreReAddsStudentWithSameId() {
         Student s = createStudent("ADM-3");
         String id = s.getId();
-        service.deleteToRecycleBin(List.of(s));
+        service.deleteToRecycleBin(List.of(s), "Temp leave");
         DeletedStudent deleted = RecycleBinStore.getInstance().findById(id).orElseThrow();
 
         List<String> errors = service.restore(List.of(deleted));
@@ -110,20 +134,28 @@ class RecycleBinTest {
         assertEquals("ADM-3", restored.getAdmissionNumber());
         assertEquals("Student ADM-3", restored.getName());
         assertEquals(id, restored.getId(), "The original id is preserved so references relink");
+        assertFalse(restored.isDeleted(), "Restored student should not be marked as deleted");
+        assertEquals("ACTIVE", restored.getLifecycleStatus());
     }
 
     @Test
-    @DisplayName("Restore reports a conflict when the admission number is already in use")
+    @DisplayName("Restore reports a conflict when the admission number is already in use by an active student")
     void restoreReportsConflictWhenAdmissionNumberReused() {
         Student s = createStudent("ADM-4");
-        service.deleteToRecycleBin(List.of(s));
-        DeletedStudent deleted = RecycleBinStore.getInstance().findById(s.getId()).orElseThrow();
-        createStudent("ADM-4");
+        String originalId = s.getId();
+        service.deleteToRecycleBin(List.of(s), "Leaving");
+        DeletedStudent deleted = RecycleBinStore.getInstance().findById(originalId).orElseThrow();
+
+        // Simulate a new student getting the same admission number after the original was removed
+        // by removing the soft-deleted student from the store first, then adding a new one
+        StudentStore.getInstance().remove(s);
+        Student newStudent = createStudent("ADM-4");
+        assertNotEquals(originalId, newStudent.getId(), "Different student, different id");
 
         List<String> errors = service.restore(List.of(deleted));
 
         assertFalse(errors.isEmpty());
-        assertTrue(RecycleBinStore.getInstance().findById(s.getId()).isPresent(),
+        assertTrue(RecycleBinStore.getInstance().findById(originalId).isPresent(),
                 "The blocked record stays in the recycle bin");
     }
 
@@ -131,7 +163,7 @@ class RecycleBinTest {
     @DisplayName("Purge permanently removes the record from the recycle bin")
     void purgeRemovesPermanently() {
         Student s = createStudent("ADM-5");
-        service.deleteToRecycleBin(List.of(s));
+        service.deleteToRecycleBin(List.of(s), "Purging");
         DeletedStudent deleted = RecycleBinStore.getInstance().findById(s.getId()).orElseThrow();
 
         service.purge(List.of(deleted));

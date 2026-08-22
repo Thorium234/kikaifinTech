@@ -158,7 +158,7 @@ public class MidTermEnrollmentView extends VBox implements MainLayout.Refreshabl
     private void showEnrollDialog() {
         List<Student> candidates = new ArrayList<>();
         for (Student s : StudentStore.getInstance().getStudents()) {
-            if (s.getStatus() == StudentStatus.ACTIVE && service.findByStudentId(s.getId()).isEmpty()) {
+            if (!s.isDeleted() && s.getStatus() == StudentStatus.ACTIVE && service.findByStudentId(s.getId()).isEmpty()) {
                 candidates.add(s);
             }
         }

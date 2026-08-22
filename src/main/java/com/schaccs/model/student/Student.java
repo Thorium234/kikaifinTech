@@ -9,6 +9,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -32,6 +33,11 @@ public class Student {
     private final ObjectProperty<DurationUnit> durationUnit = new SimpleObjectProperty<>();
     private final ObjectProperty<LocalDate> enrollmentDate = new SimpleObjectProperty<>();
     private final ObjectProperty<LocalDate> expectedCompletionDate = new SimpleObjectProperty<>();
+    private final StringProperty lifecycleStatus = new SimpleStringProperty();
+    private final ObjectProperty<Boolean> deleted = new SimpleObjectProperty<>(false);
+    private final ObjectProperty<LocalDateTime> deletedAt = new SimpleObjectProperty<>();
+    private final StringProperty deletionReason = new SimpleStringProperty();
+    private final ObjectProperty<Integer> courseDurationYears = new SimpleObjectProperty<>(4);
 
     public Student() {
         this.id = UUID.randomUUID().toString();
@@ -272,6 +278,101 @@ public class Student {
 
     public ObjectProperty<LocalDate> expectedCompletionDateProperty() {
         return expectedCompletionDate;
+    }
+
+    public String getLifecycleStatus() {
+        return lifecycleStatus.get();
+    }
+
+    public void setLifecycleStatus(String value) {
+        lifecycleStatus.set(value);
+    }
+
+    public StringProperty lifecycleStatusProperty() {
+        return lifecycleStatus;
+    }
+
+    public boolean isDeleted() {
+        Boolean val = deleted.get();
+        return val != null && val;
+    }
+
+    public void setDeleted(boolean value) {
+        deleted.set(value);
+    }
+
+    public ObjectProperty<Boolean> deletedProperty() {
+        return deleted;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt.get();
+    }
+
+    public void setDeletedAt(LocalDateTime value) {
+        deletedAt.set(value);
+    }
+
+    public ObjectProperty<LocalDateTime> deletedAtProperty() {
+        return deletedAt;
+    }
+
+    public String getDeletionReason() {
+        return deletionReason.get();
+    }
+
+    public void setDeletionReason(String value) {
+        deletionReason.set(value);
+    }
+
+    public StringProperty deletionReasonProperty() {
+        return deletionReason;
+    }
+
+    public Integer getCourseDurationYears() {
+        return courseDurationYears.get();
+    }
+
+    public void setCourseDurationYears(Integer value) {
+        courseDurationYears.set(value);
+    }
+
+    public ObjectProperty<Integer> courseDurationYearsProperty() {
+        return courseDurationYears;
+    }
+
+    /**
+     * Compute the expected completion year from admission year + course duration.
+     * Falls back to duration_value if courseDurationYears is null/zero.
+     */
+    public Integer computeExpectedCompletionYear() {
+        Integer admission = getYearOfAdmission();
+        Integer duration = getCourseDurationYears();
+        if (duration == null || duration <= 0) {
+            duration = getDurationValue();
+        }
+        if (admission == null || duration == null || duration <= 0) {
+            return null;
+        }
+        return admission + duration;
+    }
+
+    /** Mark this student as soft-deleted. */
+    public void markDeleted(String reason) {
+        setDeleted(true);
+        setDeletedAt(LocalDateTime.now());
+        if (reason != null) {
+            setDeletionReason(reason);
+        }
+        setLifecycleStatus("WITHDRAWN");
+    }
+
+    /** Clear soft-delete flags (restore). */
+    public void clearDeleted() {
+        setDeleted(false);
+        deletedAt.set(null);
+        deletionReason.set(null);
+        setLifecycleStatus("ACTIVE");
     }
 
     /** True when the course clock has passed the expected completion date. */

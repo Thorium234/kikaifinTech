@@ -76,7 +76,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         setSpacing(12);
         setPadding(new Insets(4));
 
-        studentFilteredList = new FilteredList<>(studentStore.getStudents(), s -> true);
+        studentFilteredList = new FilteredList<>(studentStore.getStudents(), s -> !s.isDeleted());
         studentTable.setItems(studentFilteredList);
 
         Label heading = new Label("Receipting — Automatic Votehead Allocation");
@@ -260,7 +260,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
     private void filterStudents(String q) {
         String query = q == null ? "" : q.trim();
-        studentFilteredList.setPredicate(s -> query.isEmpty() || s.matchesSearch(query));
+        studentFilteredList.setPredicate(s -> !s.isDeleted() && (query.isEmpty() || s.matchesSearch(query)));
     }
 
     private void searchAction() {

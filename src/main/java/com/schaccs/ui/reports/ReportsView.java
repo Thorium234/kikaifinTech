@@ -302,6 +302,7 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
             String adm = admField.getText().trim();
             List<Student> all = StudentStore.getInstance().getStudents();
             List<Student> filtered = all.stream().filter(s -> {
+                if (s.isDeleted()) return false;
                 if (fc != null && !fc.getName().equalsIgnoreCase(s.getFormClass())) return false;
                 if (st != null && !st.getName().equalsIgnoreCase(s.getStream())) return false;
                 if (!adm.isEmpty() && !s.getAdmissionNumber().toLowerCase().contains(adm.toLowerCase())) return false;
