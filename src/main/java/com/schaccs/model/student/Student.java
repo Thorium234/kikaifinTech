@@ -342,8 +342,9 @@ public class Student {
     }
 
     /**
-     * Compute the expected completion year from admission year + course duration.
-     * Falls back to duration_value if courseDurationYears is null/zero.
+     * Compute the expected completion year: Y_admit + D − 1 (the last calendar
+     * year of the course timeline). Falls back to duration_value when
+     * courseDurationYears is null/zero.
      */
     public Integer computeExpectedCompletionYear() {
         Integer admission = getYearOfAdmission();
@@ -354,7 +355,12 @@ public class Student {
         if (admission == null || duration == null || duration <= 0) {
             return null;
         }
-        return admission + duration;
+        return admission + duration - 1;
+    }
+
+    /** First year of the cohort timeline (Y_admit), or null when unknown. */
+    public Integer computeTimelineStartYear() {
+        return getYearOfAdmission();
     }
 
     /** Mark this student as soft-deleted. */

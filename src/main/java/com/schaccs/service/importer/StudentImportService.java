@@ -202,7 +202,8 @@ public class StudentImportService {
             imported++;
         }
         if (commit && imported > 0) {
-            // Collect unique cohort years to scaffold academic calendars
+            // Scaffold one calendar per cohort timeline year:
+            // [Y_admit .. Y_admit + D - 1]
             java.util.Set<Integer> cohortYears = new java.util.TreeSet<>();
             for (Student student : stagedStudents) {
                 Integer admissionYear = student.getYearOfAdmission();
@@ -211,7 +212,7 @@ public class StudentImportService {
                     duration = student.getDurationValue();
                 }
                 if (admissionYear != null && duration != null && duration > 0) {
-                    for (int y = admissionYear; y <= admissionYear + duration; y++) {
+                    for (int y = admissionYear; y < admissionYear + duration; y++) {
                         cohortYears.add(y);
                     }
                 }
@@ -220,17 +221,17 @@ public class StudentImportService {
             for (int year : cohortYears) {
                 academicCalendarService.ensureYearCalendar(year);
             }
+            com.schaccs.service.student.CohortReplayService replayService =
+                    new com.schaccs.service.student.CohortReplayService();
             for (Student student : stagedStudents) {
                 try {
-                    // Set lifecycle status and expected completion year for cohort tracking
                     if (student.getLifecycleStatus() == null || student.getLifecycleStatus().isBlank()) {
                         student.setLifecycleStatus("ACTIVE");
                     }
-                    Integer completionYear = student.computeExpectedCompletionYear();
-                    if (completionYear != null) {
-                        student.setCourseDurationYears(completionYear - student.getYearOfAdmission());
-                    }
                     studentStore.add(student);
+                    // Reconstruct pre-arrival history (no-op when the cohort
+                    // starts in the arrival year), then bill the live term.
+                    replayService.replay(student);
                     feeCalculationService.chargeTermFees(student, AcademicTerm.TERM_1);
                 } catch (IllegalArgumentException e) {
                     warnings.add("Skipped " + student.getAdmissionNumber() + ": " + e.getMessage());

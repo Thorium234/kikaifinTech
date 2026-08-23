@@ -59,12 +59,12 @@ class StudentCohortLifecycleTest {
     class ModelTests {
 
         @Test
-        @DisplayName("computeExpectedCompletionYear uses courseDurationYears")
+        @DisplayName("computeExpectedCompletionYear uses courseDurationYears (admit + duration - 1)")
         void computeYear() {
             Student s = new Student();
             s.setYearOfAdmission(2024);
             s.setCourseDurationYears(4);
-            assertEquals(2028, s.computeExpectedCompletionYear());
+            assertEquals(2027, s.computeExpectedCompletionYear());
         }
 
         @Test
@@ -74,7 +74,7 @@ class StudentCohortLifecycleTest {
             s.setYearOfAdmission(2024);
             s.setCourseDurationYears(null);
             s.setDurationValue(3);
-            assertEquals(2027, s.computeExpectedCompletionYear());
+            assertEquals(2026, s.computeExpectedCompletionYear());
         }
 
         @Test

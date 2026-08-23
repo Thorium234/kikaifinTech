@@ -264,9 +264,11 @@ public class AcademicCalendarService {
     /**
      * Ensure the calendar has the three standard terms for the given year,
      * generating them when none exist yet: Term 1 (Jan 1 – Apr 30), Term 2
-     * (May 1 – Aug 31), Term 3 (Sep 1 – Dec 31). Generated periods are marked
-     * ENDED because this is used to scaffold historical years whose terms have
-     * already finished. Returns true when the scaffold was created.
+     * (May 1 – Aug 31), Term 3 (Sep 1 – Dec 31). Statuses are derived from
+     * today's date (ENDED for past terms, ACTIVE for the in-session term,
+     * PLANNED for future ones), so scaffolding a historical year yields all-
+     * ENDED terms while scaffolding the current year preserves live statuses.
+     * Returns true when the scaffold was created.
      */
     public boolean ensureYearCalendar(int year) {
         boolean hasYear = store.getPeriods().stream()
@@ -274,19 +276,28 @@ public class AcademicCalendarService {
         if (hasYear) {
             return false;
         }
-        store.add(new TermPeriod(AcademicTerm.TERM_1,
-                LocalDate.of(year, 1, 1), LocalDate.of(year, 4, 30)));
-        store.add(new TermPeriod(AcademicTerm.TERM_2,
-                LocalDate.of(year, 5, 1), LocalDate.of(year, 8, 31)));
-        store.add(new TermPeriod(AcademicTerm.TERM_3,
-                LocalDate.of(year, 9, 1), LocalDate.of(year, 12, 31)));
-        for (TermPeriod p : store.getPeriods()) {
-            if (p.getYear() == year) {
-                p.setStatus(TermStatus.ENDED);
-            }
-        }
+        LocalDate today = LocalDate.now();
+        store.add(scaffoldTerm(AcademicTerm.TERM_1, year, 1, 5, today));
+        store.add(scaffoldTerm(AcademicTerm.TERM_2, year, 5, 9, today));
+        store.add(scaffoldTerm(AcademicTerm.TERM_3, year, 9, 13, today));
         PersistenceService.getInstance().saveAll();
         return true;
+    }
+
+    private TermPeriod scaffoldTerm(AcademicTerm term, int year, int startMonth, int endMonthExclusive, LocalDate today) {
+        LocalDate from = LocalDate.of(year, startMonth, 1);
+        LocalDate lastDay = endMonthExclusive > 12
+                ? LocalDate.of(year, 12, 31)
+                : LocalDate.of(year, endMonthExclusive, 1).minusDays(1);
+        TermStatus status;
+        if (today.isAfter(lastDay)) {
+            status = TermStatus.ENDED;
+        } else if (!today.isBefore(from)) {
+            status = TermStatus.ACTIVE;
+        } else {
+            status = TermStatus.PLANNED;
+        }
+        return TermPeriod.withId(java.util.UUID.randomUUID().toString(), term, from, lastDay, status);
     }
 
     /**
@@ -414,8 +425,16 @@ public class AcademicCalendarService {
                     s.setLifecycleStatus("COMPLETED");
                     break;
                 }
+                BigDecimal arrearsBefore = ledger.getArrears();
                 BigDecimal unpaid = unpaid(ledger);
-                ledger.setArrears(ledger.getArrears().add(unpaid));
+                // Waterfall continuity: freeze this term's position into the
+                // term-balance ledger before the cycle resets.
+                com.schaccs.service.student.CohortReplayService.upsertSnapshot(
+                        new com.schaccs.model.student.StudentTermBalance(
+                                s.getId(), period.get().getYear(), current,
+                                ledger.getTotalCharged(), arrearsBefore,
+                                ledger.getTotalPaid(), arrearsBefore.add(unpaid)));
+                ledger.setArrears(arrearsBefore.add(unpaid));
                 boolean promoted = false;
                 if (current == AcademicTerm.TERM_3) {
                     promoted = promoteClass(s);
