@@ -15,26 +15,28 @@ set "WORK_DIR=%CD%"
 set "INPUT_DIR=%WORK_DIR%\target\installer-input"
 set "LIBS_DIR=%WORK_DIR%\target\libs"
 set "RUNTIME_DIR=%WORK_DIR%\target\runtime"
-set "MSI_DIR=%WORK_DIR%\target\installer"
-set "BOOTSTRAPPER_OUT=%WORK_DIR%\target\bootstrapper-output"
-set "WIX_DIR=%WORK_DIR%\src\main\installer\wix"
+set "APP_IMAGE_DIR=%WORK_DIR%\target\app-image"
+set "DIST_DIR=%WORK_DIR%\target\dist"
+set "SETUP_OUT=%WORK_DIR%\target\installer-output"
+set "INNO_SCRIPT=%WORK_DIR%\installer.iss"
 
 echo ============================================================================
 echo   %APP_NAME% %APP_VERSION% - Full Installer Build
 echo   %APP_VENDOR%
+echo   Native setup wizard via jpackage app-image + Inno Setup
 echo ============================================================================
 echo.
 echo Prerequisites:
 echo   - JDK 21+ at %JAVA_HOME%
 echo   - Maven 3.9+  (mvn -version)
-echo   - WiX v3.14+  (candle, light)
+echo   - Inno Setup 6 (ISCC.exe)
 echo.
 
 :: ============================================================================
-:: STEP 0: Environment verification
+:: STEP 0/8: Environment verification
 :: ============================================================================
 echo ---------------------------------------------------------------------------
-echo   STEP 0/9: Verify environment
+echo   STEP 0/8: Verify environment
 echo ---------------------------------------------------------------------------
 echo.
 
@@ -68,25 +70,36 @@ if %errorlevel% neq 0 (
 )
 echo [OK]   Maven
 
-:: Check WiX
-set "WIX_TOOLS=C:\Program Files (x86)\WiX Toolset v3.14\bin"
-where candle >nul 2>&1
-if not %errorlevel% equ 0 (
-    if exist "%WIX_TOOLS%\candle.exe" (
-        set "PATH=%PATH%;%WIX_TOOLS%"
-        echo [OK]   WiX (added from !WIX_TOOLS!)
-    ) else (
-        echo [FAIL] WiX Toolset v3 not found.
-        echo        Install: winget install WiXToolset.WiXToolset
-        exit /b 1
+:: Check Inno Setup Compiler (ISCC)
+set "ISCC="
+where iscc >nul 2>&1 && set "ISCC=iscc"
+if not defined ISCC (
+    for %%P in ("%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" "%ProgramFiles%\Inno Setup 6\ISCC.exe") do (
+        if exist %%P set "ISCC=%%~P"
     )
-) else (
-    echo [OK]   WiX
 )
+if not defined ISCC (
+    echo [FAIL] Inno Setup 6 not found.
+    echo        Install it with:  winget install JRSoftware.InnoSetup
+    echo        (or from https://jrsoftware.org/isdl.php^) and re-run this script.
+    exit /b 1
+)
+echo [OK]   Inno Setup: !ISCC!
+
+:: Check required assets
+if not exist "src\main\resources\icon.ico" (
+    echo [FAIL] Icon missing: src\main\resources\icon.ico
+    exit /b 1
+)
+if not exist "src\main\installer\eula.rtf" (
+    echo [FAIL] EULA missing: src\main\installer\eula.rtf
+    exit /b 1
+)
+echo [OK]   Icon and EULA present
 
 echo.
 echo ============================================================================
-echo   STEP 1/9: Run tests
+echo   STEP 1/8: Run tests
 echo   mvn clean test
 echo ============================================================================
 echo.
@@ -99,14 +112,13 @@ echo [OK]   All tests passed
 echo.
 
 :: ============================================================================
-:: STEP 2/9: Build application JAR and copy dependencies
-::   mvn package -DskipTests  (test already ran above)
-::   This creates:
-::     target/%APP_JAR%        - executable JAR
-::     target/libs/*.jar       - all runtime dependency JARs
+:: STEP 2/8: Build application JAR and copy dependencies
+::   Creates:
+::     target/%APP_JAR%   - executable JAR
+::     target/libs/*.jar  - all runtime dependency JARs
 :: ============================================================================
 echo ============================================================================
-echo   STEP 2/9: Package application
+echo   STEP 2/8: Package application
 echo   mvn package -DskipTests
 echo ============================================================================
 echo.
@@ -123,17 +135,14 @@ echo [OK]   Application packaged
 echo.
 
 :: ============================================================================
-:: STEP 3/9: Create runtime with jlink
-::   Creates a minimal JRE at target/runtime/ that contains only the JDK
-::   modules needed by the application. This runtime WILL include java.exe
-::   and javaw.exe (unlike jpackage's internal jlink which skips them).
-::
-::   NOTE: We use --strip-debug --no-header-files --no-man-pages to minimize
-::   size. --compress=2 reduces disk footprint.
+:: STEP 3/8: Create runtime with jlink
+::   Minimal JRE containing only the modules the app needs. Explicitly built
+::   (instead of relying on jpackage's internal jlink) because some JDK
+::   versions generate a runtime missing java.exe/javaw.exe, which breaks
+::   application launching.
 :: ============================================================================
 echo ============================================================================
-echo   STEP 3/9: Create runtime with jlink
-echo   %JLINK% --module-path ... --add-modules ... --output target\runtime
+echo   STEP 3/8: Create runtime with jlink
 echo ============================================================================
 echo.
 if exist "%RUNTIME_DIR%" rmdir /s /q "%RUNTIME_DIR%"
@@ -152,10 +161,8 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: Verify the runtime has java.exe
 if not exist "%RUNTIME_DIR%\bin\java.exe" (
-    echo [FAIL] jlink runtime is missing java.exe! This is required for ThorCash.exe to launch.
-    echo        This indicates a JDK 26 jlink bug or incompatible configuration.
+    echo [FAIL] jlink runtime is missing java.exe!
     exit /b 1
 )
 if not exist "%RUNTIME_DIR%\bin\javaw.exe" (
@@ -169,22 +176,17 @@ if defined RUNTIME_SIZE_MB (echo        Size: !RUNTIME_SIZE_MB! MB) else (echo  
 echo.
 
 :: ============================================================================
-:: STEP 4/9: Assemble installer input directory
-::   The input directory contains everything that goes into the app image:
-::     - Main application JAR
-::     - All dependency JARs
-::     - JavaFX native DLLs (for -Djava.library.path)
-::   jpackage copies these into the app/ subdirectory of the installation.
+:: STEP 4/8: Assemble installer input directory
+::   Main JAR + dependency JARs + JavaFX native DLLs. jpackage copies these
+::   into the app image's app\ subdirectory.
 :: ============================================================================
 echo ============================================================================
-echo   STEP 4/9: Assemble installer input
-echo   Copying JARs and extracting JavaFX native DLLs...
+echo   STEP 4/8: Assemble installer input
 echo ============================================================================
 echo.
 if exist "%INPUT_DIR%" rmdir /s /q "%INPUT_DIR%"
 mkdir "%INPUT_DIR%"
 
-:: Copy main JAR
 copy "target\%APP_JAR%" "%INPUT_DIR%\" >nul
 if %errorlevel% neq 0 (
     echo [FAIL] Could not copy %APP_JAR%
@@ -192,7 +194,6 @@ if %errorlevel% neq 0 (
 )
 echo [OK]   Main JAR copied
 
-:: Copy dependency JARs
 if exist "%LIBS_DIR%" (
     xcopy /s /q /y "%LIBS_DIR%\*" "%INPUT_DIR%\" >nul
     echo [OK]   Dependencies copied
@@ -200,10 +201,8 @@ if exist "%LIBS_DIR%" (
     echo [WARN] No libs directory found
 )
 
-:: Extract JavaFX native DLLs from Gluon platform JARs
-:: JavaFX on Windows needs native DLLs (glass.dll, prism_d3d.dll, etc.)
-:: These are extracted to the input dir and end up in app/, where
-:: -Djava.library.path=. allows the JVM to find them at runtime.
+:: Extract JavaFX native DLLs (glass.dll, prism_d3d.dll, ...) so that
+:: -Djava.library.path=. resolves them at runtime.
 echo Extracting JavaFX native DLLs...
 powershell -NoProfile -ExecutionPolicy Bypass -File "src\main\installer\extract-javafx-dlls.ps1" -OutputDir "%INPUT_DIR%"
 
@@ -211,171 +210,15 @@ echo [OK]   Installer input ready at %INPUT_DIR%
 echo.
 
 :: ============================================================================
-:: STEP 5/9: Create application image (optional)
-::   For debugging: we can create an app image to inspect before MSI packaging.
-::   Skipped in production — jpackage --type msi handles this internally.
+:: STEP 5/8: Create self-contained app image with jpackage
+::   One app image feeds BOTH distribution artifacts:
+::     - the portable ZIP (STEP 6)
+::     - the native setup EXE compiled by Inno Setup (STEP 7)
 :: ============================================================================
 echo ============================================================================
-echo   STEP 5/9: Build MSI installer with jpackage
-echo   jpackage --type msi --runtime-image ... --input ... --main-jar ...
+echo   STEP 5/8: Build app image with jpackage
 echo ============================================================================
 echo.
-if exist "%MSI_DIR%" rmdir /s /q "%MSI_DIR%"
-mkdir "%MSI_DIR%"
-
-"%JPACKAGE%" ^
-    --type msi ^
-    --runtime-image "%RUNTIME_DIR%" ^
-    --dest "%MSI_DIR%" ^
-    --name "%APP_NAME%" ^
-    --app-version "%APP_VERSION%" ^
-    --input "%INPUT_DIR%" ^
-    --main-jar "%APP_JAR%" ^
-    --main-class "%APP_MAIN_CLASS%" ^
-    --icon src\main\resources\icon.ico ^
-    --vendor "%APP_VENDOR%" ^
-    --license-file src\main\installer\eula.rtf ^
-    --win-shortcut ^
-    --win-menu ^
-    --win-dir-chooser ^
-    --java-options "-Xmx512m" ^
-    --java-options "-Dfile.encoding=UTF-8" ^
-    --java-options "-Djava.library.path=."
-
-if %errorlevel% neq 0 (
-    echo.
-    echo [FAIL] jpackage failed. Common causes:
-    echo   - WiX not installed or not on PATH
-    echo   - Icon missing: src/main/resources/icon.ico
-    echo   - EULA missing: src/main/installer/eula.rtf
-    echo   - JavaFX DLL extraction failed
-    exit /b 1
-)
-
-:: Verify MSI was created
-set "MSI_PATH=%MSI_DIR%\%APP_NAME%-%APP_VERSION%.msi"
-if not exist "%MSI_PATH%" (
-    echo [FAIL] MSI not created at expected path: %MSI_PATH%
-    dir "%MSI_DIR%\*.msi"
-    exit /b 1
-)
-for %%f in ("%MSI_PATH%") do set MSI_SIZE=%%~zf
-set /a MSI_SIZE_MB=%MSI_SIZE%/1048576
-echo [OK]   MSI built: %MSI_PATH% (%MSI_SIZE_MB% MB)
-echo.
-
-:: ============================================================================
-:: STEP 6/9: Verify MSI runtime integrity
-::   Validate that the jlink runtime was correctly bundled into the MSI
-::   by checking that java.exe exists in the expected location.
-::   We use msiexec /a (admin install) to extract the MSI contents.
-:: ============================================================================
-echo ============================================================================
-echo   STEP 6/9: Verify MSI runtime
-echo   Checking that java.exe and javaw.exe are bundled in the MSI...
-echo ============================================================================
-echo.
-set "EXTRACT_DIR=%WORK_DIR%\target\msi-verify"
-if exist "%EXTRACT_DIR%" rmdir /s /q "%EXTRACT_DIR%"
-mkdir "%EXTRACT_DIR%"
-
-:: Extract MSI contents to verify runtime
-msiexec /a "%MSI_PATH%" /qn TARGETDIR="%EXTRACT_DIR%" /L*V "%WORK_DIR%\target\msi-extract-log.txt" >nul 2>&1
-
-:: Wait for extraction to complete
-if exist "%EXTRACT_DIR%\PFiles\ThorCash\runtime\bin\java.exe" (
-    echo [OK]   MSI contains runtime/bin/java.exe
-) else if exist "%EXTRACT_DIR%\ThorCash\runtime\bin\java.exe" (
-    echo [OK]   MSI contains runtime/bin/java.exe
-) else (
-    :: Search for it
-    set "FOUND="
-    for /r "%EXTRACT_DIR%" %%f in (java.exe) do (
-        set "FOUND=%%f"
-    )
-    if defined FOUND (
-        echo [OK]   Found java.exe at !FOUND!
-    ) else (
-        echo [WARN] Could not verify java.exe in MSI (msiexec /a may not extract everything)
-        echo        Proceeding with bootstrapper build.
-    )
-)
-
-:: Clean up
-if exist "%EXTRACT_DIR%" rmdir /s /q "%EXTRACT_DIR%"
-echo.
-
-:: ============================================================================
-:: STEP 7/9: Build WiX Burn bootstrapper
-::   Wraps the MSI into a professional-looking installer EXE with:
-::     - EULA page
-::     - Install folder picker
-::     - Progress bar
-::     - Admin elevation
-::     - Desktop shortcut + Start Menu
-::     - Add/Remove Programs entry
-:: ============================================================================
-echo ============================================================================
-echo   STEP 7/9: Build bootstrapper EXE
-echo   WiX Burn bundle wrapping the MSI...
-echo ============================================================================
-echo.
-set "BOOTSTRAPPER_BUILD=%WORK_DIR%\target\bootstrapper"
-if exist "%BOOTSTRAPPER_BUILD%" rmdir /s /q "%BOOTSTRAPPER_BUILD%"
-mkdir "%BOOTSTRAPPER_BUILD%"
-
-:: Step 7a: Compile Bundle.wxs
-echo [1/2] Compiling Bundle.wxs...
-"%WIX_TOOLS%\candle.exe" -nologo ^
-    -out "%BOOTSTRAPPER_BUILD%\Bundle.wixobj" ^
-    -ext WixBalExtension ^
-    -ext WixUtilExtension ^
-    -dProjectDir="%WORK_DIR%\src\main\installer\wix" ^
-    -dMsiPath="%MSI_PATH%" ^
-    -dVersion="%APP_VERSION%" ^
-    -dIconPath="%WORK_DIR%\src\main\resources\icon.ico" ^
-    "%WIX_DIR%\Bundle.wxs"
-if %errorlevel% neq 0 (
-    echo [FAIL] Candle compilation failed.
-    exit /b 1
-)
-echo [OK]   Bundle.wixobj created
-
-:: Step 7b: Link bootstrapper
-echo [2/2] Linking bootstrapper...
-if not exist "%BOOTSTRAPPER_OUT%" mkdir "%BOOTSTRAPPER_OUT%"
-
-"%WIX_TOOLS%\light.exe" -nologo ^
-    -out "%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe" ^
-    -ext WixBalExtension ^
-    -ext WixUtilExtension ^
-    "%BOOTSTRAPPER_BUILD%\Bundle.wixobj"
-if %errorlevel% neq 0 (
-    echo [FAIL] Light linking failed.
-    exit /b 1
-)
-echo [OK]   Bootstrapper linked
-
-:: Verify bootstrapper was created
-if not exist "%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe" (
-    echo [FAIL] Bootstrapper EXE not created.
-    exit /b 1
-)
-for %%f in ("%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe") do set BOOT_SIZE=%%~zf
-set /a BOOT_SIZE_MB=%BOOT_SIZE%/1048576
-echo [OK]   Bootstrapper created: %BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe (%BOOT_SIZE_MB% MB)
-echo.
-
-:: ============================================================================
-:: STEP 7b/9: Build portable ZIP
-::   jpackage app-image + Compress-Archive — the client's most reliable package
-::   (no installer, no admin rights, no JVM needed).
-:: ============================================================================
-echo ============================================================================
-echo   STEP 7b/9: Build portable ZIP
-echo ============================================================================
-echo.
-set "APP_IMAGE_DIR=%WORK_DIR%\target\app-image"
 if exist "%APP_IMAGE_DIR%" rmdir /s /q "%APP_IMAGE_DIR%"
 
 "%JPACKAGE%" ^
@@ -397,13 +240,21 @@ if %errorlevel% neq 0 (
     echo [FAIL] jpackage app-image failed.
     exit /b 1
 )
-if not exist "%APP_IMAGE_DIR%\%APP_NAME%\ThorCash.exe" (
-    echo [FAIL] App image not created at %APP_IMAGE_DIR%\%APP_NAME%\ThorCash.exe
+if not exist "%APP_IMAGE_DIR%\%APP_NAME%\%APP_NAME%.exe" (
+    echo [FAIL] App image not created at %APP_IMAGE_DIR%\%APP_NAME%\%APP_NAME%.exe
     exit /b 1
 )
-echo [OK]   App image created
+echo [OK]   App image created: %APP_IMAGE_DIR%\%APP_NAME%\
+echo.
 
-set "DIST_DIR=%WORK_DIR%\target\dist"
+:: ============================================================================
+:: STEP 6/8: Package portable ZIP
+::   No installer, no admin rights, no JVM needed — unzip anywhere.
+:: ============================================================================
+echo ============================================================================
+echo   STEP 6/8: Build portable ZIP
+echo ============================================================================
+echo.
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 powershell -NoProfile -Command "Compress-Archive -Path '%APP_IMAGE_DIR%\%APP_NAME%\*' -DestinationPath '%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip' -Force"
 if not exist "%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip" (
@@ -416,41 +267,67 @@ echo [OK]   Portable ZIP created: %DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.z
 echo.
 
 :: ============================================================================
-:: STEP 8/9: Generate SHA-256 checksums
-::   For release integrity verification.
+:: STEP 7/8: Compile native setup wizard with Inno Setup
+::   Produces ThorCash_Setup_v<version>.exe: welcome -> EULA -> folder picker
+::   -> progress -> Completed Setup screen with "Launch ThorCash" checkbox.
 :: ============================================================================
 echo ============================================================================
-echo   STEP 8/9: Generate SHA-256 checksums
+echo   STEP 7/8: Compile setup wizard (Inno Setup)
 echo ============================================================================
 echo.
-powershell -NoProfile -Command "& { $msi='%MSI_PATH%'; $exe='%BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe'; $zip='%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip'; $hash=(Get-FileHash $msi -Algorithm SHA256).Hash.ToLower(); Write-Host ('MSI:  '+$hash); $hash2=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower(); Write-Host ('EXE:  '+$hash2); $hash3=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLower(); Write-Host ('ZIP:  '+$hash3); $hash+'  '+(Get-Item $msi).Name | Out-File 'target\checksums.txt' -Encoding utf8; $hash2+'  '+(Get-Item $exe).Name | Out-File 'target\checksums.txt' -Encoding utf8 -Append; $hash3+'  '+(Get-Item $zip).Name | Out-File 'target\checksums.txt' -Encoding utf8 -Append }"
+if not exist "%SETUP_OUT%" mkdir "%SETUP_OUT%"
+
+"!ISCC!" /Q /DAppVersion=%APP_VERSION% "%INNO_SCRIPT%"
+if %errorlevel% neq 0 (
+    echo [FAIL] Inno Setup compilation failed.
+    exit /b 1
+)
+
+set "SETUP_EXE=%SETUP_OUT%\ThorCash_Setup_v%APP_VERSION%.exe"
+if not exist "%SETUP_EXE%" (
+    echo [FAIL] Setup EXE not created at expected path: %SETUP_EXE%
+    dir "%SETUP_OUT%"
+    exit /b 1
+)
+for %%f in ("%SETUP_EXE%") do set SETUP_SIZE=%%~zf
+set /a SETUP_SIZE_MB=%SETUP_SIZE%/1048576
+echo [OK]   Setup wizard created: %SETUP_EXE% (%SETUP_SIZE_MB% MB)
+echo.
+
+:: ============================================================================
+:: STEP 8/8: Generate SHA-256 checksums
+:: ============================================================================
+echo ============================================================================
+echo   STEP 8/8: Generate SHA-256 checksums
+echo ============================================================================
+echo.
+powershell -NoProfile -Command "& { $exe='%SETUP_EXE%'; $zip='%DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip'; $h=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower(); Write-Host ('EXE:  '+$h); $h2=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLower(); Write-Host ('ZIP:  '+$h2); $h+'  '+(Get-Item $exe).Name | Out-File 'target\checksums.txt' -Encoding utf8; $h2+'  '+(Get-Item $zip).Name | Out-File 'target\checksums.txt' -Encoding utf8 -Append }"
 
 echo [OK]   Checksums saved to target\checksums.txt
 echo.
 
 :: ============================================================================
-:: STEP 9/9: Build summary
+:: Summary
 :: ============================================================================
 echo ============================================================================
 echo   BUILD COMPLETE
 echo ============================================================================
 echo.
-echo   Installers:
-echo     %MSI_PATH% (%MSI_SIZE_MB% MB)
-echo     %BOOTSTRAPPER_OUT%\%APP_NAME%-Setup-%APP_VERSION%.exe (%BOOT_SIZE_MB% MB)
+echo   Artifacts:
+echo     %SETUP_EXE% (%SETUP_SIZE_MB% MB)
 echo     %DIST_DIR%\%APP_NAME%-Portable-%APP_VERSION%.zip (%ZIP_SIZE_MB% MB)
 echo.
-echo   Runtime verification:
-echo     %RUNTIME_DIR%\bin\java.exe     - present
-echo     %RUNTIME_DIR%\bin\javaw.exe    - present
-echo.
 echo   To install:
-echo     Double-click the .exe (recommended) or .msi and follow the prompts.
-echo     Admin rights are required.
+echo     Double-click ThorCash_Setup_v%APP_VERSION%.exe and follow the wizard.
+echo     The final screen offers "Launch ThorCash" (checked by default).
+echo     Admin rights are required; installs to C:\Program Files\ThorCash.
+echo.
+echo   Silent install:
+echo     ThorCash_Setup_v%APP_VERSION%.exe /VERYSILENT /NORESTART
 echo.
 echo   To uninstall:
-echo     Go to Settings ^> Apps ^> Installed Apps and select ThorCash.
-echo.
+echo     Settings ^> Apps ^> Installed Apps, or Start Menu ^> Uninstall ThorCash.
+echo     User data in %%APPDATA%% is preserved.
 echo ============================================================================
 
 endlocal

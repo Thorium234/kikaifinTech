@@ -1,6 +1,6 @@
 # ThorCash — Build & Installer Guide
 
-How to produce all three distribution artifacts from source.
+How to produce all distribution artifacts from source.
 
 ---
 
@@ -9,10 +9,9 @@ How to produce all three distribution artifacts from source.
 | File | Location | What it is |
 |------|----------|------------|
 | `ThorCash-Portable-<ver>.zip` | `target\dist\` | **Portable package** — unzip anywhere, double-click `ThorCash.exe`. No install, no admin, no JVM needed. This is what clients use. |
-| `ThorCash-Setup-<ver>.exe` | `target\bootstrapper-output\` | **Shareable installer** — single EXE with EULA, install-folder picker, progress bar, admin elevation, desktop shortcut, Start Menu entry. Wraps the MSI. |
-| `ThorCash-<ver>.msi` | `target\installer\` | **MSI installer** — Windows Installer package for enterprise deployment (GPO / Intune / silent install). Not shared with clients. |
+| `ThorCash_Setup_v<ver>.exe` | `target\installer-output\` | **Native setup wizard** — classic Windows installer built with Inno Setup wrapping the self-contained jpackage app-image: welcome → EULA → install-folder picker → progress bar → Completed Setup screen with a checked **Launch ThorCash** box that opens the app on Finish. Installs to `C:\Program Files\ThorCash` with desktop shortcut and Start Menu entry. |
 
-All three are the same app — same JAR, same bundled JVM, same behavior. Pick based on deployment method.
+Both are the same app — same JARs, same bundled JVM, same behavior. Pick based on deployment method.
 
 ---
 
@@ -22,14 +21,14 @@ All three are the same app — same JAR, same bundled JVM, same behavior. Pick b
 |------|---------|---------------|
 | JDK | 26.0.2 | `"C:\Program Files\Java\jdk-26.0.2\bin\java" -version` |
 | Maven | 3.9+ | `mvn -version` |
-| WiX Toolset v3 | 3.14 | `candle -?` |
+| Inno Setup 6 | 6.x | `"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /?` |
 | PowerShell | 5.1+ | `$PSVersionTable` |
 
-WiX is only needed for the MSI and bootstrapper EXE. The portable ZIP can be built without it.
+Inno Setup is only needed for the setup wizard EXE. The portable ZIP can be built without it.
 
-Install WiX if missing:
+Install Inno Setup if missing:
 ```
-winget install WiXToolset.WiXToolset
+winget install JRSoftware.InnoSetup
 ```
 
 ---
@@ -44,23 +43,21 @@ build-installer.bat
 
 This runs everything automatically:
 
-1. Verify environment (JDK, Maven, WiX)
+1. Verify environment (JDK, Maven, Inno Setup)
 2. Run tests (`mvn clean test`)
 3. Package JAR + dependencies (`mvn package -DskipTests`)
 4. Create custom JVM runtime with `jlink`
 5. Assemble installer input (JARs + JavaFX native DLLs)
-6. Build MSI with `jpackage`
-7. Verify MSI contains runtime
-8. Build bootstrapper EXE with WiX Burn
-9. Build portable ZIP from app-image
-10. Generate SHA-256 checksums
+6. Build self-contained app image with `jpackage`
+7. Build portable ZIP from the app image
+8. Compile the native setup wizard with Inno Setup
+9. Generate SHA-256 checksums
 
-On success, all three artifacts exist:
+On success, both artifacts exist:
 
 ```
-target\dist\ThorCash-Portable-1.0.13.zip            (90 MB)
-target\bootstrapper-output\ThorCash-Setup-1.0.13.exe  (91 MB)
-target\installer\ThorCash-1.0.13.msi                (92 MB)
+target\dist\ThorCash-Portable-1.0.13.zip          (~90 MB)
+target\installer-output\ThorCash_Setup_v1.0.13.exe (~91 MB)
 ```
 
 ---
@@ -135,54 +132,30 @@ powershell -NoProfile -Command "Compress-Archive -Path 'target\app-image\ThorCas
 
 Output: `target\dist\ThorCash-Portable-1.0.13.zip` — **this is the file to give clients.**
 
-### Step 4b — MSI installer
+### Step 4b — Native setup wizard (Inno Setup)
+
+Requires Inno Setup 6 (`ISCC.exe` on PATH or in `C:\Program Files (x86)\Inno Setup 6\`).
+The wizard wraps the app image built in Step 4a — no separate jpackage run needed.
 
 ```
-"C:\Program Files\Java\jdk-26.0.2\bin\jpackage.exe" ^
-    --type msi ^
-    --runtime-image target\runtime ^
-    --dest target\installer ^
-    --name ThorCash ^
-    --app-version 1.0.13 ^
-    --input target\installer-input ^
-    --main-jar thorcash-1.0.13.jar ^
-    --main-class com.schaccs.Launcher ^
-    --icon src\main\resources\icon.ico ^
-    --vendor "Thor Technologies" ^
-    --license-file src\main\installer\eula.rtf ^
-    --win-shortcut ^
-    --win-menu ^
-    --win-dir-chooser ^
-    --java-options "-Xmx512m" ^
-    --java-options "-Dfile.encoding=UTF-8" ^
-    --java-options "-Djava.library.path=."
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.13 installer.iss
 ```
 
-Output: `target\installer\ThorCash-1.0.13.msi`
+The script (`installer.iss` in the project root) produces:
 
-### Step 4c — Bootstrapper EXE (wraps MSI)
+- Install to `C:\Program Files\ThorCash` (folder picker included)
+- Desktop icon task + Start Menu group
+- EULA page (reuses `src\main\installer\eula.rtf`)
+- **Completed Setup screen with a checked "Launch ThorCash" checkbox** —
+  Finish opens the JavaFX dashboard immediately
 
-Requires WiX Toolset v3.14 (`candle.exe` and `light.exe` on PATH).
+Output: `target\installer-output\ThorCash_Setup_v1.0.13.exe`
+
+Silent deployment:
 
 ```
-set "WIX=C:\Program Files (x86)\WiX Toolset v3.14\bin"
-
-"%WIX%\candle.exe" -nologo ^
-    -out target\bootstrapper\Bundle.wixobj ^
-    -ext WixBalExtension -ext WixUtilExtension ^
-    -dProjectDir="src\main\installer\wix" ^
-    -dMsiPath="target\installer\ThorCash-1.0.13.msi" ^
-    -dVersion=1.0.13 ^
-    -dIconPath="src\main\resources\icon.ico" ^
-    src\main\installer\wix\Bundle.wxs
-
-"%WIX%\light.exe" -nologo ^
-    -out target\bootstrapper-output\ThorCash-Setup-1.0.13.exe ^
-    -ext WixBalExtension -ext WixUtilExtension ^
-    target\bootstrapper\Bundle.wixobj
+ThorCash_Setup_v1.0.13.exe /VERYSILENT /NORESTART
 ```
-
-Output: `target\bootstrapper-output\ThorCash-Setup-1.0.13.exe`
 
 ---
 
@@ -196,7 +169,8 @@ When releasing a new version, update these files **before** running `build-insta
 | `build-installer.bat` | `set "APP_VERSION=X.Y.Z"` (line 5) |
 | `src\main\java\com\schaccs\ui\layout\Sidebar.java` | `"Version X.Y.Z"` (line 91) |
 
-The bootstrapper EXE reads the version from the MSI filename automatically — no manual change needed in `Bundle.wxs` or `build-bootstrapper.bat`.
+The setup wizard reads the version automatically — `build-installer.bat` passes it to
+Inno Setup via `/DAppVersion=`. No manual change needed in `installer.iss`.
 
 ---
 
@@ -220,8 +194,7 @@ The bootstrapper EXE reads the version from the MSI filename automatically — n
 | Scenario | File |
 |----------|------|
 | Normal client — just needs it to work | `ThorCash-Portable-<ver>.zip` |
-| Client wants a proper Windows installer | `ThorCash-Setup-<ver>.exe` |
-| Enterprise / IT department deploying to many PCs | `ThorCash-<ver>.msi` |
+| Client wants a proper Windows installer | `ThorCash_Setup_v<ver>.exe` |
 
 **The portable ZIP is the most reliable.** If an installed EXE fails to launch but the ZIP works on the same machine, it is usually a stale installer or antivirus interference — not a packaging bug. Use the ZIP.
 

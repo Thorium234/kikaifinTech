@@ -3,10 +3,11 @@
 # =============================================================================
 # Architecture:
 #
-#   test ──> build ──> release (tags only)
+#   test ───► build ───► release (tags only)
 #
 #   test:    mvn clean test
-#   build:   package (mvn) → jlink (runtime) → jpackage (MSI) → WiX Burn (EXE)
+#   build:   package (mvn) + jlink (runtime) + jpackage (app-image)
+#            + portable ZIP + Inno Setup wizard EXE
 #   release: softprops/action-gh-release
 #
 # Key design decisions:
@@ -19,12 +20,15 @@
 #   2. JavaFX native DLLs are extracted from platform JARs into the input
 #      directory so that -Djava.library.path=. resolves them directly at
 #      startup.  JAVAFX_VERSION is a separate variable from APP_VERSION
-#      because the project version (1.0.0) differs from the JavaFX library
-#      version (21.0.6).
+#      because the project version differs from the JavaFX library version.
 #
-#   3. Artifact transfers between jobs are kept to a minimum.  MSI and EXE
-#      are both created in the 'build' job, avoiding 170 MB of cross-job
-#      downloads.  Only the release job downloads from the build job.
+#   3. ONE jpackage app-image feeds both distribution artifacts: the portable
+#      ZIP and the native setup wizard compiled by Inno Setup.  The wizard
+#      gives end users the classic Windows flow (welcome -> EULA -> folder
+#      picker -> progress -> Completed Setup screen with a launch checkbox).
+#
+#   4. Inno Setup 6 is preinstalled on GitHub windows-latest runners; a choco
+#      fallback covers custom runners.
 # =============================================================================
 
 name: Build ThorCash Installer
@@ -50,7 +54,7 @@ env:
   JAVA_VERSION: 26
   JAVA_DISTRIBUTION: temurin
   APP_NAME: ThorCash
-  APP_VERSION: 1.0.12
+  APP_VERSION: 1.0.13
   JAVAFX_VERSION: 21.0.6
   APP_VENDOR: Thor Technologies
   APP_MAIN_CLASS: com.schaccs.Launcher
@@ -80,15 +84,15 @@ jobs:
         timeout-minutes: 30
 
   # ===========================================================================
-  # Job 2 — Build MSI and bootstrapper EXE
+  # Job 2 — Build setup wizard EXE and portable ZIP
   # ===========================================================================
   build:
     name: Build Installer
     needs: test
     runs-on: windows-latest
     outputs:
-      msi_path: target\installer\${{ env.APP_NAME }}-${{ env.APP_VERSION }}.msi
-      exe_path: target\bootstrapper-output\${{ env.APP_NAME }}-Setup-${{ env.APP_VERSION }}.exe
+      exe_path: target\installer-output\ThorCash_Setup_v${{ env.APP_VERSION }}.exe
+      zip_path: target\dist\${{ env.APP_NAME }}-Portable-${{ env.APP_VERSION }}.zip
 
     steps:
       - uses: actions/checkout@v4
@@ -100,17 +104,19 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: maven
 
-      - name: Install WiX Toolset v3
+      - name: Verify Inno Setup 6
         shell: pwsh
         run: |
-          $wixBin = "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin"
-          if (-not (Test-Path "$wixBin\candle.exe")) {
-            choco install wixtoolset --version 3.14.1 --allow-downgrade --confirm --no-progress
-            if ($LASTEXITCODE -ne 0) { throw "WiX Toolset installation failed" }
-          } else {
-            Write-Host "WiX Toolset v3 already installed at $wixBin"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Host "Inno Setup 6 not preinstalled — installing via chocolatey"
+            choco install innosetup --confirm --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           }
-          "$wixBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after install" }
+          Write-Host "Inno Setup found: $iscc"
+          & $iscc /?
 
       # ---- Step A: Package application JAR and copy dependencies -----------
       - name: Package application
@@ -162,55 +168,10 @@ jobs:
             throw "jlink runtime is missing javaw.exe"
           }
           Write-Host "Runtime created: $( (Get-Item $runtimeDir).FullName )"
-          Write-Host "  java.exe: $( (Get-Item "$runtimeDir\bin\java.exe").Length ) bytes"
-          Write-Host "  javaw.exe: $( (Get-Item "$runtimeDir\bin\javaw.exe").Length ) bytes"
 
-      # ---- Step D: Build MSI with jpackage --runtime-image -----------------
-      - name: Build MSI
-        shell: pwsh
-        run: |
-          $msiDir = "target\installer"
-          Remove-Item -Recurse -Force $msiDir -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
-
-          & "$env:JAVA_HOME\bin\jpackage.exe" `
-            --type msi `
-            --runtime-image "target\runtime" `
-            --dest $msiDir `
-            --name "$env:APP_NAME" `
-            --app-version "$env:APP_VERSION" `
-            --input "target\installer-input" `
-            --main-jar "thorcash-$env:APP_VERSION.jar" `
-            --main-class "$env:APP_MAIN_CLASS" `
-            --icon "src\main\resources\icon.ico" `
-            --vendor "$env:APP_VENDOR" `
-            --license-file "src\main\installer\eula.rtf" `
-            --win-shortcut --win-menu --win-dir-chooser `
-            --java-options "-Xmx512m" `
-            --java-options "-Dfile.encoding=UTF-8" `
-            --java-options "-Djava.library.path=."
-
-          # Verify MSI exists
-          $msiPath = "$msiDir\$env:APP_NAME-$env:APP_VERSION.msi"
-          if (-not (Test-Path $msiPath)) {
-            throw "MSI not created at $msiPath"
-          }
-          $size = (Get-Item $msiPath).Length / 1MB
-          Write-Host "MSI created: $msiPath ($([math]::Round($size, 1)) MB)"
-
-        timeout-minutes: 15
-
-      # ---- Step E: Build WiX Burn bootstrapper -----------------------------
-      # Wraps the MSI into a single EXE with admin elevation, EULA, etc.
-      - name: Build bootstrapper EXE
-        shell: cmd
-        run: call src\main\installer\build-bootstrapper.bat
-        timeout-minutes: 10
-
-      # ---- Step E2: Build portable ZIP --------------------------------------
-      # The client's most reliable package: jpackage app-image + Compress-Archive,
-      # the same self-contained app with no installer and no JVM requirement.
-      - name: Build portable ZIP
+      # ---- Step D: Build self-contained app image --------------------------
+      # Single source for both the portable ZIP and the Inno Setup wizard.
+      - name: Build app image
         shell: pwsh
         run: |
           $appImageDir = "target\app-image"
@@ -231,58 +192,73 @@ jobs:
             --java-options "-Dfile.encoding=UTF-8" `
             --java-options "-Djava.library.path=."
 
-          if (-not (Test-Path "$appImageDir\$env:APP_NAME\ThorCash.exe")) {
+          if (-not (Test-Path "$appImageDir\$env:APP_NAME\$env:APP_NAME.exe")) {
             throw "App image not created"
           }
+          Write-Host "App image created at $( (Get-Item $appImageDir).FullName )"
 
+        timeout-minutes: 15
+
+      # ---- Step E: Compile native setup wizard with Inno Setup -------------
+      # Produces the classic Windows installer: welcome -> EULA -> folder
+      # picker -> progress -> Completed Setup screen with launch checkbox.
+      - name: Compile setup wizard
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "target\installer-output" | Out-Null
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc /Q /DAppVersion=$env:APP_VERSION "installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+
+          $exe = "target\installer-output\ThorCash_Setup_v$env:APP_VERSION.exe"
+          if (-not (Test-Path $exe)) { throw "Setup EXE not created at $exe" }
+          $size = (Get-Item $exe).Length / 1MB
+          Write-Host "Setup wizard created: $exe ($([math]::Round($size, 1)) MB)"
+
+        timeout-minutes: 10
+
+      # ---- Step F: Build portable ZIP --------------------------------------
+      # The client's most reliable package: no installer, no admin rights,
+      # no JVM requirement.
+      - name: Build portable ZIP
+        shell: pwsh
+        run: |
           $distDir = "target\dist"
           New-Item -ItemType Directory -Force -Path $distDir | Out-Null
           $zipPath = "$distDir\$env:APP_NAME-Portable-$env:APP_VERSION.zip"
-          Compress-Archive -Path "$appImageDir\$env:APP_NAME\*" -DestinationPath $zipPath -Force
+          Compress-Archive -Path "target\app-image\$env:APP_NAME\*" -DestinationPath $zipPath -Force
           $size = (Get-Item $zipPath).Length / 1MB
           Write-Host "ZIP created: $zipPath ($([math]::Round($size, 1)) MB)"
 
-      # ---- Step F: Generate SHA-256 checksums ------------------------------
+      # ---- Step G: Generate SHA-256 checksums ------------------------------
       - name: Generate checksums
         shell: pwsh
         run: |
-          $msi = "target\installer\$env:APP_NAME-$env:APP_VERSION.msi"
-          $exe = "target\bootstrapper-output\$env:APP_NAME-Setup-$env:APP_VERSION.exe"
+          $exe = "target\installer-output\ThorCash_Setup_v$env:APP_VERSION.exe"
           $zip = "target\dist\$env:APP_NAME-Portable-$env:APP_VERSION.zip"
 
-          $msiHash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
           $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
           $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
 
-          Write-Host "MSI:  $msiHash"
           Write-Host "EXE:  $exeHash"
           Write-Host "ZIP:  $zipHash"
 
-          $msiHash | Out-File -FilePath "target\$env:APP_NAME-$env:APP_VERSION.msi.sha256" -Encoding utf8
-          $exeHash | Out-File -FilePath "target\$env:APP_NAME-Setup-$env:APP_VERSION.exe.sha256" -Encoding utf8
+          $exeHash | Out-File -FilePath "target\ThorCash_Setup_v$env:APP_VERSION.exe.sha256" -Encoding utf8
           $zipHash | Out-File -FilePath "target\$env:APP_NAME-Portable-$env:APP_VERSION.zip.sha256" -Encoding utf8
 
           @"
-          $msiHash  $env:APP_NAME-$env:APP_VERSION.msi
-          $exeHash  $env:APP_NAME-Setup-$env:APP_VERSION.exe
+          $exeHash  ThorCash_Setup_v$env:APP_VERSION.exe
           $zipHash  $env:APP_NAME-Portable-$env:APP_VERSION.zip
           "@ | Out-File -FilePath "target\checksums.txt" -Encoding utf8
 
           Get-Content "target\checksums.txt"
 
-      # ---- Step G: Upload artifacts ----------------------------------------
-      - name: Upload MSI
-        uses: actions/upload-artifact@v4
-        with:
-          name: ThorCash-MSI
-          path: target\installer\ThorCash-${{ env.APP_VERSION }}.msi
-          retention-days: 30
-
-      - name: Upload bootstrapper
+      # ---- Step H: Upload artifacts ----------------------------------------
+      - name: Upload setup wizard
         uses: actions/upload-artifact@v4
         with:
           name: ThorCash-Setup
-          path: target\bootstrapper-output\ThorCash-Setup-${{ env.APP_VERSION }}.exe
+          path: target\installer-output\ThorCash_Setup_v${{ env.APP_VERSION }}.exe
           retention-days: 90
 
       - name: Upload portable ZIP
@@ -325,24 +301,23 @@ jobs:
 
             ### Downloads
             - **Windows Portable (ZIP)**: ThorCash-Portable-*.zip — No install, no admin rights, most reliable
-            - **Windows Installer (EXE)**: ThorCash-Setup-*.exe — Professional bootstrapper
-            - **Windows Installer (MSI)**: ThorCash-*.msi — Standard Windows Installer package
+            - **Windows Installer (EXE)**: ThorCash_Setup_v*.exe — Native setup wizard with desktop shortcut and launch-on-finish
 
             ### SHA-256 Checksums
             See `checksums.txt` attached to this release for file integrity verification.
 
             ### Installation
             1. Portable: unzip anywhere and double-click `ThorCash.exe` (no install).
-            2. Or download `ThorCash-Setup-*.exe`, run as Administrator, follow the wizard.
+            2. Or download `ThorCash_Setup_v*.exe`, run as Administrator, follow the
+               wizard, and tick **Launch ThorCash** on the final screen.
 
             ### Silent Installation
             ```
-            ThorCash-Setup-*.exe /quiet /log install.log
+            ThorCash_Setup_v*.exe /VERYSILENT /NORESTART
             ```
           files: |
             ThorCash-Setup/*.exe
             ThorCash-Setup/*.sha256
-            ThorCash-MSI/*.msi
             ThorCash-Portable/*.zip
             ThorCash-Checksums/*.txt
             ThorCash-Checksums/*.sha256

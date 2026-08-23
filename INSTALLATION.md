@@ -44,14 +44,14 @@ You only need to run **one script**. It produces a single `.exe` file you can sh
 |------|----------------|
 | **JDK 21+** (26.0.2 used) | https://adoptium.net — install and set `JAVA_HOME` |
 | **Maven 3.9+** | https://maven.apache.org/download.cgi — add `bin/` to PATH |
-| **WiX Toolset v3** (3.14) | `winget install WiXToolset.WiXToolset` — or https://wixtoolset.org |
+| **Inno Setup 6** | `winget install JRSoftware.InnoSetup` — or https://jrsoftware.org/isdl.php |
 
 Verify they are installed:
 
 ```
 "C:\Program Files\Java\jdk-26.0.2\bin\java" -version
 mvn -version
-candle -?
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /?
 ```
 
 ### Build the installer
@@ -62,24 +62,27 @@ From the project root folder, run:
 build-installer.bat
 ```
 
-The script runs **9 stages**:
+The script runs **8 stages**:
 
-1. **Verify** environment (JDK, Maven, WiX)
-2. **Test** — 93 unit tests
-3. **Package** — compile and produce `thorcash-1.0.1.jar` with dependencies
+1. **Verify** environment (JDK, Maven, Inno Setup)
+2. **Test** — full unit test suite
+3. **Package** — compile and produce `thorcash-1.0.13.jar` with dependencies
 4. **jlink** — create a custom JVM runtime (fixes "Failed to launch JVM")
 5. **Assemble input** — JARs + extracted JavaFX native DLLs
-6. **MSI** — `jpackage --runtime-image` produces `ThorCash-1.0.1.msi`
-7. **Verify** runtime executables inside the MSI
-8. **Bootstrapper** — wrap MSI into `ThorCash-Setup-1.0.1.exe`
-9. **Checksums** — SHA-256 of MSI and EXE
+6. **App image** — `jpackage --type app-image` produces the self-contained `ThorCash\` folder
+7. **Setup wizard** — Inno Setup wraps the app image into `ThorCash_Setup_v1.0.13.exe`
+   (classic wizard: EULA → folder picker → progress → Completed Setup screen with a
+   checked **Launch ThorCash** box)
+8. **Checksums** — SHA-256 of EXE and portable ZIP
 
 ### Output
 
 | File | Path | Purpose |
 |------|------|---------|
-| `ThorCash-Setup-1.0.1.exe` | `target\bootstrapper-output\` | **Shareable installer** |
-| `ThorCash-1.0.1.msi` | `target\installer\` | Intermediate MSI |
+| `ThorCash_Setup_v1.0.13.exe` | `target\installer-output\` | **Shareable native installer** |
+| `ThorCash-Portable-1.0.13.zip` | `target\dist\` | Portable package (no install) |
+
+Silent deployment: `ThorCash_Setup_v1.0.13.exe /VERYSILENT /NORESTART`
 
 ### What the installer includes
 
