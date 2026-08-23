@@ -338,7 +338,7 @@ public class PdfExportService {
                 List<FeeStructureItem> items = new ArrayList<>(structure.getItems());
                 if (onlyTerm != null) {
                     AcademicTerm filterTerm = onlyTerm;
-                    items.removeIf(i -> i.getTerm() != filterTerm);
+                    items.removeIf(i -> i.amountForTerm(filterTerm).compareTo(BigDecimal.ZERO) <= 0);
                 }
                 if (items.isEmpty()) {
                     items = new ArrayList<>(structure.getItems());
@@ -351,11 +351,17 @@ public class PdfExportService {
                 List<AcademicTerm> terms = new ArrayList<>();
                 for (FeeStructureItem item : items) {
                     String code = safe(item.getVoteheadCode());
-                    grouped.computeIfAbsent(code, k -> new java.util.HashMap<>()).put(item.getTerm(), item.getAmount());
-                    names.putIfAbsent(code, safe(item.getVoteheadName()));
-                    if (item.getTerm() != null && !terms.contains(item.getTerm())) {
-                        terms.add(item.getTerm());
+                    Map<AcademicTerm, BigDecimal> termMap = grouped.computeIfAbsent(code, k -> new java.util.LinkedHashMap<>());
+                    for (AcademicTerm t : AcademicTerm.values()) {
+                        BigDecimal amt = item.amountForTerm(t);
+                        if (amt.compareTo(BigDecimal.ZERO) > 0) {
+                            termMap.put(t, amt);
+                            if (!terms.contains(t)) {
+                                terms.add(t);
+                            }
+                        }
                     }
+                    names.putIfAbsent(code, safe(item.getVoteheadName()));
                 }
                 terms.sort(Comparator.naturalOrder());
 

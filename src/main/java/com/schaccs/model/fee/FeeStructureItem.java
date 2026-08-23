@@ -16,6 +16,9 @@ public class FeeStructureItem {
     private AcademicTerm term;
     private BoardingStatus boardingStatus;
     private BigDecimal amount = CurrencyConfig.zero();
+    private BigDecimal term1Amount = CurrencyConfig.zero();
+    private BigDecimal term2Amount = CurrencyConfig.zero();
+    private BigDecimal term3Amount = CurrencyConfig.zero();
 
     public FeeStructureItem() {
         this.id = UUID.randomUUID().toString();
@@ -29,6 +32,20 @@ public class FeeStructureItem {
         this.term = term;
         this.boardingStatus = boardingStatus;
         this.amount = CurrencyConfig.money(amount);
+        if (term != null) {
+            setAmountForTerm(term, amount);
+        }
+    }
+
+    public FeeStructureItem(String voteheadCode, String voteheadName, BoardingStatus boardingStatus,
+                            BigDecimal term1Amount, BigDecimal term2Amount, BigDecimal term3Amount) {
+        this();
+        this.voteheadCode = voteheadCode;
+        this.voteheadName = voteheadName;
+        this.boardingStatus = boardingStatus;
+        this.term1Amount = CurrencyConfig.money(term1Amount);
+        this.term2Amount = CurrencyConfig.money(term2Amount);
+        this.term3Amount = CurrencyConfig.money(term3Amount);
     }
 
     public String getId() {
@@ -73,6 +90,52 @@ public class FeeStructureItem {
 
     public void setAmount(BigDecimal amount) {
         this.amount = CurrencyConfig.money(amount);
+    }
+
+    public BigDecimal getTerm1Amount() {
+        return term1Amount;
+    }
+
+    public void setTerm1Amount(BigDecimal v) {
+        this.term1Amount = CurrencyConfig.money(v);
+    }
+
+    public BigDecimal getTerm2Amount() {
+        return term2Amount;
+    }
+
+    public void setTerm2Amount(BigDecimal v) {
+        this.term2Amount = CurrencyConfig.money(v);
+    }
+
+    public BigDecimal getTerm3Amount() {
+        return term3Amount;
+    }
+
+    public void setTerm3Amount(BigDecimal v) {
+        this.term3Amount = CurrencyConfig.money(v);
+    }
+
+    public BigDecimal amountForTerm(AcademicTerm t) {
+        if (t == null) return CurrencyConfig.zero();
+        return switch (t) {
+            case TERM_1 -> term1Amount;
+            case TERM_2 -> term2Amount;
+            case TERM_3 -> term3Amount;
+        };
+    }
+
+    public void setAmountForTerm(AcademicTerm t, BigDecimal v) {
+        BigDecimal m = CurrencyConfig.money(v);
+        switch (t) {
+            case TERM_1 -> term1Amount = m;
+            case TERM_2 -> term2Amount = m;
+            case TERM_3 -> term3Amount = m;
+        }
+    }
+
+    public BigDecimal annualTotal() {
+        return CurrencyConfig.money(term1Amount.add(term2Amount).add(term3Amount));
     }
     
     @Override

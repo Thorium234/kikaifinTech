@@ -71,7 +71,7 @@ public class FeeCalculationService {
             String ref = "BILL-" + student.getAdmissionNumber() + "-ANNUAL";
             LocalDate today = LocalDate.now();
             for (FeeStructureItem item : structure.getItems()) {
-                BigDecimal amount = CurrencyConfig.money(item.getAmount().multiply(factor));
+                BigDecimal amount = CurrencyConfig.money(item.annualTotal().multiply(factor));
                 ledger.charge(item.getVoteheadCode(), amount);
                 postBillingEntry(ref, student, item.getVoteheadCode(), item.getVoteheadName(),
                         amount, today);
@@ -113,7 +113,7 @@ public class FeeCalculationService {
             String ref = "BILL-" + student.getAdmissionNumber() + "-" + term;
             LocalDate today = LocalDate.now();
             for (FeeStructureItem item : structure.itemsForTerm(term)) {
-                BigDecimal amount = CurrencyConfig.money(item.getAmount().multiply(factor));
+                BigDecimal amount = CurrencyConfig.money(item.amountForTerm(term).multiply(factor));
                 ledger.charge(item.getVoteheadCode(), amount);
                 postBillingEntry(ref, student, item.getVoteheadCode(), item.getVoteheadName(),
                         amount, today);
@@ -147,7 +147,7 @@ public class FeeCalculationService {
             BigDecimal factor = siblingDiscountFactor(student);
             for (FeeStructureItem item : structure.itemsForTerm(term)) {
                 amounts.merge(item.getVoteheadCode(),
-                        CurrencyConfig.money(item.getAmount().multiply(factor)), BigDecimal::add);
+                        CurrencyConfig.money(item.amountForTerm(term).multiply(factor)), BigDecimal::add);
             }
         });
         return amounts;

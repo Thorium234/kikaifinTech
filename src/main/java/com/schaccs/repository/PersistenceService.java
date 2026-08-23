@@ -25,6 +25,7 @@ import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.fee.FeeStructureTemplate;
 import com.schaccs.model.fee.FeeStructureTemplateItem;
+import com.schaccs.model.fee.StudentCategory;
 import com.schaccs.model.finance.Account;
 import com.schaccs.model.finance.Asset;
 import com.schaccs.model.finance.AssetCategory;
@@ -152,6 +153,7 @@ public final class PersistenceService {
             saveSettings(conn);
             markInitialized(conn);
             saveVoteheads(conn);
+            saveStudentCategories(conn);
             saveFeeStructures(conn);
             saveFeeTemplates(conn);
             saveStudents(conn);
@@ -232,6 +234,7 @@ public final class PersistenceService {
             CleanDataStore.getInstance().clear();
             loadSettings(conn);
             loadVoteheads(conn);
+            loadStudentCategories(conn);
             loadFeeStructures(conn);
             loadFeeTemplates(conn);
             loadStudents(conn);
@@ -298,6 +301,7 @@ public final class PersistenceService {
             st.executeUpdate("DELETE FROM fee_structure_items");
             st.executeUpdate("DELETE FROM fee_structures");
             st.executeUpdate("DELETE FROM voteheads");
+            st.executeUpdate("DELETE FROM student_categories");
             st.executeUpdate("DELETE FROM transactions");
             st.executeUpdate("DELETE FROM ledger_entries");
             st.executeUpdate("DELETE FROM payment_vouchers");
@@ -474,22 +478,53 @@ public final class PersistenceService {
         }
     }
 
+    private void saveStudentCategories(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO student_categories (id, name) VALUES (?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET name=excluded.name")) {
+            for (StudentCategory cat : FeeStructureStore.getInstance().getCategories()) {
+                ps.setInt(1, cat.getId());
+                ps.setString(2, cat.getName());
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadStudentCategories(Connection conn) throws SQLException {
+        FeeStructureStore store = FeeStructureStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT id, name FROM student_categories")) {
+            while (rs.next()) {
+                store.addCategory(new StudentCategory(rs.getInt("id"), rs.getString("name")));
+            }
+        }
+    }
+
     private void saveFeeStructures(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO fee_structures (id, academic_year, form_class, boarding_status, name) VALUES (?,?,?,?,?) "
+                "INSERT INTO fee_structures (id, academic_year, form_class, boarding_status, category_id, name, created_at) VALUES (?,?,?,?,?,?,?) "
                         + "ON CONFLICT(id) DO UPDATE SET academic_year=excluded.academic_year, "
-                        + "form_class=excluded.form_class, boarding_status=excluded.boarding_status, name=excluded.name");
+                        + "form_class=excluded.form_class, boarding_status=excluded.boarding_status, "
+                        + "category_id=excluded.category_id, name=excluded.name, created_at=excluded.created_at");
              PreparedStatement itemPs = conn.prepareStatement(
-                     "INSERT INTO fee_structure_items (id, structure_id, votehead_code, votehead_name, term, boarding_status, amount) "
-                             + "VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET structure_id=excluded.structure_id, "
+                     "INSERT INTO fee_structure_items (id, structure_id, votehead_code, votehead_name, term, boarding_status, amount, term1_amount, term2_amount, term3_amount) "
+                             + "VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET structure_id=excluded.structure_id, "
                              + "votehead_code=excluded.votehead_code, votehead_name=excluded.votehead_name, "
-                             + "term=excluded.term, boarding_status=excluded.boarding_status, amount=excluded.amount")) {
+                             + "term=excluded.term, boarding_status=excluded.boarding_status, amount=excluded.amount, "
+                             + "term1_amount=excluded.term1_amount, term2_amount=excluded.term2_amount, term3_amount=excluded.term3_amount")) {
             for (FeeStructure s : FeeStructureStore.getInstance().getStructures()) {
                 ps.setString(1, s.getId());
                 ps.setInt(2, s.getAcademicYear());
                 ps.setString(3, s.getFormClass());
                 ps.setString(4, enumName(s.getBoardingStatus()));
-                ps.setString(5, s.getName());
+                if (s.getCategoryId() != null) {
+                    ps.setInt(5, s.getCategoryId());
+                } else {
+                    ps.setNull(5, java.sql.Types.INTEGER);
+                }
+                ps.setString(6, s.getName());
+                ps.setString(7, s.getCreatedAt() != null ? s.getCreatedAt().toString() : null);
                 ps.addBatch();
                 for (FeeStructureItem item : s.getItems()) {
                     itemPs.setString(1, item.getId());
@@ -499,6 +534,9 @@ public final class PersistenceService {
                     itemPs.setString(5, enumName(item.getTerm()));
                     itemPs.setString(6, enumName(item.getBoardingStatus()));
                     itemPs.setString(7, money(item.getAmount()));
+                    itemPs.setString(8, money(item.getTerm1Amount()));
+                    itemPs.setString(9, money(item.getTerm2Amount()));
+                    itemPs.setString(10, money(item.getTerm3Amount()));
                     itemPs.addBatch();
                 }
             }
@@ -517,7 +555,10 @@ public final class PersistenceService {
                         rs.getString("form_class"),
                         BoardingStatus.valueOf(rs.getString("boarding_status")),
                         rs.getString("name"));
-                // FeeStructure generates its own id — reload items keyed by DB id via temp map
+                int catId = rs.getInt("category_id");
+                if (!rs.wasNull()) {
+                    s.setCategoryId(catId);
+                }
                 store.addStructure(s);
                 loadItemsForStructure(conn, rs.getString("id"), s);
             }
@@ -536,6 +577,9 @@ public final class PersistenceService {
                             AcademicTerm.valueOf(rs.getString("term")),
                             BoardingStatus.valueOf(rs.getString("boarding_status")),
                             parseMoney(rs.getString("amount")));
+                    item.setTerm1Amount(parseMoney(rs.getString("term1_amount")));
+                    item.setTerm2Amount(parseMoney(rs.getString("term2_amount")));
+                    item.setTerm3Amount(parseMoney(rs.getString("term3_amount")));
                     s.addItem(item);
                 }
             }

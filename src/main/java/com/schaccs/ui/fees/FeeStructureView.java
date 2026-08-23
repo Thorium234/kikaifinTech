@@ -120,6 +120,10 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         importBtn.getStyleClass().add("secondary-button");
         importBtn.setOnAction(e -> importFromFile());
 
+        Button multiYearBtn = new Button("Multi-Year Import");
+        multiYearBtn.getStyleClass().add("success-button");
+        multiYearBtn.setOnAction(e -> multiYearImport());
+
         Button templatesBtn = new Button("Templates");
         templatesBtn.getStyleClass().add("secondary-button");
         templatesBtn.setOnAction(e -> {
@@ -138,7 +142,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         pdfBtn.getStyleClass().add("secondary-button");
         pdfBtn.setOnAction(e -> exportPdf());
 
-        FlowPane bar = new FlowPane(10, 10, newStruct, delStruct, importBtn, templatesBtn, excelBtn, pdfTermBox, pdfBtn);
+        FlowPane bar = new FlowPane(10, 10, newStruct, delStruct, importBtn, multiYearBtn, templatesBtn, excelBtn, pdfTermBox, pdfBtn);
         bar.setAlignment(Pos.CENTER_LEFT);
         VBox box = new VBox(8, new Label("Structures"), bar);
         box.getStyleClass().add("card");
@@ -157,6 +161,21 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
         }
         FileDialogMemory.remember(file);
         new FeeStructureImportDialog(store, getScene().getWindow(), file.toPath()).showAndWait();
+        refresh();
+    }
+
+    private void multiYearImport() {
+        FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
+        chooser.setTitle("Multi-Year Fee Structure Import");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Spreadsheets", "*.csv", "*.xlsx"));
+        java.io.File file = chooser.showOpenDialog(getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        FileDialogMemory.remember(file);
+        new MultiYearFeeImportDialog(store, getScene().getWindow(), file.toPath()).showAndWait();
         refresh();
     }
 
@@ -272,8 +291,19 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
                 AlertUtil.warn("Invalid", "Amount must be greater than zero.");
                 return;
             }
-            s.addItem(new FeeStructureItem(vh.getCode(), vh.getName(), t,
-                    s.getBoardingStatus(), amt));
+            FeeStructureItem existing = s.getItems().stream()
+                    .filter(i -> i.getVoteheadCode().equals(vh.getCode()))
+                    .findFirst().orElse(null);
+            if (existing != null) {
+                existing.setAmountForTerm(t, amt);
+            } else {
+                FeeStructureItem item = new FeeStructureItem(vh.getCode(), vh.getName(),
+                        s.getBoardingStatus(),
+                        t == AcademicTerm.TERM_1 ? amt : BigDecimal.ZERO,
+                        t == AcademicTerm.TERM_2 ? amt : BigDecimal.ZERO,
+                        t == AcademicTerm.TERM_3 ? amt : BigDecimal.ZERO);
+                s.addItem(item);
+            }
             amount.clear();
             PersistenceService.getInstance().saveAll();
             loadItems();
@@ -326,26 +356,6 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
     }
 
     private void setupItemTable() {
-        TableColumn<FeeStructureItem, AcademicTerm> term = new TableColumn<>("Term");
-        term.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue().getTerm()));
-        StringConverter<AcademicTerm> termConverter = new StringConverter<>() {
-            @Override
-            public String toString(AcademicTerm t) {
-                return t != null ? t.getDisplayName() : "";
-            }
-
-            @Override
-            public AcademicTerm fromString(String s) {
-                return null;
-            }
-        };
-        term.setCellFactory(ComboBoxTableCell.forTableColumn(termConverter, AcademicTerm.values()));
-        term.setOnEditCommit(e -> {
-            e.getRowValue().setTerm(e.getNewValue());
-            persist();
-        });
-        term.setPrefWidth(90);
-
         TableColumn<FeeStructureItem, String> code = new TableColumn<>("Code");
         code.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getVoteheadCode()));
         code.setCellFactory(TextFieldTableCell.forTableColumn());
@@ -353,7 +363,7 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
             e.getRowValue().setVoteheadCode(e.getNewValue());
             persist();
         });
-        code.setPrefWidth(90);
+        code.setPrefWidth(80);
 
         TableColumn<FeeStructureItem, String> name = new TableColumn<>("Vote Head");
         name.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getVoteheadName()));
@@ -362,12 +372,13 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
             e.getRowValue().setVoteheadName(e.getNewValue());
             persist();
         });
-        name.setPrefWidth(180);
+        name.setPrefWidth(160);
 
         StringConverter<BigDecimal> amountConverter = new StringConverter<>() {
             @Override
             public String toString(BigDecimal value) {
-                return value != null ? CurrencyUtil.formatPlain(value) : "";
+                return value != null && value.compareTo(BigDecimal.ZERO) != 0
+                        ? CurrencyUtil.formatPlain(value) : "";
             }
 
             @Override
@@ -378,20 +389,37 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
                 return CurrencyConfig.money(s.trim());
             }
         };
-        TableColumn<FeeStructureItem, BigDecimal> amount = new TableColumn<>("Amount");
-        amount.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue().getAmount()));
-        amount.setCellFactory(TextFieldTableCell.forTableColumn(amountConverter));
-        amount.setOnEditCommit(e -> {
-            if (e.getNewValue() != null && e.getNewValue().compareTo(BigDecimal.ZERO) > 0) {
-                e.getRowValue().setAmount(e.getNewValue());
-                persist();
-            } else {
-                loadItems();
-            }
-        });
-        amount.setPrefWidth(120);
 
-        itemTable.getColumns().addAll(term, code, name, amount);
+        java.util.Map<AcademicTerm, TableColumn<FeeStructureItem, BigDecimal>> termCols = new java.util.LinkedHashMap<>();
+        for (AcademicTerm term : AcademicTerm.values()) {
+            TableColumn<FeeStructureItem, BigDecimal> col = new TableColumn<>(term.getDisplayName());
+            col.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue().amountForTerm(term)));
+            col.setCellFactory(TextFieldTableCell.forTableColumn(amountConverter));
+            col.setOnEditCommit(e -> {
+                if (e.getNewValue() != null && e.getNewValue().compareTo(BigDecimal.ZERO) >= 0) {
+                    e.getRowValue().setAmountForTerm(term, e.getNewValue());
+                    persist();
+                } else {
+                    loadItems();
+                }
+            });
+            col.setPrefWidth(100);
+            termCols.put(term, col);
+        }
+
+        TableColumn<FeeStructureItem, BigDecimal> total = new TableColumn<>("Annual");
+        total.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue().annualTotal()));
+        total.setCellFactory(col -> new javafx.scene.control.cell.TextFieldTableCell<>(
+                amountConverter));
+        total.setEditable(false);
+        total.setPrefWidth(100);
+
+        itemTable.getColumns().clear();
+        itemTable.getColumns().addAll(code, name);
+        for (var col : termCols.values()) {
+            itemTable.getColumns().add(col);
+        }
+        itemTable.getColumns().add(total);
         itemTable.setEditable(true);
         itemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
     }
@@ -430,11 +458,10 @@ public class FeeStructureView extends VBox implements MainLayout.Refreshable {
             return;
         }
         AcademicTerm term = termBox.getValue();
+        itemTable.getItems().setAll(structure.getItems());
         if (term == null) {
-            itemTable.getItems().setAll(structure.getItems());
             totalLabel.setText("Year total: " + CurrencyUtil.format(structure.grandTotal()));
         } else {
-            itemTable.getItems().setAll(structure.itemsForTerm(term));
             totalLabel.setText(term.getDisplayName() + " total: "
                     + CurrencyUtil.format(structure.totalForTerm(term)));
         }

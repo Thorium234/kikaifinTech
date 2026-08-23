@@ -117,13 +117,14 @@ class FeeStructureImportExportTest {
 
         FeeStructure rebuilt = templateService.buildStructure(template,
                 AppConfig.getInstance().getAcademicYear(), "Form 3", BoardingStatus.DAY, "Rebuilt");
-        assertEquals(4, rebuilt.getItems().size());
+        assertEquals(2, rebuilt.getItems().size());
         assertEquals("Form 3", rebuilt.getFormClass());
         assertEquals(BoardingStatus.DAY, rebuilt.getBoardingStatus());
         assertTrue(rebuilt.getItems().stream()
                 .allMatch(i -> i.getBoardingStatus() == BoardingStatus.DAY),
                 "Rebuilt items must carry the new boarding status");
         assertEquals(structure.totalForTerm(AcademicTerm.TERM_1), rebuilt.totalForTerm(AcademicTerm.TERM_1));
+        assertEquals(structure.grandTotal(), rebuilt.grandTotal());
     }
 
     @Test

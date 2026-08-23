@@ -7,6 +7,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -18,7 +19,9 @@ public class FeeStructure {
     private int academicYear;
     private String formClass; // e.g. Form 1, Form 2 — or "ALL"
     private BoardingStatus boardingStatus;
+    private Integer categoryId;
     private String name;
+    private LocalDateTime createdAt;
     private final ObservableList<FeeStructureItem> items = FXCollections.observableArrayList();
 
     public FeeStructure() {
@@ -61,6 +64,22 @@ public class FeeStructure {
         this.boardingStatus = boardingStatus;
     }
 
+    public Integer getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Integer categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public String getName() {
         return name;
     }
@@ -79,19 +98,19 @@ public class FeeStructure {
 
     public List<FeeStructureItem> itemsForTerm(AcademicTerm term) {
         return items.stream()
-                .filter(i -> i.getTerm() == term)
+                .filter(i -> i.amountForTerm(term).compareTo(java.math.BigDecimal.ZERO) > 0)
                 .collect(Collectors.toList());
     }
 
     public BigDecimal totalForTerm(AcademicTerm term) {
-        return itemsForTerm(term).stream()
-                .map(FeeStructureItem::getAmount)
+        return items.stream()
+                .map(i -> i.amountForTerm(term))
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
     }
 
     public BigDecimal grandTotal() {
         return items.stream()
-                .map(FeeStructureItem::getAmount)
+                .map(FeeStructureItem::annualTotal)
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
     }
 

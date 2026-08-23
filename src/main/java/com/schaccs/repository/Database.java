@@ -19,6 +19,7 @@ import com.schaccs.repository.migration.MigrationV23RecycleBin;
 import com.schaccs.repository.migration.MigrationV24EnabledPaymentModes;
 import com.schaccs.repository.migration.MigrationV25CleanData;
 import com.schaccs.repository.migration.MigrationV26TermStatusAndCourseTracking;
+import com.schaccs.repository.migration.MigrationV30MultiYearFeeMatrix;
 import com.schaccs.repository.migration.SchemaMigration;
 import com.schaccs.util.CredentialCrypto;
 
@@ -356,7 +357,8 @@ public final class Database {
                 new MigrationV25CleanData(),
                 new MigrationV26TermStatusAndCourseTracking(),
                 new com.schaccs.repository.migration.MigrationV27LedgerHashChain(),
-                new com.schaccs.repository.migration.MigrationV28StudentCohortLifecycle()
+                new com.schaccs.repository.migration.MigrationV28StudentCohortLifecycle(),
+                new MigrationV30MultiYearFeeMatrix()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
@@ -430,12 +432,20 @@ public final class Database {
                     )
                     """);
             st.execute("""
+                    CREATE TABLE IF NOT EXISTS student_categories (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(50) UNIQUE NOT NULL
+                    )
+                    """);
+            st.execute("""
                     CREATE TABLE IF NOT EXISTS fee_structures (
                         id TEXT PRIMARY KEY,
                         academic_year INTEGER,
                         form_class TEXT,
                         boarding_status TEXT,
-                        name TEXT
+                        category_id INTEGER,
+                        name TEXT,
+                        created_at TEXT
                     )
                     """);
             st.execute("""
@@ -447,6 +457,9 @@ public final class Database {
                         term TEXT,
                         boarding_status TEXT,
                         amount TEXT,
+                        term1_amount TEXT DEFAULT '0.00',
+                        term2_amount TEXT DEFAULT '0.00',
+                        term3_amount TEXT DEFAULT '0.00',
                         FOREIGN KEY (structure_id) REFERENCES fee_structures(id)
                     )
                     """);

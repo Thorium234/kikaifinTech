@@ -17,6 +17,10 @@ public class FeeStructureExportService {
 
     private static final List<String> HEADERS = List.of("Term", "Code", "Vote Head", "Amount");
 
+    private static final List<String> MULTI_YEAR_HEADERS = List.of(
+            "Academic Year", "Student Category", "Votehead / Account",
+            "Term 1 Fee", "Term 2 Fee", "Term 3 Fee", "Total Annual");
+
     private final SpreadsheetExportService exportService;
 
     public FeeStructureExportService() {
@@ -70,6 +74,25 @@ public class FeeStructureExportService {
                 safe(item.getVoteheadCode()),
                 safe(item.getVoteheadName()),
                 item.getAmount() != null ? item.getAmount().toPlainString() : "");
+    }
+
+    public void exportMultiYear(Path path, List<FeeStructure> structures) throws IOException {
+        List<List<String>> rows = new java.util.ArrayList<>();
+        for (FeeStructure s : structures) {
+            String category = s.getBoardingStatus() != null
+                    ? s.getBoardingStatus().getDisplayName() : "";
+            for (FeeStructureItem item : s.getItems()) {
+                rows.add(List.of(
+                        String.valueOf(s.getAcademicYear()),
+                        category,
+                        safe(item.getVoteheadCode()),
+                        item.getTerm1Amount().toPlainString(),
+                        item.getTerm2Amount().toPlainString(),
+                        item.getTerm3Amount().toPlainString(),
+                        item.annualTotal().toPlainString()));
+            }
+        }
+        exportService.export(path, "Multi-Year Fee Matrix", MULTI_YEAR_HEADERS, rows);
     }
 
     private String safe(String value) {

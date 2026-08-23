@@ -184,7 +184,9 @@ public class FeeStructureDialog extends Stage {
         for (FeeStructureItem item : source.getItems()) {
             for (VoteheadRow row : rows) {
                 if (row.getCode().equals(item.getVoteheadCode())) {
-                    row.setAmount(item.getTerm(), item.getAmount());
+                    for (AcademicTerm term : AcademicTerm.values()) {
+                        row.setAmount(term, item.amountForTerm(term));
+                    }
                     break;
                 }
             }
@@ -218,12 +220,12 @@ public class FeeStructureDialog extends Stage {
 
         FeeStructure fs = new FeeStructure(year, formClass, status, name);
         for (VoteheadRow row : rows) {
-            for (AcademicTerm term : AcademicTerm.values()) {
-                BigDecimal amt = row.getAmount(term);
-                if (amt != null && amt.compareTo(BigDecimal.ZERO) > 0) {
-                    fs.addItem(new FeeStructureItem(
-                            row.getCode(), row.getName(), term, status, amt));
-                }
+            BigDecimal t1 = row.getAmount(AcademicTerm.TERM_1);
+            BigDecimal t2 = row.getAmount(AcademicTerm.TERM_2);
+            BigDecimal t3 = row.getAmount(AcademicTerm.TERM_3);
+            if (t1.compareTo(BigDecimal.ZERO) > 0 || t2.compareTo(BigDecimal.ZERO) > 0
+                    || t3.compareTo(BigDecimal.ZERO) > 0) {
+                fs.addItem(new FeeStructureItem(row.getCode(), row.getName(), status, t1, t2, t3));
             }
         }
         store.addStructure(fs);
@@ -251,12 +253,12 @@ public class FeeStructureDialog extends Stage {
                     : "Day " + baseName + " " + year;
             FeeStructure fs = new FeeStructure(year, formClass, status, name);
             for (VoteheadRow row : rows) {
-                for (AcademicTerm term : AcademicTerm.values()) {
-                    BigDecimal amt = row.getAmount(term);
-                    if (amt != null && amt.compareTo(BigDecimal.ZERO) > 0) {
-                        fs.addItem(new FeeStructureItem(
-                                row.getCode(), row.getName(), term, status, amt));
-                    }
+                BigDecimal t1 = row.getAmount(AcademicTerm.TERM_1);
+                BigDecimal t2 = row.getAmount(AcademicTerm.TERM_2);
+                BigDecimal t3 = row.getAmount(AcademicTerm.TERM_3);
+                if (t1.compareTo(BigDecimal.ZERO) > 0 || t2.compareTo(BigDecimal.ZERO) > 0
+                        || t3.compareTo(BigDecimal.ZERO) > 0) {
+                    fs.addItem(new FeeStructureItem(row.getCode(), row.getName(), status, t1, t2, t3));
                 }
             }
             store.addStructure(fs);
