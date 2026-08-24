@@ -1,7 +1,6 @@
 package com.schaccs.service.importer;
 
 import com.schaccs.config.CurrencyConfig;
-import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.model.fee.FeeStructure;
 import com.schaccs.model.fee.FeeStructureItem;
@@ -25,8 +24,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Fees-balance batch class handling: the bursar specifies the class after the
  * year (Form N or Grade N), every row whose Form column could not be inferred
- * is filled automatically, and students new to the registry get the live
- * term's c/fees charged from the fee structure on top of the imported balance.
+ * is filled automatically, and the imported BALANCE lands as-is — never
+ * inflated by an extra term charge, since it already reflects what is owed
+ * under the fee structure to date.
  */
 class FeesBalanceBatchClassTest {
 
@@ -104,22 +104,21 @@ class FeesBalanceBatchClassTest {
     }
 
     @Test
-    @DisplayName("Created students are billed the live term's c/fees from the fee structure")
-    void applyWiresTermFeesFromStructure() {
+    @DisplayName("Imported BALANCE is never inflated: no term charge is added on top of it")
+    void importedBalanceIsNotInflatedByTermCharges() {
         addFeeStructure(2026, "8500");
         List<FeesBalanceRow> rows = new ArrayList<>(List.of(
-                row("N001", "New Billed Student", "Grade 10", "12000")));
+                row("N001", "New Billed Student", "Grade 10", "9000")));
 
         var result = service.apply(rows, ImportContext.of(2026, "TESTER"));
 
         assertEquals(1, result.getCreated());
         Student student = StudentStore.getInstance().findByAdmissionNumber("N001").orElseThrow();
         StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
-        assertEquals(0, CurrencyConfig.money("8500").compareTo(ledger.getTotalCharged()),
-                "Term 1 fee structure amount charged to the new account");
-        assertEquals(AcademicTerm.TERM_1, ledger.getCurrentTerm());
-        assertEquals(0, CurrencyConfig.money("12000").compareTo(ledger.getArrears()),
-                "Imported balance lands as arrears on top of the term charge");
+        assertEquals(0, BigDecimal.ZERO.compareTo(ledger.getTotalCharged()),
+                "The balance already reflects what is owed to date - billing Term 1 again double-counts it");
+        assertEquals(0, CurrencyConfig.money("9000").compareTo(ledger.getArrears()),
+                "The imported balance shows as-is as arrears");
     }
 
     @Test

@@ -125,6 +125,10 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         importBalanceBtn.getStyleClass().add("secondary-button");
         importBalanceBtn.setGraphic(new FontIcon(FontAwesomeSolid.COINS));
         importBalanceBtn.setOnAction(e -> importFeesBalance());
+        Button balanceTemplateBtn = new Button("Balances Template");
+        balanceTemplateBtn.getStyleClass().add("secondary-button");
+        balanceTemplateBtn.setGraphic(new FontIcon(FontAwesomeSolid.FILE_EXCEL));
+        balanceTemplateBtn.setOnAction(e -> downloadFeesBalanceTemplate());
         Button cleanDataBtn = new Button("Clean Data");
         cleanDataBtn.getStyleClass().add("secondary-button");
         cleanDataBtn.setGraphic(new FontIcon(FontAwesomeSolid.BROOM));
@@ -145,7 +149,8 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         deleteBtn.setGraphic(new FontIcon(FontAwesomeSolid.TRASH));
         deleteBtn.setOnAction(e -> deleteSelected());
 
-        FlowPane toolbar = new FlowPane(10, 10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn, cleanDataBtn, exportBtn, templateBtn);
+        FlowPane toolbar = new FlowPane(10, 10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn,
+                balanceTemplateBtn, cleanDataBtn, exportBtn, templateBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         this.cleanDataBtn = cleanDataBtn;
 
@@ -637,8 +642,31 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         }
     }
 
-    private void importFeesBalance() {
+    /** Saves the official fees-balance template: Adm No / Name / Class / Stream / Boarding / Balance. */
+    private void downloadFeesBalanceTemplate() {
         FileChooser chooser = new FileChooser();
+        FileDialogMemory.applyTo(chooser);
+        chooser.setTitle("Save Fees Balance Template");
+        FileChooser.ExtensionFilter excel = new FileChooser.ExtensionFilter("Excel files", "*.xlsx");
+        FileChooser.ExtensionFilter csv = new FileChooser.ExtensionFilter("CSV files", "*.csv");
+        chooser.getExtensionFilters().addAll(excel, csv);
+        chooser.setSelectedExtensionFilter(excel);
+        chooser.setInitialFileName(FileNamingUtil.suggest("fees-balance-template.xlsx"));
+        File file = chooser.showSaveDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file == null) return;
+        FileDialogMemory.remember(file);
+        File target = withChosenExtension(file, chooser);
+        try {
+            new com.schaccs.service.export.FeesBalanceTemplateService(exportService).generateTemplate(target.toPath());
+            AlertUtil.info("Template saved", "Fees balance template saved to:\n" + target.getAbsolutePath()
+                    + "\n\nFill in BALANCE as exactly what each student still owes today, then use "
+                    + "Import Fees Balance. The system reads this format verbatim - no guessing.");
+        } catch (Exception e) {
+            AlertUtil.error("Template failed", "The fees balance template could not be saved.\n\n" + e.getMessage());
+        }
+    }
+
+    private void importFeesBalance() {        FileChooser chooser = new FileChooser();
         FileDialogMemory.applyTo(chooser);
         chooser.setTitle("Import Fees Balance");
         chooser.getExtensionFilters().add(

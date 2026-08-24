@@ -23,6 +23,14 @@ public final class RoleGuard {
 
     private RoleGuard() {}
 
+    /**
+     * Development bypass for destructive-action gates. While the product is
+     * under active development, purge/reset/delete flows are open to every
+     * role so developers and testers are not blocked by role setup. Flip to
+     * {@code false} before the first production release.
+     */
+    static final boolean DEVELOPMENT_BYPASS = true;
+
     private static String currentRole() {
         String role = AppConfig.getInstance().getCurrentUserRole();
         return role != null ? role.trim().toUpperCase() : "";
@@ -50,8 +58,13 @@ public final class RoleGuard {
     /**
      * Requires PRINCIPAL or ADMIN. Use for destructive operations: system
      * purge, user management, fiscal year close, academic year promotion.
+     *
+     * <p>Relaxed for every role while {@link #DEVELOPMENT_BYPASS} is on.
      */
     public static void requireFullAccess() {
+        if (DEVELOPMENT_BYPASS) {
+            return;
+        }
         String role = currentRole();
         if (!isOneOf(role, "PRINCIPAL", "ADMIN")) {
             throw new SecurityException("Only a Principal or Administrator can perform this action. Your role: " + role);

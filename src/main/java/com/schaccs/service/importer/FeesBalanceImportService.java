@@ -2,15 +2,12 @@ package com.schaccs.service.importer;
 
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
-import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
-import com.schaccs.service.fee.FeeCalculationService;
-import com.schaccs.service.school.AcademicCalendarService;
 import com.schaccs.store.StudentStore;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -33,15 +30,24 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Parses a "FEES BALANCE AS AT …" workbook produced by the school. The workbook
- * has one sheet per class/stream and the layout varies between sheets (single
- * name column, names split across two columns, boarding marker columns that are
- * sometimes labelled, extra columns like PENALTY, two tables side by side on one
- * sheet, totals rows, title rows, ...). This service heuristically locates each
- * table's header and column mapping, stages every student row for review, and
- * then applies the staged rows: unmatched students are created in the registry
- * and each student's fee ledger gets the opening balance (arrears, or advance
- * when the balance is a credit). The source file is never modified.
+ * Imports fee balances into student ledgers. Two input paths:
+ *
+ * <ul>
+ *   <li><b>Official template</b> (recommended) — one fixed table with the
+ *       headers Adm No / Name / Class / Stream / Boarding / Balance. BALANCE is
+ *       exactly what the student still owes today and is imported verbatim;
+ *       nothing is guessed.</li>
+ *   <li><b>Legacy "FEES BALANCE AS AT" workbooks</b> — layout varies per sheet
+ *       (single/split name columns, boarding markers, side-by-side tables,
+ *       totals rows), so tables are located heuristically. Note that a
+ *       workbook's T/FEES is billed-to-date (C/FEES + ARREARS), not the
+ *       outstanding balance; prefer the template for exact figures.</li>
+ * </ul>
+ *
+ * In both paths, unmatched students are created in the registry and each
+ * included student's ledger gets the outstanding balance as arrears (or
+ * advance when it is a credit). No term fees are charged on top: future terms
+ * bill normally via the term rollover. The source file is never modified.
  */
 public class FeesBalanceImportService {
 
@@ -54,24 +60,14 @@ public class FeesBalanceImportService {
 
     private final StudentStore studentStore;
     private final AuditService auditService;
-    private final FeeCalculationService feeCalculationService;
-    private final AcademicCalendarService academicCalendarService;
 
     public FeesBalanceImportService() {
         this(StudentStore.getInstance(), new AuditService());
     }
 
     public FeesBalanceImportService(StudentStore studentStore, AuditService auditService) {
-        this(studentStore, auditService, new FeeCalculationService(), new AcademicCalendarService());
-    }
-
-    public FeesBalanceImportService(StudentStore studentStore, AuditService auditService,
-                                    FeeCalculationService feeCalculationService,
-                                    AcademicCalendarService academicCalendarService) {
         this.studentStore = studentStore;
         this.auditService = auditService;
-        this.feeCalculationService = feeCalculationService;
-        this.academicCalendarService = academicCalendarService;
     }
 
     /**
@@ -166,6 +162,9 @@ public class FeesBalanceImportService {
     }
 
     public List<FeesBalanceRow> parseWorkbook(Workbook workbook) {
+        if (looksLikeTemplate(workbook)) {
+            return parseTemplateSheet(workbook.getSheetAt(0));
+        }
         List<FeesBalanceRow> rows = new ArrayList<>();
         DataFormatter formatter = new DataFormatter();
         formatter.setUseCachedValuesForFormulaCells(true);
@@ -179,6 +178,137 @@ public class FeesBalanceImportService {
             }
         }
         return rows;
+    }
+
+    // ------------------------------------------------------- fixed template
+
+    /**
+     * True when the first sheet carries the official template header set
+     * (Adm No / Name / Class / Stream / Boarding / Balance). Template files are
+     * read strictly — BALANCE is imported exactly as typed, with no column
+     * guessing.
+     */
+    private boolean looksLikeTemplate(Workbook workbook) {
+        Sheet sheet = workbook.getNumberOfSheets() == 0 ? null : workbook.getSheetAt(0);
+        if (sheet == null) {
+            return false;
+        }
+        DataFormatter formatter = new DataFormatter();
+        int max = Math.min(sheet.getLastRowNum(), 5);
+        for (int r = 0; r <= max; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) {
+                continue;
+            }
+            boolean hasAdm = false;
+            boolean hasName = false;
+            boolean hasClass = false;
+            boolean hasStream = false;
+            boolean hasBoarding = false;
+            boolean hasBalance = false;
+            for (int c = 0; c <= row.getLastCellNum(); c++) {
+                String normalized = normalize(cellText(row, c, formatter));
+                if (normalized.equals("admno") || normalized.equals("admissionno")
+                        || normalized.equals("admissionnumber")) {
+                    hasAdm = true;
+                } else if (normalized.equals("name")) {
+                    hasName = true;
+                } else if (normalized.equals("class") || normalized.equals("formclass")) {
+                    hasClass = true;
+                } else if (normalized.equals("stream")) {
+                    hasStream = true;
+                } else if (normalized.equals("boarding")) {
+                    hasBoarding = true;
+                } else if (normalized.equals("balance")) {
+                    hasBalance = true;
+                }
+            }
+            if (hasAdm && hasName && hasClass && hasStream && hasBoarding && hasBalance) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Strict mapping of the fixed template table: one row per student. */
+    private List<FeesBalanceRow> parseTemplateSheet(Sheet sheet) {
+        List<FeesBalanceRow> rows = new ArrayList<>();
+        DataFormatter formatter = new DataFormatter();
+        int lastRow = sheet.getLastRowNum();
+        int headerRow = -1;
+        TemplateColumns cols = null;
+        for (int r = 0; r <= Math.min(lastRow, 5); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) {
+                continue;
+            }
+            TemplateColumns candidate = new TemplateColumns();
+            for (int c = 0; c <= row.getLastCellNum(); c++) {
+                String normalized = normalize(cellText(row, c, formatter));
+                if (normalized.equals("admno") || normalized.equals("admissionno")
+                        || normalized.equals("admissionnumber")) {
+                    candidate.adm = c;
+                } else if (normalized.equals("name")) {
+                    candidate.name = c;
+                } else if (normalized.equals("class") || normalized.equals("formclass")) {
+                    candidate.formClass = c;
+                } else if (normalized.equals("stream")) {
+                    candidate.stream = c;
+                } else if (normalized.equals("boarding")) {
+                    candidate.boarding = c;
+                } else if (normalized.equals("balance")) {
+                    candidate.balance = c;
+                }
+            }
+            if (candidate.isComplete()) {
+                headerRow = r;
+                cols = candidate;
+                break;
+            }
+        }
+        if (cols == null) {
+            throw new IllegalArgumentException(
+                    "The fees-balance template is missing its headers. Download the template again and "
+                            + "fill it in without renaming the columns.");
+        }
+        for (int r = headerRow + 1; r <= lastRow; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) {
+                continue;
+            }
+            String name = cellText(row, cols.name, formatter);
+            String balanceRaw = cellText(row, cols.balance, formatter);
+            if (name.isBlank() && balanceRaw.isBlank()) {
+                continue;
+            }
+            FeesBalanceRow out = new FeesBalanceRow(sheet.getSheetName(), r + 1);
+            out.setName(name);
+            out.setAdmissionNumber(cols.adm >= 0 ? cellText(row, cols.adm, formatter) : "");
+            out.setFormClass(cols.formClass >= 0 ? cellText(row, cols.formClass, formatter) : "");
+            out.setStream(cols.stream >= 0 ? cellText(row, cols.stream, formatter) : "");
+            BoardingStatus boarding = cols.boarding >= 0
+                    ? parseBoardingMarker(cellText(row, cols.boarding, formatter))
+                    : null;
+            out.setBoardingStatus(boarding == null ? BoardingStatus.BOARDING : boarding);
+            // BALANCE is exactly what the student still owes today.
+            out.setTotalFees(amount(row, cols.balance, formatter));
+            rows.add(out);
+        }
+        return rows;
+    }
+
+    private static final class TemplateColumns {
+        private int adm = -1;
+        private int name = -1;
+        private int formClass = -1;
+        private int stream = -1;
+        private int boarding = -1;
+        private int balance = -1;
+
+        private boolean isComplete() {
+            return name >= 0 && adm >= 0 && formClass >= 0 && stream >= 0
+                    && boarding >= 0 && balance >= 0;
+        }
     }
 
     /**
@@ -291,12 +421,11 @@ public class FeesBalanceImportService {
                     skipped++;
                     continue;
                 }
-                // Bill the live term from the fee structure so the fresh account
-                // shows this term's c/fees on top of the imported opening
-                // balance. No-op when no structure exists for the year/boarding.
-                AcademicTerm term = academicCalendarService.currentTerm(java.time.LocalDate.now())
-                        .orElse(AcademicTerm.TERM_1);
-                feeCalculationService.chargeTermFees(student, term);
+                // NOTE: no term charge is added here. The imported BALANCE is
+                // everything the student owes to date under the fee structure
+                // (e.g. 9,200 billed through Term 2 minus what they have paid).
+                // Charging the live term again would double-count it; future
+                // terms bill normally via the term rollover.
             } else {
                 existing++;
             }
