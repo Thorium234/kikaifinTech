@@ -44,6 +44,7 @@ public final class SystemResetService {
                     st.execute("DELETE FROM fee_structure_items");
                     st.execute("DELETE FROM fee_structures");
                     st.execute("DELETE FROM voteheads");
+                    st.execute("DELETE FROM student_categories");
                     st.execute("DELETE FROM transactions");
                     st.execute("DELETE FROM ledger_entries");
                     st.execute("DELETE FROM payment_vouchers");
@@ -79,11 +80,12 @@ public final class SystemResetService {
                     st.execute("DELETE FROM procurement_requests");
                     st.execute("DELETE FROM suppliers");
                     st.execute("DELETE FROM mid_term_enrollments");
-                    st.execute("DELETE FROM academic_calendar_periods");
-                    st.execute("DELETE FROM deleted_students");
+                    st.execute("DELETE FROM academic_calendar");
+                    st.execute("DELETE FROM student_term_balances");
+                    st.execute("DELETE FROM recycle_bin");
                     st.execute("DELETE FROM clean_data");
-                    st.execute("DELETE FROM fee_structure_template_items");
-                    st.execute("DELETE FROM fee_structure_templates");
+                    st.execute("DELETE FROM fee_template_items");
+                    st.execute("DELETE FROM fee_templates");
 
                     st.execute("PRAGMA foreign_keys=ON");
                 }
