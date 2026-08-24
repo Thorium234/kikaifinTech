@@ -116,7 +116,7 @@ jobs:
           }
           if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after install" }
           Write-Host "Inno Setup found: $iscc"
-          & $iscc /?
+          # NOTE: do not smoke-run ISCC here; it exits 1 without a script file.
 
       # ---- Step A: Package application JAR and copy dependencies -----------
       - name: Package application
