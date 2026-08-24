@@ -2,12 +2,17 @@ package com.schaccs.service.importer;
 
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
+import com.schaccs.model.student.StudentTermBalance;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
+import com.schaccs.service.fee.FeeCalculationService;
+import com.schaccs.service.school.AcademicCalendarService;
+import com.schaccs.service.student.CohortReplayService;
 import com.schaccs.store.StudentStore;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -21,6 +26,7 @@ import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,10 +50,13 @@ import java.util.regex.Pattern;
  *       outstanding balance; prefer the template for exact figures.</li>
  * </ul>
  *
- * In both paths, unmatched students are created in the registry and each
- * included student's ledger gets the outstanding balance as arrears (or
- * advance when it is a credit). No term fees are charged on top: future terms
- * bill normally via the term rollover. The source file is never modified.
+ * For newly created students the imported BALANCE is reconciled against the
+ * live academic calendar and fee structure, so the ledger reads the way a
+ * bursar expects: the current term's fee is charged, fees of terms that
+ * already ended become arrears, paid becomes billed-to-date minus the balance,
+ * and the closing balance equals the workbook figure exactly. Existing
+ * students keep their billing history — only their arrears are adjusted.
+ * The source file is never modified.
  */
 public class FeesBalanceImportService {
 
@@ -60,14 +69,21 @@ public class FeesBalanceImportService {
 
     private final StudentStore studentStore;
     private final AuditService auditService;
+    private final FeeCalculationService feeCalc;
+    private final AcademicCalendarService calendarService;
 
     public FeesBalanceImportService() {
-        this(StudentStore.getInstance(), new AuditService());
+        this(StudentStore.getInstance(), new AuditService(), new FeeCalculationService(),
+                new AcademicCalendarService());
     }
 
-    public FeesBalanceImportService(StudentStore studentStore, AuditService auditService) {
+    public FeesBalanceImportService(StudentStore studentStore, AuditService auditService,
+                                     FeeCalculationService feeCalc,
+                                     AcademicCalendarService calendarService) {
         this.studentStore = studentStore;
         this.auditService = auditService;
+        this.feeCalc = feeCalc;
+        this.calendarService = calendarService;
     }
 
     /**
@@ -421,15 +437,11 @@ public class FeesBalanceImportService {
                     skipped++;
                     continue;
                 }
-                // NOTE: no term charge is added here. The imported BALANCE is
-                // everything the student owes to date under the fee structure
-                // (e.g. 9,200 billed through Term 2 minus what they have paid).
-                // Charging the live term again would double-count it; future
-                // terms bill normally via the term rollover.
+                applyNewStudentBalance(student, row, year);
             } else {
                 existing++;
+                reconcileExistingBalance(student, row);
             }
-            applyBalance(student, row);
             if (row.getBalance().signum() < 0) {
                 credits++;
             }
@@ -818,9 +830,123 @@ public class FeesBalanceImportService {
         return value == null ? "" : value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
-    private void applyBalance(Student student, FeesBalanceRow row) {
+    /**
+     * Land the imported BALANCE for a newly created student, reconciled against
+     * the live academic calendar and fee structure so the ledger reads the way
+     * a bursar expects:
+     *
+     * <ul>
+     *   <li><b>charged</b> — the CURRENT term's fee from the structure (posted
+     *       per votehead; also pins the ledger's current term so the Pay
+     *       workspace shows this term's expectation, not an ended one)</li>
+     *   <li><b>arrears</b> — the fees of the terms that already ended before it</li>
+     *   <li><b>paid</b> — billed to date minus the imported balance (waterfall,
+     *       earliest term first)</li>
+     *   <li><b>balance</b> — exactly the figure from the workbook</li>
+     * </ul>
+     *
+     * A credit balance settles all billing and lands as advance. Without a
+     * calendar period or fee structure there is nothing to reconcile against,
+     * so the balance falls back to plain arrears. Per-term snapshots are
+     * written for the year so far so termly balances stay continuous.
+     */
+    private void applyNewStudentBalance(Student student, FeesBalanceRow row, int year) {
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
         BigDecimal balance = row.getBalance();
+        AcademicTerm current = calendarService.currentTerm(LocalDate.now()).orElse(null);
+        if (current == null || feeCalc.structureFor(student).isEmpty()) {
+            landAsArrears(ledger, balance);
+            return;
+        }
+
+        List<AcademicTerm> earlierTerms = new ArrayList<>();
+        BigDecimal arrears = CurrencyConfig.zero();
+        for (AcademicTerm term : AcademicTerm.values()) {
+            if (term.ordinal() >= current.ordinal()) {
+                break;
+            }
+            arrears = arrears.add(feeCalc.discountedTermTotal(student, term));
+            earlierTerms.add(term);
+        }
+        // Posts the current term's fee per votehead and sets ledger.currentTerm.
+        feeCalc.chargeTermFees(student, current);
+
+        BigDecimal billedToDate = arrears.add(ledger.getTotalCharged());
+        BigDecimal owed = balance.max(CurrencyConfig.zero());
+        BigDecimal paid = billedToDate.subtract(owed).max(CurrencyConfig.zero());
+        // Payments sit on the current term's voteheads first; any surplus
+        // settles the ended terms' fees by reducing arrears directly.
+        BigDecimal toVoteheads = paid.min(ledger.getTotalCharged());
+        distributePayments(ledger, toVoteheads);
+        arrears = arrears.subtract(paid.subtract(toVoteheads)).max(CurrencyConfig.zero());
+        BigDecimal advance = balance.signum() < 0 ? balance.negate() : CurrencyConfig.zero();
+
+        // Safety net: when the workbook owes more than has been billed to date,
+        // fold the difference into arrears so the closing balance stays exact.
+        BigDecimal landed = ledger.getTotalCharged().add(arrears)
+                .subtract(ledger.getTotalPaid()).subtract(advance);
+        BigDecimal residual = balance.subtract(landed);
+        if (residual.signum() > 0) {
+            arrears = arrears.add(residual);
+        }
+
+        ledger.setArrears(arrears);
+        ledger.setAdvance(advance);
+        writeTermSnapshots(student, year, earlierTerms, current, paid, balance);
+    }
+
+    /** Spread a payment across charged voteheads in billing order. */
+    private void distributePayments(StudentFeeLedger ledger, BigDecimal paid) {
+        BigDecimal remaining = paid;
+        for (Map.Entry<String, BigDecimal> entry : ledger.getChargedByVotehead().entrySet()) {
+            if (remaining.signum() <= 0) {
+                break;
+            }
+            BigDecimal take = remaining.min(entry.getValue());
+            ledger.pay(entry.getKey(), take);
+            remaining = remaining.subtract(take);
+        }
+    }
+
+    /**
+     * Termly balances for the year so far: each ended term carries its share of
+     * the payment waterfall forward into the next, and the current term closes
+     * at exactly the imported balance.
+     */
+    private void writeTermSnapshots(Student student, int year, List<AcademicTerm> earlierTerms,
+                                     AcademicTerm current, BigDecimal totalPaid, BigDecimal balance) {
+        BigDecimal broughtForward = CurrencyConfig.zero();
+        BigDecimal paidLeft = totalPaid;
+        for (AcademicTerm term : earlierTerms) {
+            BigDecimal billed = feeCalc.discountedTermTotal(student, term);
+            BigDecimal paidThisTerm = paidLeft.min(billed);
+            paidLeft = paidLeft.subtract(paidThisTerm);
+            BigDecimal closing = broughtForward.add(billed).subtract(paidThisTerm);
+            upsertSnapshot(student, year, term, billed, broughtForward, paidThisTerm, closing);
+            broughtForward = closing;
+        }
+        BigDecimal currentCharge = studentStore.getLedger(student.getId()).getTotalCharged();
+        BigDecimal paidThisTerm = paidLeft.min(currentCharge);
+        upsertSnapshot(student, year, current, currentCharge, broughtForward, paidThisTerm, balance);
+    }
+
+    private void upsertSnapshot(Student student, int year, AcademicTerm term, BigDecimal billed,
+                                 BigDecimal broughtForward, BigDecimal paid, BigDecimal closing) {
+        CohortReplayService.upsertSnapshot(new StudentTermBalance(student.getId(), year, term,
+                billed, broughtForward, paid, closing));
+    }
+
+    /**
+     * Existing students keep their billing history untouched — only their
+     * arrears are nudged so the closing balance equals the imported figure.
+     */
+    private void reconcileExistingBalance(Student student, FeesBalanceRow row) {
+        StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+        BigDecimal delta = row.getBalance().subtract(ledger.getBalance());
+        ledger.setArrears(ledger.getArrears().add(delta).max(CurrencyConfig.zero()));
+    }
+
+    private void landAsArrears(StudentFeeLedger ledger, BigDecimal balance) {
         if (balance.signum() >= 0) {
             ledger.setArrears(balance);
             ledger.setAdvance(CurrencyConfig.zero());

@@ -153,6 +153,17 @@ public class FeeCalculationService {
         return amounts;
     }
 
+    /**
+     * Discounted total billed for a single term under this student's fee
+     * structure (sibling discount applied), or zero when there is none.
+     */
+    public BigDecimal discountedTermTotal(Student student, AcademicTerm term) {
+        return structureFor(student)
+                .map(s -> CurrencyConfig.money(
+                        s.totalForTerm(term).multiply(siblingDiscountFactor(student))))
+                .orElse(CurrencyConfig.zero());
+    }
+
     public BigDecimal expectedAnnualFee(BoardingStatus status) {        return feeStore.findStructure(AppConfig.getInstance().getAcademicYear(), status)
                 .map(FeeStructure::grandTotal)
                 .orElse(CurrencyConfig.zero());
