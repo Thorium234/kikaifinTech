@@ -4,15 +4,21 @@ import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.service.importer.FeesBalanceImportService;
 import com.schaccs.service.importer.FeesBalanceRow;
+import com.schaccs.service.school.SchoolCustomService;
+import com.schaccs.store.SchoolCustomStore;
+import com.schaccs.util.AlertUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -25,6 +31,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -47,13 +54,27 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
 
     private static final ButtonType CLOSE_TYPE =
             new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
+    private static final String SCOPE_FILL_BLANKS = "Fill blank cells only";
+    private static final String SCOPE_OVERWRITE = "Overwrite all rows";
 
     private final FeesBalanceImportService importService;
     private final FeesBalanceImportService.ImportContext importContext;
+    private final SchoolCustomService schoolCustomService = new SchoolCustomService();
     private final ObservableList<FeesBalanceRow> cleanData = FXCollections.observableArrayList();
     private final TableView<FeesBalanceRow> table = new TableView<>();
     private final Label summaryLabel = new Label();
     private final Set<String> committedAdmissionNumbers = new HashSet<>();
+
+    // Batch context: year first, then the class (Form/Grade) and stream.
+    private final Spinner<Integer> contextYear =
+            new Spinner<>(1990, 2100, LocalDate.now().getYear());
+    private final ComboBox<String> contextClassType = new ComboBox<>();
+    private final ComboBox<Integer> contextLevel = new ComboBox<>();
+    private final ComboBox<String> contextStream = new ComboBox<>();
+    private final ComboBox<String> contextScope =
+            new ComboBox<>(FXCollections.observableArrayList(SCOPE_FILL_BLANKS, SCOPE_OVERWRITE));
+    private final Button applyContextButton = new Button("Apply to rows");
+    private final Label contextStatusLabel = new Label();
 
     private int imported;
 
@@ -86,6 +107,23 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
         }
 
         buildTable();
+        buildBatchContextPanel();
+        if (importContext != null) {
+            contextYear.getValueFactory().setValue(importContext.year());
+            String label = importContext.defaultClassLabel();
+            if (label != null) {
+                String type = label.matches("(?i)form\\s+.*") ? "Form" : "Grade";
+                contextClassType.getSelectionModel().select(type);
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("(?i)(?:form|grade)\\s*(\\d+)").matcher(label);
+                if (m.find()) {
+                    contextLevel.getSelectionModel().select(Integer.valueOf(m.group(1)));
+                }
+            }
+            if (importContext.defaultStream() != null) {
+                contextStream.getSelectionModel().select(importContext.defaultStream());
+            }
+        }
         updateHeader();
         updateSummary();
 
@@ -102,10 +140,109 @@ public class FeesBalanceImportReviewDialog extends Dialog<ButtonType> {
         HBox toolbar = new HBox(10, summaryLabel);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox content = new VBox(10, toolbar, table, hint);
+        VBox content = new VBox(10, buildBatchContextPanel(), toolbar, table, hint);
         content.setPadding(new Insets(8));
         getDialogPane().setContent(content);
-        getDialogPane().setPrefSize(1560, 640);
+        getDialogPane().setPrefSize(1560, 680);
+    }
+
+    /**
+     * Batch panel for rows whose Form column could not be inferred: pick the
+     * class (Form 1-6 or Grade 8-12) and optionally a stream, then Apply —
+     * the matching held rows fill in and import automatically.
+     */
+    private VBox buildBatchContextPanel() {
+        contextClassType.getItems().addAll("Form", "Grade");
+        contextClassType.setPromptText("Form / Grade");
+        contextClassType.setPrefWidth(130);
+        contextLevel.setPromptText("Level");
+        contextLevel.setPrefWidth(90);
+        contextLevel.setDisable(true);
+        contextClassType.setOnAction(e -> {
+            String type = contextClassType.getValue();
+            if ("Form".equals(type)) {
+                contextLevel.getItems().setAll(1, 2, 3, 4, 5, 6);
+            } else if ("Grade".equals(type)) {
+                contextLevel.getItems().setAll(8, 9, 10, 11, 12);
+            } else {
+                contextLevel.getItems().clear();
+            }
+            contextLevel.getSelectionModel().clearSelection();
+            contextLevel.setDisable(type == null);
+        });
+
+        contextStream.setEditable(true);
+        contextStream.setPromptText("Stream (optional)");
+        contextStream.setPrefWidth(130);
+        ObservableList<String> streamItems = FXCollections.observableArrayList();
+        if (!SchoolCustomStore.getInstance().getStreams().isEmpty()) {
+            SchoolCustomStore.getInstance().getStreams().forEach(s -> streamItems.add(s.getName()));
+        } else {
+            streamItems.addAll("A", "B", "C");
+        }
+        contextStream.setItems(streamItems);
+
+        contextScope.getSelectionModel().selectFirst();
+        contextScope.setPrefWidth(170);
+        applyContextButton.getStyleClass().add("primary");
+        applyContextButton.setOnAction(e -> applyBatchContext());
+
+        contextStatusLabel.getStyleClass().add("muted");
+        contextStatusLabel.setWrapText(true);
+        contextStatusLabel.setText("Rows showing \"Class not inferred\" stay held here. Pick the class this "
+                + "workbook covers and Apply - their Form column is filled automatically and they import at once.");
+
+        HBox row = new HBox(8,
+                new Label("Year"), contextYear,
+                new Label("Class"), contextClassType, contextLevel,
+                new Label("Stream"), contextStream,
+                contextScope, applyContextButton);
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        VBox panel = new VBox(4, row, contextStatusLabel);
+        panel.getStyleClass().add("card");
+        panel.setPadding(new Insets(10));
+        return panel;
+    }
+
+    /**
+     * Fill the chosen batch class/stream into the held rows, register them in
+     * the school registry, then re-validate so every fixed row imports.
+     */
+    private void applyBatchContext() {
+        String type = contextClassType.getValue();
+        Integer level = contextLevel.getValue();
+        String stream = contextStream.getValue();
+
+        boolean typeChosen = type != null;
+        boolean levelChosen = level != null;
+        if (typeChosen != levelChosen) {
+            AlertUtil.warn("Class incomplete",
+                    "Choose both the class type and its level - for example \"Grade 10\" or \"Form 3\".");
+            return;
+        }
+
+        String classLabel = typeChosen ? type + " " + level : null;
+        int changed = importService.applyWorkbookDefaults(cleanData, classLabel, stream,
+                SCOPE_OVERWRITE.equals(contextScope.getValue()));
+        if (classLabel != null) {
+            schoolCustomService.ensureFormClass(classLabel);
+        }
+        if (stream != null && !stream.isBlank()) {
+            schoolCustomService.ensureStream(stream);
+        }
+        if (changed == 0 && cleanData.stream().noneMatch(FeesBalanceRow::requiresCleaning)) {
+            contextStatusLabel.setText("Nothing to change - no held rows are missing a class.");
+            return;
+        }
+
+        int before = imported;
+        afterEdit();
+        updateHeader();
+        contextStatusLabel.setText((classLabel == null ? "Stream " + stream : classLabel)
+                + " applied to " + changed + " row(s)"
+                + (imported > before ? " - " + (imported - before) + " row(s) imported." :
+                cleanData.isEmpty() ? "." : " - remaining rows still need attention."));
     }
 
     private void buildTable() {

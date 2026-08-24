@@ -2,12 +2,15 @@ package com.schaccs.service.importer;
 
 import com.schaccs.config.AppConfig;
 import com.schaccs.config.CurrencyConfig;
+import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.audit.AuditService;
+import com.schaccs.service.fee.FeeCalculationService;
+import com.schaccs.service.school.AcademicCalendarService;
 import com.schaccs.store.StudentStore;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -51,28 +54,102 @@ public class FeesBalanceImportService {
 
     private final StudentStore studentStore;
     private final AuditService auditService;
+    private final FeeCalculationService feeCalculationService;
+    private final AcademicCalendarService academicCalendarService;
 
     public FeesBalanceImportService() {
         this(StudentStore.getInstance(), new AuditService());
     }
 
     public FeesBalanceImportService(StudentStore studentStore, AuditService auditService) {
+        this(studentStore, auditService, new FeeCalculationService(), new AcademicCalendarService());
+    }
+
+    public FeesBalanceImportService(StudentStore studentStore, AuditService auditService,
+                                    FeeCalculationService feeCalculationService,
+                                    AcademicCalendarService academicCalendarService) {
         this.studentStore = studentStore;
         this.auditService = auditService;
+        this.feeCalculationService = feeCalculationService;
+        this.academicCalendarService = academicCalendarService;
     }
 
     /**
      * Import context for a fees-balance batch: the calendar year the workbook
      * belongs to (balances are booked against that year), the batch id, the
-     * bursar who ran the import and the time it happened. Carried through to the
-     * audit log so each import is fully traceable.
+     * bursar who ran the import and the time it happened, plus the optional
+     * batch class ("Form 3" / "Grade 10") and stream chosen after the year —
+     * used to fill rows whose class could not be inferred from the sheet.
+     * Carried through to the audit log so each import is fully traceable.
      */
-    public record ImportContext(int year, String batchId, String importedBy, java.time.LocalDateTime importedAt) {
+    public record ImportContext(int year, String batchId, String importedBy,
+                                java.time.LocalDateTime importedAt,
+                                String defaultClassLabel, String defaultStream) {
+
+        public ImportContext {
+            defaultClassLabel = defaultClassLabel == null || defaultClassLabel.isBlank()
+                    ? null : defaultClassLabel.trim();
+            defaultStream = defaultStream == null || defaultStream.isBlank()
+                    ? null : defaultStream.trim();
+        }
 
         public static ImportContext of(int year, String importedBy) {
-            return new ImportContext(year, "BATCH-" + java.util.UUID.randomUUID()
-                    .toString().substring(0, 8).toUpperCase(), importedBy, java.time.LocalDateTime.now());
+            return of(year, importedBy, null, null);
         }
+
+        public static ImportContext of(int year, String importedBy, String classLabel, String stream) {
+            return new ImportContext(year, "BATCH-" + java.util.UUID.randomUUID()
+                    .toString().substring(0, 8).toUpperCase(), importedBy,
+                    java.time.LocalDateTime.now(), classLabel, stream);
+        }
+    }
+
+    /**
+     * Fill the batch class/stream into staged rows before review: every row
+     * whose Form column could not be inferred gets the given label
+     * ("Form 3" / "Grade 10") and optional stream, so it no longer blocks the
+     * import. Blank cells only unless {@code overwrite} is set.
+     *
+     * @return how many rows were changed
+     */
+    public int applyWorkbookDefaults(List<FeesBalanceRow> rows, String classLabel,
+                                     String stream, boolean overwrite) {
+        boolean hasClass = classLabel != null && !classLabel.isBlank();
+        boolean hasStream = stream != null && !stream.isBlank();
+        if (!hasClass && !hasStream) {
+            return 0;
+        }
+        int changed = 0;
+        for (FeesBalanceRow row : rows) {
+            if ("Skipped".equals(row.getMatchStatus())) {
+                continue;
+            }
+            boolean rowChanged = false;
+            if (hasClass
+                    && (overwrite || isBlank(row.getFormClass()))
+                    && !classLabel.trim().equalsIgnoreCase(safe(row.getFormClass()))) {
+                row.setFormClass(classLabel.trim());
+                rowChanged = true;
+            }
+            if (hasStream
+                    && (overwrite || isBlank(row.getStream()))
+                    && !stream.trim().equalsIgnoreCase(safe(row.getStream()))) {
+                row.setStream(stream.trim());
+                rowChanged = true;
+            }
+            if (rowChanged) {
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
     }
 
     /**
@@ -214,6 +291,12 @@ public class FeesBalanceImportService {
                     skipped++;
                     continue;
                 }
+                // Bill the live term from the fee structure so the fresh account
+                // shows this term's c/fees on top of the imported opening
+                // balance. No-op when no structure exists for the year/boarding.
+                AcademicTerm term = academicCalendarService.currentTerm(java.time.LocalDate.now())
+                        .orElse(AcademicTerm.TERM_1);
+                feeCalculationService.chargeTermFees(student, term);
             } else {
                 existing++;
             }

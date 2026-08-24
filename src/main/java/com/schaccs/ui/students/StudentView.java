@@ -647,10 +647,11 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         if (file == null) return;
         FileDialogMemory.remember(file);
         try {
-            Integer year = promptImportYear();
-            if (year == null) {
+            FeesBalancePrompt prompt = promptFeesBalanceImport();
+            if (prompt == null) {
                 return;
             }
+            Integer year = prompt.year();
             if (Services.getInstance().academicCalendar().ensureYearCalendar(year)) {
                 AlertUtil.info("Calendar scaffolded",
                         "The calendar had no periods for " + year + ", so Term 1, Term 2 and Term 3 were "
@@ -662,10 +663,31 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
                 AlertUtil.warn("Nothing to import", "The workbook contains no recognisable student fee-balance tables.");
                 return;
             }
+            // Fill the batch class into every row whose Form column could not
+            // be inferred, so it no longer blocks those rows.
+            if (prompt.classLabel() != null || prompt.stream() != null) {
+                int filled = service.applyWorkbookDefaults(rows, prompt.classLabel(),
+                        prompt.stream(), false);
+                com.schaccs.service.school.SchoolCustomService customService =
+                        new com.schaccs.service.school.SchoolCustomService();
+                if (prompt.classLabel() != null) {
+                    customService.ensureFormClass(prompt.classLabel());
+                }
+                if (prompt.stream() != null) {
+                    customService.ensureStream(prompt.stream());
+                }
+                if (filled > 0) {
+                    AlertUtil.info("Class applied",
+                            prompt.classLabel() + (prompt.stream() != null ? " (Stream " + prompt.stream() + ")" : "")
+                                    + " was filled into " + filled + " row(s) whose class could not be read "
+                                    + "from the workbook.");
+                }
+            }
             service.scrutinize(rows);
             FeesBalanceImportService.ImportContext context =
                     FeesBalanceImportService.ImportContext.of(year,
-                            com.schaccs.config.AppConfig.getInstance().getCurrentUser());
+                            com.schaccs.config.AppConfig.getInstance().getCurrentUser(),
+                            prompt.classLabel(), prompt.stream());
             FeesBalanceImportReviewDialog dialog = new FeesBalanceImportReviewDialog(service, rows, context);
             dialog.showAndWait();
             List<Map<String, String>> heldFields = dialog.getHeldRows().stream()
@@ -695,33 +717,84 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         }
     }
 
-    private Integer promptImportYear() {
+    /** Batch choices for a fees-balance import: the year first, then the class. */
+    private record FeesBalancePrompt(Integer year, String classLabel, String stream) {
+    }
+
+    /**
+     * Ask which academic year the fees-balance workbook belongs to and, right
+     * after the year, the class this workbook covers — Form 1-6 or Grade 8-12,
+     * plus an optional stream. The class is optional: workbooks that carry one
+     * sheet per class do not need it.
+     */
+    private FeesBalancePrompt promptFeesBalanceImport() {
         javafx.scene.control.Spinner<Integer> year =
                 new javafx.scene.control.Spinner<>(1990, 2100, LocalDate.now().getYear());
         year.setEditable(true);
-        year.setPrefWidth(220);
+        year.setPrefWidth(110);
+
+        javafx.scene.control.ComboBox<String> type = new javafx.scene.control.ComboBox<>();
+        type.getItems().addAll("Form", "Grade");
+        type.setPromptText("Form / Grade (optional)");
+        type.setPrefWidth(180);
+
+        javafx.scene.control.ComboBox<Integer> level = new javafx.scene.control.ComboBox<>();
+        level.setPromptText("Level");
+        level.setPrefWidth(90);
+        level.setDisable(true);
+        type.setOnAction(e -> {
+            String selected = type.getValue();
+            if ("Form".equals(selected)) {
+                level.getItems().setAll(1, 2, 3, 4, 5, 6);
+            } else if ("Grade".equals(selected)) {
+                level.getItems().setAll(8, 9, 10, 11, 12);
+            } else {
+                level.getItems().clear();
+            }
+            level.getSelectionModel().clearSelection();
+            level.setDisable(selected == null);
+        });
+
+        javafx.scene.control.ComboBox<String> stream = new javafx.scene.control.ComboBox<>();
+        stream.setEditable(true);
+        stream.setPromptText("Stream (optional)");
+        stream.setPrefWidth(130);
+        stream.getItems().addAll("A", "B", "C");
+
         VBox content = new VBox(10,
                 new Label("Which academic year does this fees-balance workbook belong to?"),
                 year,
-                new Label("Imported balances are booked against this year. If the calendar has no periods "
-                        + "for it, Term 1, Term 2 and Term 3 are generated automatically as ended periods."));
+                new Label("Which class does it cover? Pick Form or Grade and its level - e.g. \"Grade 10\" - "
+                        + "and every row whose class cannot be read from the sheets is filled with it."),
+                new HBox(8, type, level, stream),
+                new Label("Imported balances are booked against the year; students new to the registry also get "
+                        + "the current term's fees charged from the fee structure automatically."));
         content.setPadding(new Insets(10));
 
         javafx.scene.control.Dialog<ButtonType> dialog = new javafx.scene.control.Dialog<>();
         dialog.setTitle("Import Fees Balance");
-        dialog.setHeaderText("Select the academic year for this import");
+        dialog.setHeaderText("Select the academic year, then the class for this import");
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
         Optional<ButtonType> choice = dialog.showAndWait();
         if (choice.isEmpty() || choice.get() != ButtonType.OK) {
             return null;
         }
-        Integer selected = year.getValue();
-        if (selected == null) {
+        Integer selectedYear = year.getValue();
+        if (selectedYear == null) {
             AlertUtil.warn("No year", "Select an academic year to continue the import.");
             return null;
         }
-        return selected;
+        String typeValue = type.getValue();
+        Integer levelValue = level.getValue();
+        if ((typeValue != null) != (levelValue != null)) {
+            AlertUtil.warn("Class incomplete",
+                    "Choose both the class type and its level - for example \"Grade 10\" - or leave both empty.");
+            return null;
+        }
+        String classLabel = typeValue == null ? null : typeValue + " " + levelValue;
+        return new FeesBalancePrompt(selectedYear, classLabel,
+                stream.getValue() == null || stream.getValue().isBlank() ? null : stream.getValue().trim());
     }
 
     private void openCleanData() {
