@@ -8,11 +8,11 @@
 ;   with a checked "Launch ThorCash" checkbox that opens the app on Finish.
 ;
 ; Build from the project root (version injected by build-installer.bat):
-;   ISCC.exe installer.iss /DAppVersion=1.0.16
+;   ISCC.exe installer.iss /DAppVersion=1.0.17
 ; =============================================================================
 
 #ifndef AppVersion
-#define AppVersion "1.0.16"
+#define AppVersion "1.0.17"
 #endif
 
 #define AppName "ThorCash"
