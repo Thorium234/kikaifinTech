@@ -6,6 +6,9 @@ import com.schaccs.enums.BoardingStatus;
 import com.schaccs.enums.DurationUnit;
 import com.schaccs.enums.StudentStatus;
 import com.schaccs.enums.TermStatus;
+import com.schaccs.model.fee.FeeAllocation;
+import com.schaccs.model.fee.FeeStructure;
+import com.schaccs.model.fee.FeeStructureItem;
 import com.schaccs.model.school.TermPeriod;
 import com.schaccs.model.student.Student;
 import com.schaccs.model.student.StudentFeeLedger;
@@ -165,6 +168,44 @@ class AcademicCalendarServiceTest {
         assertEquals(1, result.studentsRolled(), "One student, counted once despite two terms caught up");
         assertEquals(0, result.arrearsRolled().compareTo(CurrencyConfig.money("600")));
         assertEquals(AcademicTerm.TERM_3, ledger.getCurrentTerm());
+    }
+
+    @Test
+    @DisplayName("Ending a term from the calendar rolls its unpaid into arrears on top of existing arrears")
+    void endingTermViaCalendarEditGrowsArrearsByFeeStructure() {
+        seed();
+        FeeStructure day = new FeeStructure(2026, "ALL", BoardingStatus.DAY, "Day 2026");
+        day.addItem(new FeeStructureItem("TUITION", "Tuition", BoardingStatus.DAY,
+                CurrencyConfig.money("5500"), CurrencyConfig.money("3700"),
+                CurrencyConfig.money("1800")));
+        com.schaccs.store.FeeStructureStore.getInstance().addStructure(day);
+
+        Student student = createStudent("Form 1", 2026);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        // State right after a fees-balance import in Term 2: Term 1 ended with
+        // 5,500 in arrears; Term 2 billed 3,700 and the student paid 200.
+        ledger.setCurrentTerm(AcademicTerm.TERM_2);
+        ledger.setArrears(CurrencyConfig.money("5500"));
+        ledger.charge("TUITION", CurrencyConfig.money("3700"));
+        ledger.pay("TUITION", CurrencyConfig.money("200"));
+
+        // The bursar edits Term 2 in the calendar so it ends on Aug 23...
+        TermPeriod term2 = service.periodForTerm(AcademicTerm.TERM_2,
+                LocalDate.of(2026, 8, 24)).orElseThrow();
+        assertTrue(service.updatePeriod(term2, AcademicTerm.TERM_2,
+                LocalDate.of(2026, 5, 1), LocalDate.of(2026, 8, 23)).isEmpty());
+
+        // ...and the transition applies dynamically (CalendarView.refresh()).
+        AcademicCalendarService.RolloverResult result =
+                service.rolloverIfDue(LocalDate.of(2026, 8, 24));
+
+        assertEquals(1, result.studentsRolled());
+        assertEquals(0, CurrencyConfig.money("9000").compareTo(ledger.getArrears()),
+                "Term 2's unpaid 3,500 joins Term 1's 5,500 arrears");
+        assertEquals(AcademicTerm.TERM_3, ledger.getCurrentTerm());
+        assertEquals(0, CurrencyConfig.money("1800").compareTo(ledger.getTotalCharged()),
+                "The new term bills from the fee structure");
+        assertEquals(0, CurrencyConfig.money("10800").compareTo(ledger.getBalance()));
     }
 
     @Test

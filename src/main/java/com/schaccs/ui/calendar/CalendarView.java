@@ -267,8 +267,10 @@ public class CalendarView extends VBox implements MainLayout.Refreshable {
     @Override
     public void refresh() {
         LocalDate today = LocalDate.now();
-        service.reconcileStatuses(today);
-        service.checkCompletions(today);
+        // Ending or editing a term here applies the end-of-term transition
+        // immediately: unpaid balances roll into arrears, students advance to
+        // the next term and the new term bills from the fee structure.
+        AcademicCalendarService.RolloverResult rolled = service.rolloverIfDue(today);
         var current = service.currentOrNextPeriod(today);
         if (current.isEmpty()) {
             statusHeading.setText("No term periods configured");
@@ -295,9 +297,14 @@ public class CalendarView extends VBox implements MainLayout.Refreshable {
                         + CurrencyUtil.format(preview.totalUnpaid())
                         + " of unpaid fees will roll into arrears."
                 : "No student is past their term end. Arrears will roll automatically when a term ends.");
-        lastRunDetail.setText(service.getLastRolloverDate() != null
-                ? "Last rollover ran on " + DateUtil.format(service.getLastRolloverDate()) + "."
-                : "");
+        lastRunDetail.setText(rolled.studentsRolled() > 0
+                ? "End-of-term transition applied automatically just now — "
+                        + rolled.studentsRolled() + " student(s) moved, "
+                        + CurrencyUtil.format(rolled.arrearsRolled())
+                        + " carried into arrears, " + rolled.classPromotions() + " class(es) promoted."
+                : service.getLastRolloverDate() != null
+                        ? "Last rollover ran on " + DateUtil.format(service.getLastRolloverDate()) + "."
+                        : "");
 
         table.refresh();
     }
