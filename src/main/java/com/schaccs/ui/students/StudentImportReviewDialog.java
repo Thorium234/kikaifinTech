@@ -5,15 +5,21 @@ import com.schaccs.enums.StudentStatus;
 import com.schaccs.model.student.Student;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.importer.StudentImportService;
+import com.schaccs.service.school.SchoolCustomService;
+import com.schaccs.store.SchoolCustomStore;
+import com.schaccs.util.AlertUtil;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -26,6 +32,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -44,14 +51,28 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
 
     private static final ButtonType CLOSE_TYPE =
             new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
+    private static final String SCOPE_FILL_BLANKS = "Fill blank cells only";
+    private static final String SCOPE_OVERWRITE = "Overwrite all rows";
 
     private final StudentImportService importService;
+    private final SchoolCustomService schoolCustomService = new SchoolCustomService();
     private final ObservableList<Student> staged;
     private final List<Map<String, String>> rawRows;
     private final Map<Student, Map<String, List<String>>> errorsByStudent = new HashMap<>();
 
     private final TableView<Student> table = new TableView<>();
     private final Label summaryLabel = new Label();
+
+    // Batch context: the year is picked first, then the class (Form/Grade).
+    private final Spinner<Integer> contextYear =
+            new Spinner<>(1990, 2100, LocalDate.now().getYear());
+    private final ComboBox<String> contextClassType = new ComboBox<>();
+    private final ComboBox<Integer> contextLevel = new ComboBox<>();
+    private final ComboBox<String> contextStream = new ComboBox<>();
+    private final ComboBox<String> contextScope =
+            new ComboBox<>(FXCollections.observableArrayList(SCOPE_FILL_BLANKS, SCOPE_OVERWRITE));
+    private final Button applyContextButton = new Button("Apply to rows");
+    private final Label contextStatusLabel = new Label();
 
     private int imported;
 
@@ -84,10 +105,126 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         HBox toolbar = new HBox(10, summaryLabel);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox content = new VBox(10, toolbar, table, hint);
+        VBox content = new VBox(10, buildBatchContextPanel(), toolbar, table, hint);
         content.setPadding(new Insets(8));
         getDialogPane().setContent(content);
-        getDialogPane().setPrefSize(1480, 620);
+        getDialogPane().setPrefSize(1480, 660);
+    }
+
+    /**
+     * The batch panel: specify the academic year first, then the class this
+     * intake belongs to — Form 1-6 or Grade 8-12 — plus an optional stream.
+     * Applying fills the staged rows (blanks by default) and registers any
+     * newly named class/stream so dropdowns and reports pick them up.
+     */
+    private VBox buildBatchContextPanel() {
+        contextYear.setEditable(true);
+        contextYear.setPrefWidth(100);
+
+        contextClassType.getItems().addAll("Form", "Grade");
+        contextClassType.setPromptText("Form / Grade");
+        contextClassType.setPrefWidth(130);
+        contextLevel.setPromptText("Level");
+        contextLevel.setPrefWidth(90);
+        contextLevel.setDisable(true);
+        contextClassType.setOnAction(e -> {
+            String type = contextClassType.getValue();
+            contextLevel.getItems().setAll(classLevels(type));
+            contextLevel.getSelectionModel().clearSelection();
+            contextLevel.setDisable(type == null);
+        });
+
+        contextStream.setEditable(true);
+        contextStream.setPromptText("Stream (optional)");
+        contextStream.setPrefWidth(130);
+        ObservableList<String> streamItems = FXCollections.observableArrayList();
+        if (!SchoolCustomStore.getInstance().getStreams().isEmpty()) {
+            SchoolCustomStore.getInstance().getStreams().forEach(s -> streamItems.add(s.getName()));
+        } else {
+            streamItems.addAll("A", "B", "C");
+        }
+        contextStream.setItems(streamItems);
+
+        contextScope.getSelectionModel().selectFirst();
+        contextScope.setPrefWidth(170);
+        applyContextButton.getStyleClass().add("primary");
+        applyContextButton.setOnAction(e -> applyBatchContext());
+
+        contextStatusLabel.getStyleClass().add("muted");
+        contextStatusLabel.setWrapText(true);
+        contextStatusLabel.setText("Optional: pick the academic year, then the class this intake belongs to "
+                + "(Form 1-6 or Grade 8-12) and an optional stream, then Apply. "
+                + "Blank cells are filled (or every row when you choose Overwrite), the class is created in "
+                + "the school registry, and rows that become valid import immediately.");
+
+        HBox row = new HBox(8,
+                new Label("Academic Year"), contextYear,
+                new Label("Class"), contextClassType, contextLevel,
+                new Label("Stream"), contextStream,
+                contextScope, applyContextButton);
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        VBox panel = new VBox(4, row, contextStatusLabel);
+        panel.getStyleClass().add("card");
+        panel.setPadding(new Insets(10));
+        return panel;
+    }
+
+    private static List<Integer> classLevels(String type) {
+        if ("Form".equals(type)) {
+            return List.of(1, 2, 3, 4, 5, 6);
+        }
+        if ("Grade".equals(type)) {
+            return List.of(8, 9, 10, 11, 12);
+        }
+        return List.of();
+    }
+
+    /**
+     * Apply the chosen year/class/stream to every staged row, register the
+     * class and stream in the school registry, then commit whatever rows just
+     * became valid.
+     */
+    private void applyBatchContext() {
+        Integer year = contextYear.getValue();
+        String type = contextClassType.getValue();
+        Integer level = contextLevel.getValue();
+        String stream = contextStream.getValue();
+
+        if (year == null) {
+            AlertUtil.warn("No academic year",
+                    "Pick the academic year this batch belongs to before applying.");
+            return;
+        }
+        boolean typeChosen = type != null;
+        boolean levelChosen = level != null;
+        if (typeChosen != levelChosen) {
+            AlertUtil.warn("Class incomplete",
+                    "Choose both the class type and its level - for example \"Grade 10\" or \"Form 3\".");
+            return;
+        }
+
+        String classLabel = typeChosen ? type + " " + level : null;
+        StudentImportService.ImportContext context = new StudentImportService.ImportContext(
+                year, classLabel, stream, SCOPE_OVERWRITE.equals(contextScope.getValue()));
+
+        int changed = importService.applyImportContext(rawRows, staged, context);
+        if (classLabel != null) {
+            schoolCustomService.ensureFormClass(classLabel);
+        }
+        if (stream != null && !stream.isBlank()) {
+            schoolCustomService.ensureStream(stream);
+        }
+
+        int before = imported;
+        importValidRowsImmediately();
+        updateHeader();
+        updateSummary();
+        table.refresh();
+
+        contextStatusLabel.setText(context.describe()
+                + " applied to " + changed + " row(s)"
+                + (imported > before ? " - " + (imported - before) + " row(s) imported." : "."));
     }
 
     /**
@@ -167,7 +304,7 @@ public class StudentImportReviewDialog extends Dialog<ButtonType> {
         });
         gender.setPrefWidth(80);
 
-        TableColumn<Student, String> cls = new TableColumn<>("Form Class");
+        TableColumn<Student, String> cls = new TableColumn<>("Class (Form/Grade)");
         cls.setCellValueFactory(c -> c.getValue().formClassProperty());
         cls.setCellFactory(c -> new TextFieldTableCell<>() {
             @Override

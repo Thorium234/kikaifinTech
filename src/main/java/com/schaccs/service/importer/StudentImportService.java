@@ -296,6 +296,117 @@ public class StudentImportService {
     }
 
     /**
+     * Apply batch-level defaults (academic year + class label, e.g. "Form 3" or
+     * "Grade 11", plus optional stream) to staged rows before they are committed.
+     *
+     * <p>Behaviour per field:
+     * <ul>
+     *   <li>Class / Stream — fills blank cells only, or every cell when
+     *       {@code overwriteExisting} is set;</li>
+     *   <li>Academic Year — same fill/overwrite rule;</li>
+     *   <li>Year of Admission — only ever filled when blank, defaulting to the
+     *       batch academic year so a fresh intake cohort gets its full calendar
+     *       scaffold and ledger replay without extra typing.</li>
+     * </ul>
+     * The parallel raw rows are kept in sync (copied on write) so revalidation
+     * sees exactly what the table shows.
+     *
+     * @return how many students were modified
+     */
+    public int applyImportContext(List<Map<String, String>> rawRows,
+                                  List<Student> students,
+                                  ImportContext context) {
+        if (context == null || context.isEmpty()) {
+            return 0;
+        }
+        int changed = 0;
+        for (int i = 0; i < students.size(); i++) {
+            Student student = students.get(i);
+            Map<String, String> raw = rawRows != null && i < rawRows.size() && rawRows.get(i) != null
+                    ? new HashMap<>(rawRows.get(i))
+                    : new HashMap<>();
+            boolean rowChanged = false;
+
+            if (context.classLabel() != null
+                    && (context.overwriteExisting() || isBlank(student.getFormClass()))
+                    && !context.classLabel().equalsIgnoreCase(safe(student.getFormClass()))) {
+                student.setFormClass(context.classLabel());
+                raw.put("formclass", context.classLabel());
+                rowChanged = true;
+            }
+            if (context.stream() != null
+                    && (context.overwriteExisting() || isBlank(student.getStream()))
+                    && !context.stream().equalsIgnoreCase(safe(student.getStream()))) {
+                student.setStream(context.stream());
+                raw.put("stream", context.stream());
+                rowChanged = true;
+            }
+            if (context.academicYear() != null
+                    && (context.overwriteExisting() || student.getAcademicYear() == null)
+                    && !context.academicYear().equals(student.getAcademicYear())) {
+                student.setAcademicYear(context.academicYear());
+                raw.put("academicyear", String.valueOf(context.academicYear()));
+                rowChanged = true;
+            }
+            if (context.academicYear() != null && student.getYearOfAdmission() == null) {
+                student.setYearOfAdmission(context.academicYear());
+                raw.put("yearofadmission", String.valueOf(context.academicYear()));
+                rowChanged = true;
+            }
+
+            if (rowChanged) {
+                changed++;
+                if (rawRows != null && i < rawRows.size()) {
+                    rawRows.set(i, raw);
+                }
+            }
+        }
+        return changed;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    /**
+     * Batch-level defaults chosen in the import review dialog: the academic
+     * year first, then the class (Form N or Grade N) and optionally a stream.
+     */
+    public record ImportContext(Integer academicYear,
+                                String classLabel,
+                                String stream,
+                                boolean overwriteExisting) {
+
+        public ImportContext {
+            classLabel = classLabel == null || classLabel.isBlank() ? null : classLabel.trim();
+            stream = stream == null || stream.isBlank() ? null : stream.trim();
+        }
+
+        public boolean isEmpty() {
+            return academicYear == null && classLabel == null && stream == null;
+        }
+
+        /** Human-readable summary, e.g. "2026 · Grade 10 · Stream A". */
+        public String describe() {
+            List<String> parts = new ArrayList<>();
+            if (academicYear != null) {
+                parts.add(String.valueOf(academicYear));
+            }
+            if (classLabel != null) {
+                parts.add(classLabel);
+            }
+            if (stream != null) {
+                parts.add("Stream " + stream);
+            }
+            return String.join(" · ", parts);
+        }
+    }
+
+    /**
      * Validate and commit a single corrected row: adds the student and charges Term
      * 1 fees, matching the manual add behaviour. Returns any validation errors.
      */

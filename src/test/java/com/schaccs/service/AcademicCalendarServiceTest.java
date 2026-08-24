@@ -189,6 +189,44 @@ class AcademicCalendarServiceTest {
     }
 
     @Test
+    @DisplayName("Grade classes promote too: Grade 10 becomes Grade 11 after Term 3")
+    void rolloverPromotesGradeClasses() {
+        seed();
+        Student student = createStudent("Grade 10", 2026);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        ledger.setCurrentTerm(AcademicTerm.TERM_3);
+        ledger.charge("TUITION", CurrencyConfig.money("800"));
+        ledger.pay("TUITION", CurrencyConfig.money("200"));
+
+        AcademicCalendarService.RolloverResult result =
+                service.rolloverIfDue(LocalDate.of(2027, 1, 5));
+
+        assertEquals(1, result.studentsRolled());
+        assertEquals(1, result.classPromotions(), "Grade students count as class promotions");
+        assertEquals("Grade 11", student.getFormClass());
+        assertEquals(2027, student.getAcademicYear());
+        assertEquals(AcademicTerm.TERM_1, ledger.getCurrentTerm());
+    }
+
+    @Test
+    @DisplayName("Grade 12 is terminal: the term rolls but the class is never promoted")
+    void rolloverKeepsTerminalGradeTwelve() {
+        seed();
+        Student student = createStudent("Grade 12", 2026);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        ledger.setCurrentTerm(AcademicTerm.TERM_3);
+        ledger.charge("TUITION", CurrencyConfig.money("800"));
+
+        AcademicCalendarService.RolloverResult result =
+                service.rolloverIfDue(LocalDate.of(2027, 1, 5));
+
+        assertEquals(1, result.studentsRolled());
+        assertEquals(0, result.classPromotions(), "Grade 12 has no Grade 13 to move into");
+        assertEquals("Grade 12", student.getFormClass());
+        assertEquals(AcademicTerm.TERM_1, ledger.getCurrentTerm());
+    }
+
+    @Test
     @DisplayName("Overdue preview reports how many students and how much will roll")
     void overduePreview() {
         seed();

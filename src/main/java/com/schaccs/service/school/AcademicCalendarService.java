@@ -35,7 +35,9 @@ import java.util.regex.Pattern;
 public class AcademicCalendarService {
 
     private static final Pattern FORM_PATTERN = Pattern.compile("(?i)(form\\s*)(\\d+)");
+    private static final Pattern GRADE_PATTERN = Pattern.compile("(?i)(grade\\s*)(\\d+)");
     private static final int MAX_FORM = 6;
+    private static final int MAX_GRADE = 12;
 
     private final AcademicCalendarStore store;
     private final StudentStore studentStore;
@@ -489,18 +491,29 @@ public class AcademicCalendarService {
         };
     }
 
-    /** Promotes "Form N" → "Form N+1". Returns false when the class has no promotable form number. */
+    /**
+     * Promotes "Form N" → "Form N+1" and "Grade N" → "Grade N+1".
+     * Form 6 / Grade 12 are terminal classes and stay unchanged; anything
+     * without a recognised form/grade number is left alone.
+     */
     private boolean promoteClass(Student s) {
-        String form = s.getFormClass();
-        if (form == null) {
+        String label = s.getFormClass();
+        if (label == null) {
             return false;
         }
-        Matcher m = FORM_PATTERN.matcher(form);
-        if (!m.find()) {
-            return false;
+        int max;
+        Matcher m = FORM_PATTERN.matcher(label);
+        if (m.find()) {
+            max = MAX_FORM;
+        } else {
+            m = GRADE_PATTERN.matcher(label);
+            if (!m.find()) {
+                return false;
+            }
+            max = MAX_GRADE;
         }
         int current = Integer.parseInt(m.group(2));
-        if (current < 1 || current >= MAX_FORM) {
+        if (current < 1 || current >= max) {
             return false;
         }
         s.setFormClass(m.replaceFirst(m.group(1) + (current + 1)));

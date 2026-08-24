@@ -65,6 +65,28 @@ public class SchoolCustomService {
         PersistenceService.getInstance().saveAll();
     }
 
+    /**
+     * Returns the form class with this name, creating it when it does not
+     * exist yet. Never fails on duplicates — used by flows that reference a
+     * class by label (e.g. student import) and want the registry to stay in
+     * step with whatever was imported.
+     */
+    public SchoolFormClass ensureFormClass(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return null;
+        }
+        String trimmed = name.trim();
+        for (SchoolFormClass fc : store.getFormClasses()) {
+            if (fc.getName().equalsIgnoreCase(trimmed)) {
+                return fc;
+            }
+        }
+        SchoolFormClass created = new SchoolFormClass(trimmed);
+        store.addFormClass(created);
+        PersistenceService.getInstance().saveAll();
+        return created;
+    }
+
     public List<String> addStream(String name) {
         List<String> errors = new ArrayList<>();
         if (name == null || name.trim().isEmpty()) {
@@ -99,5 +121,25 @@ public class SchoolCustomService {
     public void removeStream(SchoolStream stream) {
         store.removeStream(stream);
         PersistenceService.getInstance().saveAll();
+    }
+
+    /**
+     * Returns the stream with this name, creating it when missing. See
+     * {@link #ensureFormClass(String)} for the rationale.
+     */
+    public SchoolStream ensureStream(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return null;
+        }
+        String trimmed = name.trim();
+        for (SchoolStream s : store.getStreams()) {
+            if (s.getName().equalsIgnoreCase(trimmed)) {
+                return s;
+            }
+        }
+        SchoolStream created = new SchoolStream(trimmed);
+        store.addStream(created);
+        PersistenceService.getInstance().saveAll();
+        return created;
     }
 }
