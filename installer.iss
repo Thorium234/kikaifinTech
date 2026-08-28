@@ -12,7 +12,7 @@
 ; =============================================================================
 
 #ifndef AppVersion
-#define AppVersion "1.0.19"
+#define AppVersion "1.0.20"
 #endif
 
 #define AppName "ThorCash"
