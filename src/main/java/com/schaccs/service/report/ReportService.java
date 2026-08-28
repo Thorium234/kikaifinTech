@@ -270,10 +270,43 @@ public class ReportService {
     }
 
     public List<com.schaccs.model.report.CashbookRow> cashbook(java.time.LocalDate from, java.time.LocalDate to) {
+        return cashbook(from, to, null, null);
+    }
+
+    /**
+     * V2 multi-column cashbook over the bank accounts. Merges cash movements from
+     * receipts (income) and payment vouchers (expenses) directly from the ledger
+     * stores — no independent tracking file.
+     *
+     * <p>The scope is constrained by two optional filters:
+     * <ul>
+     *   <li><b>bankAccount</b> — restrict to one ring-fenced bank account
+     *       (e.g. {@link AccountType#BANK_TUITION}, {@link AccountType#BANK_BOARDING},
+     *       {@link AccountType#BANK_INFRASTRUCTURE}); {@code null} includes all bank accounts.</li>
+     *   <li><b>fundingSource</b> — separate by funding source
+     *       (e.g. {@code "GOVT"} Ministry funding vs {@code "PARENT"} parent fees,
+     *       via {@link AccountType#getRestrictedGroup()}); {@code null} includes all.</li>
+     * </ul>
+     *
+     * A transaction on a bank account contributes its debit as a receipt and its
+     * credit as a payment. The running balance accumulates within the selected scope.
+     */
+    public List<com.schaccs.model.report.CashbookRow> cashbook(java.time.LocalDate from, java.time.LocalDate to,
+                                                                AccountType bankAccount, String fundingSource) {
         List<com.schaccs.model.report.CashbookRow> rows = new java.util.ArrayList<>();
         BigDecimal runningBalance = CurrencyConfig.zero();
+        java.util.function.Predicate<FinancialTransaction> bankFilter = bankAccount == null
+                ? t -> isBankAccount(t.getAccountType())
+                : t -> t.getAccountType() == bankAccount;
+        java.util.function.Predicate<FinancialTransaction> sourceFilter = fundingSource == null
+                        || fundingSource.isBlank()
+                ? t -> true
+                : t -> t.getAccountType() != null
+                        && fundingSource.equalsIgnoreCase(t.getAccountType().getRestrictedGroup());
         List<FinancialTransaction> filtered = ledgerStore.getTransactions().stream()
                 .filter(t -> !t.getDate().isBefore(from) && !t.getDate().isAfter(to))
+                .filter(bankFilter)
+                .filter(sourceFilter)
                 .sorted(java.util.Comparator.comparing(FinancialTransaction::getDate))
                 .toList();
         for (FinancialTransaction tx : filtered) {
@@ -282,7 +315,7 @@ public class ReportService {
             runningBalance = CurrencyConfig.money(runningBalance.add(receipts).subtract(payments));
             rows.add(new com.schaccs.model.report.CashbookRow(
                     tx.getDate(), tx.getReference(), tx.getDescription(),
-                    receipts, payments, runningBalance));
+                    receipts, payments, runningBalance, tx.getAccountType()));
         }
         return rows;
     }

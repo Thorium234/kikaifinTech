@@ -1,6 +1,7 @@
 package com.schaccs.ui.reports;
 
 import com.schaccs.enums.AcademicTerm;
+import com.schaccs.enums.AccountType;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.report.AgeingBucket;
 import com.schaccs.model.report.BalanceSheetRow;
@@ -85,6 +86,8 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private final DatePicker dailyDate = new DatePicker(LocalDate.now());
     private final DatePicker cashbookFrom = new DatePicker(LocalDate.now().withDayOfMonth(1));
     private final DatePicker cashbookTo = new DatePicker(LocalDate.now());
+    private final ComboBox<AccountType> cashbookBankBox = new ComboBox<>();
+    private final ComboBox<String> cashbookSourceBox = new ComboBox<>();
     private final ComboBox<AcademicTerm> termBox = new ComboBox<>();
     private final DatePicker trialFromDate = new DatePicker(LocalDate.now().withDayOfMonth(1));
     private final DatePicker trialToDate = new DatePicker(LocalDate.now());
@@ -500,6 +503,14 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     }
 
     private VBox buildCashbook() {
+        cashbookBankBox.getItems().addAll(
+                AccountType.BANK_TUITION, AccountType.BANK_INFRASTRUCTURE,
+                AccountType.BANK_BOARDING, AccountType.CASH_AT_BANK);
+        cashbookBankBox.setPromptText("All banks");
+        cashbookSourceBox.getItems().addAll("Government (GOVT)", "Parent (PARENT)");
+        cashbookSourceBox.setPromptText("All funding");
+        cashbookBankBox.setValue(null);
+        cashbookSourceBox.setValue(null);
         TableColumn<CashbookRow, String> dateCol = new TableColumn<>("Date");
         dateCol.setCellValueFactory(c -> new SimpleStringProperty(DateUtil.format(c.getValue().getDate())));
         TableColumn<CashbookRow, String> refCol = new TableColumn<>("Reference");
@@ -520,15 +531,19 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button load = new Button("Load");
         load.getStyleClass().add("primary-button");
         load.setOnAction(e -> cashbookTable.getItems().setAll(
-                reportService.cashbook(cashbookFrom.getValue(), cashbookTo.getValue())));
+                reportService.cashbook(cashbookFrom.getValue(), cashbookTo.getValue(),
+                        cashbookBankBox.getValue(), fundingGroup(cashbookSourceBox.getValue()))));
         Button export = new Button("Export");
         export.getStyleClass().add("secondary-button");
         export.setOnAction(e -> exportCashbook());
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportCashbookPdf());
-        FlowPane bar = new FlowPane(10, 10, new Label("From:"), cashbookFrom, new Label("To:"), cashbookTo, load, export, pdf);
-        VBox box = new VBox(10, reportSectionTitle("Cashbook", "View all receipts and payments with running balance for a date range."), bar, cashbookTable);
+        FlowPane bar = new FlowPane(10, 10, new Label("From:"), cashbookFrom, new Label("To:"), cashbookTo,
+                new Label("Bank:"), cashbookBankBox, new Label("Funding:"), cashbookSourceBox,
+                load, export, pdf);
+        VBox box = new VBox(10, reportSectionTitle("Cashbook", "View receipts and payments with running balance. "
+                + "Filter by date, bank account, and funding source (Government vs Parent fees)."), bar, cashbookTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(cashbookTable, Priority.ALWAYS);
@@ -619,6 +634,13 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         box.setPadding(new Insets(10));
         VBox.setVgrow(cashFlowTable, Priority.ALWAYS);
         return box;
+    }
+
+    private static String fundingGroup(String label) {
+        if (label == null) return null;
+        if (label.contains("GOVT")) return "GOVT";
+        if (label.contains("PARENT")) return "PARENT";
+        return null;
     }
 
     private void exportCashbook() {
