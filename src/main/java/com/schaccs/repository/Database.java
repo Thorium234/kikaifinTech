@@ -234,6 +234,48 @@ public final class Database {
         }
     }
 
+    /**
+     * Runs a database write, retrying on SQLITE_BUSY (result code 5) up to a few
+     * times so a second ThorCash instance briefly holding the lock does not crash
+     * the write. Mirrors the documented busy-handling contract: wait briefly for
+     * the lock, and only surface the error to the caller if it persists.
+     */
+    public void runWithBusyRetry(BusyRunnable action) throws SQLException {
+        int attempts = 0;
+        while (true) {
+            try {
+                action.run();
+                return;
+            } catch (SQLException e) {
+                if (isBusy(e) && attempts < 5) {
+                    attempts++;
+                    try {
+                        Thread.sleep(100L * attempts);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw e;
+                    }
+                    continue;
+                }
+                throw e;
+            }
+        }
+    }
+
+    /** True when an SQLite error reports the database is locked/busy. */
+    public static boolean isBusy(SQLException e) {
+        if (e.getErrorCode() == 5 || e.getErrorCode() == 6) {
+            return true;
+        }
+        String m = e.getMessage();
+        return m != null && (m.contains("database is locked") || m.contains("SQLITE_BUSY"));
+    }
+
+    @FunctionalInterface
+    public interface BusyRunnable {
+        void run() throws SQLException;
+    }
+
     public synchronized <T> T inTransaction(SqlFunction<T> action) throws SQLException {
         Connection conn = getConnection();
         boolean previousAutoCommit = conn.getAutoCommit();

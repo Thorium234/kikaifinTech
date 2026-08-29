@@ -11,6 +11,9 @@ public class StudentValidator {
 
     private static final Pattern KENYAN_PHONE = Pattern.compile("^(\\+254|254|0)(7\\d{8}|1\\d{8})$");
 
+    /** Letters (incl. accents), spaces, dots, apostrophes and hyphens only. */
+    private static final Pattern PERS_NAME = Pattern.compile("^[\\p{L} .'-]+$");
+
     private final StudentStore studentStore;
 
     public StudentValidator() {
@@ -34,6 +37,9 @@ public class StudentValidator {
         }
         if (student.getName() == null || student.getName().isBlank()) {
             errors.add("Student name is required.");
+        } else if (!PERS_NAME.matcher(student.getName().trim()).matches()) {
+            errors.add("Student name contains invalid characters. Use letters only "
+                    + "(spaces, dots, apostrophes and hyphens are allowed).");
         }
         if (student.getFormClass() == null || student.getFormClass().isBlank()) {
             errors.add("Class / Form is required.");
