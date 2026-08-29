@@ -191,4 +191,98 @@ class StudentTransitionServiceTest {
         assertEquals(0, ledger.getBalance().compareTo(CurrencyConfig.money("6500")),
                 "Unpaid charges now include the boarding fee for the current term");
     }
+
+    @Test
+    void prorationScalesDeltaForTransitionTerm() {
+        dayBoardStructures();
+        Student student = createStudent("ADM-PRORATE", BoardingStatus.DAY);
+        feeCalc().chargeTermFees(student, AcademicTerm.TERM_1);
+
+        // Half term remaining -> boarding charges pro-rated to 50%.
+        StudentTransitionService.TransitionResult result =
+                transition().apply(student, BoardingStatus.BOARDING, AcademicTerm.TERM_1,
+                        CurrencyConfig.money("0.5"));
+
+        assertTrue(result.success(), "Prorated transition should succeed: " + result.errors());
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        assertEquals(0, ledger.getCharged("BOARD").compareTo(CurrencyConfig.money("2500")),
+                "Boarding 5000 pro-rated by 50% = 2500");
+        assertEquals(0, ledger.getCharged("TUITION").compareTo(CurrencyConfig.money("1250")),
+                "Tuition delta +500 pro-rated by 50% = 1250 on top of 1000 already billed");
+        assertEquals(0, ledger.getTotalCharged().compareTo(CurrencyConfig.money("3750")),
+                "Total = 2500 boarding + 1250 tuition (no future terms)");
+    }
+
+    @Test
+    void fullRatioKeepsFullDelta() {
+        dayBoardStructures();
+        Student student = createStudent("ADM-FULLRATIO", BoardingStatus.DAY);
+        feeCalc().chargeTermFees(student, AcademicTerm.TERM_1);
+        transition().apply(student, BoardingStatus.BOARDING, AcademicTerm.TERM_1, BigDecimal.ONE);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        assertEquals(0, ledger.getTotalCharged().compareTo(CurrencyConfig.money("6500")),
+                "Ratio 1.0 must match the unp-rorated behaviour");
+    }
+
+    @Test
+    void prepaidLunchConvertsToCreditOnDayToBoarding() {
+        dayBoardStructures();
+        // Add LUNCH to the day structure so a deltas is produced when moving to boarding.
+        setupStructure(BoardingStatus.DAY, AcademicTerm.TERM_1, "LUNCH", "Lunch", CurrencyConfig.money("2000"));
+        Student student = createStudent("ADM-PREPAID", BoardingStatus.DAY);
+        feeCalc().chargeTermFees(student, AcademicTerm.TERM_1);
+
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        assertTrue(ledger.getCharged("LUNCH").compareTo(CurrencyConfig.money("2000")) == 0,
+                "Day student must be charged lunch");
+        ledger.pay("LUNCH", CurrencyConfig.money("2000"));
+        assertEquals(0, ledger.getAdvance().compareTo(BigDecimal.ZERO), "No advance before transition");
+        assertEquals(0, ledger.getPaid("LUNCH").compareTo(CurrencyConfig.money("2000")),
+                "Lunch prepaid before the transition");
+
+        // Boarding has no LUNCH -> moving drops it -> prepaid converts to advance credit.
+        StudentTransitionService.TransitionResult result =
+                transition().apply(student, BoardingStatus.BOARDING, AcademicTerm.TERM_1);
+
+        assertTrue(result.success(), "Transition should succeed: " + result.errors());
+        assertEquals(0, ledger.getPaid("LUNCH").compareTo(BigDecimal.ZERO),
+                "Prepaid lunch must be released from the dropped votehead");
+        assertEquals(0, ledger.getAdvance().compareTo(CurrencyConfig.money("2000")),
+                "Prepaid lunch must become a carry-forward credit");
+        assertFalse(result.conversions().isEmpty());
+        assertEquals(0, result.conversions().get(0).amount().compareTo(CurrencyConfig.money("2000")));
+    }
+
+    @Test
+    void prepaidIsProRatedAgainstReduction() {
+        dayBoardStructures();
+        // Day: SPORT 2000. Boarding: SPORT 800 (partial reduction; prepaid released beyond new charge).
+        setupStructure(BoardingStatus.DAY, AcademicTerm.TERM_1, "SPORT", "Uniform/Sport", CurrencyConfig.money("2000"));
+        setupStructure(BoardingStatus.BOARDING, AcademicTerm.TERM_1, "SPORT", "Uniform/Sport", CurrencyConfig.money("800"));
+        Student student = createStudent("ADM-PROPCONV", BoardingStatus.DAY);
+        feeCalc().chargeTermFees(student, AcademicTerm.TERM_1);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(student.getId());
+        assertEquals(0, ledger.getCharged("SPORT").compareTo(CurrencyConfig.money("2000")));
+        ledger.pay("SPORT", CurrencyConfig.money("2000"));
+
+        transition().apply(student, BoardingStatus.BOARDING, AcademicTerm.TERM_1);
+
+        // Reduction is 2000 - 800 = 1200; prepaid 2000 -> convert only 1200, keep 800 paid.
+        assertEquals(0, ledger.getAdvance().compareTo(CurrencyConfig.money("1200")),
+                "Only the reduced portion (1200) converts to credit");
+        assertEquals(0, ledger.getPaid("SPORT").compareTo(CurrencyConfig.money("800")),
+                "Remaining prepaid held against the new sport charge");
+        assertEquals(0, ledger.getCharged("SPORT").compareTo(CurrencyConfig.money("800")),
+                "Sport charge reduced to the boarding amount");
+    }
+
+    @Test
+    void invalidProrationRatioIsRejected() {
+        dayBoardStructures();
+        Student student = createStudent("ADM-BADRATIO", BoardingStatus.DAY);
+        StudentTransitionService.TransitionResult result =
+                transition().apply(student, BoardingStatus.BOARDING, AcademicTerm.TERM_1, BigDecimal.ZERO);
+        assertFalse(result.success());
+        assertEquals(BoardingStatus.DAY, student.getBoardingStatus(), "No change on invalid ratio");
+    }
 }
