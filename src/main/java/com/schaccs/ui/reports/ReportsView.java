@@ -57,6 +57,7 @@ import javafx.stage.FileChooser;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -86,6 +87,7 @@ TableView<>();
     private final ComboBox<SchoolFormClass> formBox = new ComboBox<>();
     private final ComboBox<SchoolStream> streamBox = new ComboBox<>();
     private final TextField admField = new TextField();
+    private final TextField defaulterThreshold = new TextField();
     private final DatePicker dailyDate = new DatePicker(LocalDate.now());
     private final DatePicker cashbookFrom = new DatePicker(LocalDate.now().withDayOfMonth(1));
     private final DatePicker cashbookTo = new DatePicker(LocalDate.now());
@@ -186,9 +188,17 @@ private final DatePicker trialToDate = new DatePicker(LocalDate.of(
 
     private VBox buildDefaulters() {
         setupBalanceColumns(defaultersTable);
+        formBox.setItems(SchoolCustomStore.getInstance().getFormClasses());
+        formBox.setPromptText("All Forms");
+        formBox.setPrefWidth(120);
+        streamBox.setItems(SchoolCustomStore.getInstance().getStreams());
+        streamBox.setPromptText("All Streams");
+        streamBox.setPrefWidth(120);
+        defaulterThreshold.setPromptText("Min balance (e.g. 0)");
+        defaulterThreshold.setPrefWidth(150);
         Button refresh = new Button("Refresh");
         refresh.getStyleClass().add("secondary-button");
-        refresh.setOnAction(e -> defaultersTable.getItems().setAll(reportService.defaulters(termBox.getValue(), null)));
+        refresh.setOnAction(e -> refreshDefaulters());
         Button rollover = new Button("Roll over arrears");
         rollover.getStyleClass().add("danger-button");
         rollover.setOnAction(e -> rolloverArrears());
@@ -198,9 +208,14 @@ private final DatePicker trialToDate = new DatePicker(LocalDate.of(
         Button pdf = new Button("PDF");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportStudentBalancesPdf(defaultersTable.getItems(), "Defaulters", "defaulters.pdf"));
-        FlowPane bar = new FlowPane(10, 10, new Label("Term:"), termBox, refresh, export, pdf, rollover);
+        FlowPane bar = new FlowPane(10, 10,
+                new Label("Term:"), termBox,
+                new Label("Form:"), formBox,
+                new Label("Stream:"), streamBox,
+                new Label("Min:"), defaulterThreshold,
+                refresh, export, pdf, rollover);
         bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        VBox box = new VBox(10, reportSectionTitle("Defaulters", "Track unpaid balances and optionally roll arrears forward."), bar, defaultersTable);
+        VBox box = new VBox(10, reportSectionTitle("Defaulters", "Track unpaid balances by term, form, stream and minimum outstanding; optionally roll arrears forward."), bar, defaultersTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(defaultersTable, Priority.ALWAYS);
@@ -1389,7 +1404,19 @@ private final DatePicker trialToDate = new DatePicker(LocalDate.of(
     }
 
     private void refreshDefaulters() {
-        defaultersTable.getItems().setAll(reportService.defaulters(termBox.getValue(), null));
+        BigDecimal threshold = null;
+        if (!defaulterThreshold.getText().isBlank()) {
+            try {
+                threshold = new BigDecimal(defaulterThreshold.getText().trim());
+            } catch (NumberFormatException ex) {
+                AlertUtil.warn("Invalid threshold", "Minimum balance must be a number.");
+                return;
+            }
+        }
+        String form = formBox.getValue() != null ? formBox.getValue().getName() : null;
+        String stream = streamBox.getValue() != null ? streamBox.getValue().getName() : null;
+        defaultersTable.getItems().setAll(
+                reportService.defaulters(termBox.getValue(), threshold, form, stream));
     }
 
     private void refreshDaily() {

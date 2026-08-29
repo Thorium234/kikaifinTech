@@ -102,6 +102,27 @@ public class ReportService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Defaulter report with UI filters: term, minimum outstanding threshold,
+     * form class and stream. Filters are applied independently and a null/blank
+     * value means "all". Sorting by descending balance is preserved.
+     */
+    public List<StudentBalance> defaulters(com.schaccs.enums.AcademicTerm term, BigDecimal threshold,
+                                           String formClass, String stream) {
+        BigDecimal min = threshold != null ? threshold : CurrencyConfig.zero();
+        return feeBalances(term).stream()
+                .filter(b -> b.getBalance().compareTo(min) > 0)
+                .filter(b -> isBlank(formClass) || b.getFormClass() == null
+                        || b.getFormClass().equalsIgnoreCase(formClass))
+                .filter(b -> isBlank(stream) || b.getStream() == null
+                        || b.getStream().equalsIgnoreCase(stream))
+                .collect(Collectors.toList());
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
     public BigDecimal expectedTermFee(Student student, com.schaccs.enums.AcademicTerm term) {
         int year = student.getAcademicYear() != null
                 ? student.getAcademicYear() : com.schaccs.config.AppConfig.getInstance().getAcademicYear();

@@ -10,8 +10,13 @@ import com.schaccs.model.report.BalanceSheetRow;
 import com.schaccs.model.report.CashbookRow;
 import com.schaccs.model.report.IncomeExpenditureRow;
 import com.schaccs.model.report.TrialBalanceRow;
+import com.schaccs.model.student.Student;
+import com.schaccs.model.student.StudentFeeLedger;
 import com.schaccs.repository.PersistenceService;
 import com.schaccs.service.report.ReportService;
+import com.schaccs.store.StudentStore;
+import com.schaccs.enums.BoardingStatus;
+import com.schaccs.enums.StudentStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -190,5 +195,51 @@ class ReportServiceTest {
                 .reduce(CurrencyConfig.zero(), BigDecimal::add);
         assertEquals(0, totalDebit.compareTo(amount("62000")),
                 "Unscoped trial balance includes both years' activity");
+    }
+
+    private Student defaulter(String adm, String form, String stream, BigDecimal charge, BigDecimal paid) {
+        Student s = new Student();
+        s.setAdmissionNumber(adm);
+        s.setName("Defaulter " + adm);
+        s.setFormClass(form);
+        s.setStream(stream);
+        s.setBoardingStatus(BoardingStatus.DAY);
+        s.setGender("M");
+        s.setPhone("0700000000");
+        s.setStatus(StudentStatus.ACTIVE);
+        s.setAcademicYear(2026);
+        StudentStore.getInstance().add(s);
+        StudentFeeLedger ledger = StudentStore.getInstance().getLedger(s.getId());
+        ledger.charge("TUITION", charge);
+        ledger.pay("TUITION", paid);
+        return s;
+    }
+
+    @Test
+    @DisplayName("Defaulters filter by term, form, stream and minimum balance")
+    void defaultersFilterByFormStreamAndThreshold() {
+        defaulter("D-1A", "Form 1", "A", amount("10000"), amount("2000"));
+        defaulter("D-1B", "Form 1", "B", amount("8000"), amount("3000"));
+        defaulter("D-2A", "Form 2", "A", amount("9000"), amount("8000"));
+
+        // All defaulters (balance > 0)
+        assertEquals(3, report.defaulters(null, null).size());
+
+        // Filter by form only
+        List<com.schaccs.model.student.StudentBalance> form1 =
+                report.defaulters(null, null, "Form 1", null);
+        assertEquals(2, form1.size());
+        assertTrue(form1.stream().allMatch(b -> "Form 1".equals(b.getFormClass())));
+
+        // Filter by form + stream
+        List<com.schaccs.model.student.StudentBalance> form1A =
+                report.defaulters(null, null, "Form 1", "A");
+        assertEquals(1, form1A.size());
+        assertEquals("D-1A", form1A.get(0).getAdmissionNumber());
+
+        // Filter by minimum balance threshold
+        List<com.schaccs.model.student.StudentBalance> big =
+                report.defaulters(null, amount("3000"), null, null);
+        assertEquals(2, big.size(), "Only balances > 3000 remain (D-1A 8000, D-2A 1000 excluded)");
     }
 }

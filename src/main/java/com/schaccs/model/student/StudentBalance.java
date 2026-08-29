@@ -18,6 +18,8 @@ public class StudentBalance {
     private final StringProperty admissionNumber = new SimpleStringProperty();
     private final StringProperty studentName = new SimpleStringProperty();
     private final StringProperty classLabel = new SimpleStringProperty();
+    private final StringProperty formClass = new SimpleStringProperty();
+    private final StringProperty stream = new SimpleStringProperty();
     private final ObjectProperty<BigDecimal> totalCharged = new SimpleObjectProperty<>(CurrencyConfig.zero());
     private final ObjectProperty<BigDecimal> totalPaid = new SimpleObjectProperty<>(CurrencyConfig.zero());
     private final ObjectProperty<BigDecimal> arrears = new SimpleObjectProperty<>(CurrencyConfig.zero());
@@ -35,6 +37,8 @@ public class StudentBalance {
         this.admissionNumber.set(student.getAdmissionNumber());
         this.studentName.set(student.getName());
         this.classLabel.set(student.getClassLabel());
+        this.formClass.set(student.getFormClass());
+        this.stream.set(student.getStream());
         this.totalCharged.set(CurrencyConfig.money(charged));
         this.totalPaid.set(CurrencyConfig.money(paid));
         this.arrears.set(CurrencyConfig.money(arrears));
@@ -87,6 +91,30 @@ public class StudentBalance {
 
     public StringProperty classLabelProperty() {
         return classLabel;
+    }
+
+    public String getFormClass() {
+        return formClass.get();
+    }
+
+    public void setFormClass(String v) {
+        formClass.set(v);
+    }
+
+    public StringProperty formClassProperty() {
+        return formClass;
+    }
+
+    public String getStream() {
+        return stream.get();
+    }
+
+    public void setStream(String v) {
+        stream.set(v);
+    }
+
+    public StringProperty streamProperty() {
+        return stream;
     }
 
     public BigDecimal getTotalCharged() {
