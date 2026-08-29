@@ -236,6 +236,16 @@ public class ReportService {
         return trialBalance(null, null);
     }
 
+    /**
+     * Year-isolated trial balance: scopes the report to a single academic year's
+     * calendar span (1 Jan–31 Dec), so uncleared arrears and revenue from other
+     * years never bleed into this year's report.
+     */
+    public List<TrialBalanceRow> trialBalanceForYear(int academicYear) {
+        return trialBalance(LocalDate.of(academicYear, 1, 1),
+                LocalDate.of(academicYear, 12, 31));
+    }
+
     public List<TrialBalanceRow> trialBalance(LocalDate from, LocalDate to) {
         Map<AccountType, BigDecimal> debits = new EnumMap<>(AccountType.class);
         Map<AccountType, BigDecimal> credits = new EnumMap<>(AccountType.class);

@@ -92,8 +92,10 @@ TableView<>();
     private final ComboBox<AccountType> cashbookBankBox = new ComboBox<>();
     private final ComboBox<String> cashbookSourceBox = new ComboBox<>();
     private final ComboBox<AcademicTerm> termBox = new ComboBox<>();
-    private final DatePicker trialFromDate = new DatePicker(LocalDate.now().withDayOfMonth(1));
-    private final DatePicker trialToDate = new DatePicker(LocalDate.now());
+private final DatePicker trialFromDate = new DatePicker(LocalDate.of(
+        com.schaccs.config.AppConfig.getInstance().getAcademicYear(), 1, 1));
+private final DatePicker trialToDate = new DatePicker(LocalDate.of(
+        com.schaccs.config.AppConfig.getInstance().getAcademicYear(), 12, 31));
     private final DatePicker cashFlowFrom = new DatePicker(LocalDate.now().withDayOfMonth(1));
     private final DatePicker cashFlowTo = new DatePicker(LocalDate.now());
     private final Label reportsModeBadge = new Label();

@@ -166,4 +166,29 @@ class ReportServiceTest {
                 && r.getItem().contains("Subsidized Tuition")));
         assertTrue(rows.stream().anyMatch(r -> "Fund Balance".equals(r.getSection())));
     }
+
+    @Test
+    @DisplayName("Trial balance for a year isolates prior-year balances")
+    void trialBalanceYearIsolation() {
+        // Prior year (2025) transaction must be excluded from the 2026 report.
+        post(LocalDate.of(2025, 11, 20), "P-2025",
+                AccountType.BANK_BOARDING, AccountType.FEES_BOARDING_ACTIVITY, amount("50000"));
+        // Current year (2026) transaction must be included.
+        post(LocalDate.of(2026, 4, 2), "P-2026",
+                AccountType.BANK_BOARDING, AccountType.FEES_BOARDING_ACTIVITY, amount("12000"));
+
+        List<TrialBalanceRow> currentYear = report.trialBalanceForYear(2026);
+        for (TrialBalanceRow row : currentYear) {
+            if (row.getAccountType() == AccountType.BANK_BOARDING) {
+                assertEquals(0, row.getDebit().compareTo(amount("12000")),
+                        "Only the 2026 boarding receipt appears in the 2026 trial balance");
+            }
+        }
+        // Global trial balance still sees both years.
+        List<TrialBalanceRow> all = report.trialBalance();
+        BigDecimal totalDebit = all.stream().map(TrialBalanceRow::getDebit)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+        assertEquals(0, totalDebit.compareTo(amount("62000")),
+                "Unscoped trial balance includes both years' activity");
+    }
 }
