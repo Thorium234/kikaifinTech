@@ -400,10 +400,13 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button reverseBtn = new Button("Reverse Selected");
         reverseBtn.getStyleClass().add("danger-button");
         reverseBtn.setOnAction(e -> reverseReceipt());
+        Button reissueBtn = new Button("Reverse & Reissue…");
+        reissueBtn.getStyleClass().add("secondary-button");
+        reissueBtn.setOnAction(e -> reverseAndReissue());
         Button verifyBtn = new Button("Verify Selected");
         verifyBtn.getStyleClass().add("secondary-button");
         verifyBtn.setOnAction(e -> verifyReceipt());
-        VBox previewActions = new VBox(8, exportBtn, pdfBtn, printBtn, verifyBtn, reverseBtn, reprintPreview);
+        VBox previewActions = new VBox(8, exportBtn, pdfBtn, printBtn, verifyBtn, reverseBtn, reissueBtn, reprintPreview);
         SplitPane body = new SplitPane(reprintTable, previewActions);
         body.setDividerPositions(0.58);
         VBox.setVgrow(reprintPreview, Priority.ALWAYS);
@@ -464,6 +467,72 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
             return;
         }
         AlertUtil.info("Reversed", "Receipt " + r.getReceiptNumberDisplay() + " reversed.");
+        refresh();
+    }
+
+    private void reverseAndReissue() {
+        Receipt r = reprintTable.getSelectionModel().getSelectedItem();
+        if (r == null) {
+            AlertUtil.warn("Select receipt", "Select a receipt to reverse and reissue.");
+            return;
+        }
+        if (r.isReversed()) {
+            AlertUtil.warn("Already reversed", "Receipt " + r.getReceiptNumberDisplay() + " is already reversed.");
+            return;
+        }
+        javafx.scene.control.Dialog<Student> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Reverse & Reissue");
+        dialog.setHeaderText("Receipt " + r.getReceiptNumberDisplay() + " for "
+                + CurrencyUtil.format(r.getAmount()) + "\n"
+                + "Select the CORRECT student to re-issue the funds to.");
+        dialog.getDialogPane().getButtonTypes().addAll(
+                javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        javafx.scene.control.ComboBox<Student> studentBox = new javafx.scene.control.ComboBox<>();
+        studentBox.getItems().setAll(StudentStore.getInstance().getStudents().stream()
+                .filter(s -> !s.isDeleted()).toList());
+        studentBox.setPromptText("Search / select the correct student");
+        studentBox.setEditable(true);
+        studentBox.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(Student s) {
+                return s == null ? "" : s.getAdmissionNumber() + " — " + s.getName() + " (" + s.getClassLabel() + ")";
+            }
+
+            @Override
+            public Student fromString(String string) {
+                return studentBox.getItems().stream()
+                        .filter(s -> s.getAdmissionNumber().equalsIgnoreCase(string.trim())
+                                || s.getName().equalsIgnoreCase(string.trim()))
+                        .findFirst().orElse(null);
+            }
+        });
+        dialog.getDialogPane().setContent(new javafx.scene.layout.VBox(8, new Label("Correct student:"), studentBox));
+        dialog.setResultConverter(btn -> btn == javafx.scene.control.ButtonType.OK ? studentBox.getValue() : null);
+        java.util.Optional<Student> result = dialog.showAndWait();
+        if (result.isEmpty()) {
+            return;
+        }
+        Student target = result.get();
+        if (target == null) {
+            AlertUtil.warn("No student", "Please select the correct student for the reissue.");
+            return;
+        }
+        if (!AlertUtil.confirm("Confirm reverse & reissue",
+                "Reverse receipt " + r.getReceiptNumberDisplay() + " and re-issue "
+                        + CurrencyUtil.format(r.getAmount()) + " to " + target.getAdmissionNumber()
+                        + " (" + target.getName() + ")? A Credit Note (CN) will be generated.")) {
+            return;
+        }
+        ReceiptService.Result res = Services.getInstance().receipt()
+                .reissueReceipt(r, target, "Manual reverse & reissue");
+        if (!res.isSuccess()) {
+            AlertUtil.warn("Cannot reissue", String.join("\n", res.getErrors()));
+            return;
+        }
+        AlertUtil.info("Reissued",
+                "Origin receipt " + r.getReceiptNumberDisplay() + " reversed via Credit Note "
+                        + r.getCreditNoteNumber() + " and re-issued to "
+                        + target.getAdmissionNumber() + ".");
         refresh();
     }
 

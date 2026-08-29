@@ -30,6 +30,7 @@ public class Receipt {
     private String notes;
     private LocalDateTime createdAt;
     private boolean reversed = false;
+    private String creditNoteNumber;
     private String verificationHash;
     private final ObservableList<ReceiptLine> lines = FXCollections.observableArrayList();
 
@@ -159,6 +160,14 @@ public class Receipt {
 
     public void setReversed(boolean reversed) {
         this.reversed = reversed;
+    }
+
+    public String getCreditNoteNumber() {
+        return creditNoteNumber;
+    }
+
+    public void setCreditNoteNumber(String creditNoteNumber) {
+        this.creditNoteNumber = creditNoteNumber;
     }
 
     private boolean manualOverride = false;

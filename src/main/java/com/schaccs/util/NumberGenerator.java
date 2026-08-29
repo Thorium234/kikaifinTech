@@ -10,4 +10,8 @@ public final class NumberGenerator {
     public static long nextReceiptNumber() {
         return AppConfig.getInstance().getSchoolProfile().allocateReceiptNumber();
     }
+
+    public static long nextCreditNoteNumber() {
+        return AppConfig.getInstance().getSchoolProfile().allocateCreditNoteNumber();
+    }
 }

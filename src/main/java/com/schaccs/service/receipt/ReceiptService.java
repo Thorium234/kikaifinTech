@@ -25,6 +25,7 @@ import com.schaccs.service.audit.AuditService;
 import com.schaccs.service.finance.FinancialConstraintService;
 import com.schaccs.service.finance.FiscalYearService;
 import com.schaccs.util.DisasterRecoveryEngine;
+import com.schaccs.util.NumberGenerator;
 import com.schaccs.validation.ReceiptValidator;
 
 import java.math.BigDecimal;
@@ -514,6 +515,52 @@ public class ReceiptService {
             LedgerStore.getInstance().rollbackToSnapshot(ledgerSnapshot);
             return Result.failure(List.of("Failed to reverse receipt: " + e.getMessage()));
         }
+    }
+
+    /**
+     * Reverse &amp; Reissue (Credit Note workflow). Reverses a misapplied receipt and
+     * re-posts the funds to the correct student under a brand-new receipt number.
+     * The original receipt is never deleted — it is closed out by a Credit Note (CN)
+     * reference assigned in the audit sequence, leaving the sequential receipt
+     * numbering intact. The new receipt carries the CN cross-reference so the trail
+     * is fully linked.
+     */
+    public Result reissueReceipt(Receipt receipt, Student targetStudent, String reason) {
+        if (receipt == null) {
+            return Result.failure(List.of("No receipt selected."));
+        }
+        if (receipt.isReversed()) {
+            return Result.failure(List.of("Receipt " + receipt.getReceiptNumberDisplay() + " is already reversed."));
+        }
+        if (targetStudent == null) {
+            return Result.failure(List.of("No target student selected for reissue."));
+        }
+        String cn = "CN-" + NumberGenerator.nextCreditNoteNumber() + "-" + receipt.getReceiptNumber();
+
+        Result reversal = reverseReceipt(receipt, reason != null ? reason : "Reissue to " + targetStudent.getAdmissionNumber());
+        if (!reversal.isSuccess()) {
+            return reversal;
+        }
+        receipt.setCreditNoteNumber(cn);
+
+        Result repost = receivePayment(
+                targetStudent, receipt.getAmount(), receipt.getPaymentMode(),
+                receipt.getBankReference(), LocalDate.now(),
+                "Reissued from receipt " + receipt.getReceiptNumberDisplay() + " [" + cn + "]");
+        if (!repost.isSuccess()) {
+            return Result.failure(List.of("Reversal succeeded (reassigned to " + cn
+                    + ") but re-posting failed: " + String.join("; ", repost.getErrors())));
+        }
+        Receipt reissued = repost.getReceipt();
+        if (reissued != null) {
+            reissued.setCreditNoteNumber(cn);
+        }
+        persistenceAction.run();
+        auditService.log("RECEIPT_REISSUED", "Receipt", receipt.getId(),
+                "{\"originalReceipt\":\"" + receipt.getReceiptNumber()
+                        + "\",\"creditNote\":\"" + cn
+                        + "\",\"reissuedTo\":\"" + jsonEscape(targetStudent.getAdmissionNumber()) + "\"}");
+        return Result.success(reissued, repost.getAllocations());
     }
 
     private static String jsonEscape(String s) {
