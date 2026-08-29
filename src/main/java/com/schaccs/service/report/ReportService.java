@@ -269,6 +269,56 @@ public class ReportService {
         return totalDebit.compareTo(totalCredit) == 0;
     }
 
+    /**
+     * Audit view for Trial Balance resolution: scans all journal lines grouped by
+     * their shared reference and returns the groups whose debits do not equal their
+     * credits (i.e. an orphaned/unbalanced entry). Each entry exposes the offending
+     * lines and the net imbalance so an auditor can identify and post a corrective
+     * journal. An empty list means every journal in the ledger is balanced.
+     */
+    public List<UnbalancedEntry> findUnbalancedEntries() {
+        Map<String, List<FinancialTransaction>> byRef = ledgerStore.getTransactions().stream()
+                .filter(t -> t.getReference() != null)
+                .collect(Collectors.groupingBy(com.schaccs.model.finance.FinancialTransaction::getReference));
+        List<UnbalancedEntry> result = new ArrayList<>();
+        for (Map.Entry<String, List<FinancialTransaction>> e : byRef.entrySet()) {
+            BigDecimal db = e.getValue().stream().map(FinancialTransaction::getDebit)
+                    .reduce(CurrencyConfig.zero(), BigDecimal::add);
+            BigDecimal cr = e.getValue().stream().map(FinancialTransaction::getCredit)
+                    .reduce(CurrencyConfig.zero(), BigDecimal::add);
+            if (db.compareTo(cr) != 0) {
+                result.add(new UnbalancedEntry(e.getKey(), e.getValue(), db, cr,
+                        CurrencyConfig.money(db.subtract(cr))));
+            }
+        }
+        result.sort(java.util.Comparator.comparing(UnbalancedEntry::getReference));
+        return result;
+    }
+
+    /** A journal reference group whose debits and credits do not balance. */
+    public static class UnbalancedEntry {
+        private final String reference;
+        private final List<FinancialTransaction> lines;
+        private final BigDecimal totalDebit;
+        private final BigDecimal totalCredit;
+        private final BigDecimal imbalance;
+
+        UnbalancedEntry(String reference, List<FinancialTransaction> lines,
+                        BigDecimal totalDebit, BigDecimal totalCredit, BigDecimal imbalance) {
+            this.reference = reference;
+            this.lines = lines;
+            this.totalDebit = totalDebit;
+            this.totalCredit = totalCredit;
+            this.imbalance = imbalance;
+        }
+
+        public String getReference() { return reference; }
+        public List<FinancialTransaction> getLines() { return lines; }
+        public BigDecimal getTotalDebit() { return totalDebit; }
+        public BigDecimal getTotalCredit() { return totalCredit; }
+        public BigDecimal getImbalance() { return imbalance; }
+    }
+
     public List<com.schaccs.model.report.CashbookRow> cashbook(java.time.LocalDate from, java.time.LocalDate to) {
         return cashbook(from, to, null, null);
     }

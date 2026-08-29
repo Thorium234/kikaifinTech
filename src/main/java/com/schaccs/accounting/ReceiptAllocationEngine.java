@@ -193,9 +193,23 @@ public class ReceiptAllocationEngine {
             List<FeeStructureItem> termItems = feeStructure.itemsForTerm(term);
             Map<String, BigDecimal> outstanding = new LinkedHashMap<>();
             for (FeeStructureItem item : termItems) {
+                // Target is the planned term fee for this votehead, minus anything
+                // already charged/paid on it — so a cascade covers forward billing.
                 BigDecimal due = ledger.getOutstanding(item.getVoteheadCode());
-                if (due != null && due.compareTo(BigDecimal.ZERO) > 0) {
-                    outstanding.put(item.getVoteheadCode(), due);
+                BigDecimal planned = item.getAmount();
+                // Use the larger driver we have: either a live charged balance or the
+                // planned term fee for a not-yet-billed votehead.
+                BigDecimal target = due;
+                if (due == null) {
+                    target = planned;
+                } else if (planned != null && planned.compareTo(due) > 0) {
+                    BigDecimal charged = ledger.getCharged(item.getVoteheadCode());
+                    if (charged != null && charged.signum() == 0) {
+                        target = planned;
+                    }
+                }
+                if (target != null && target.compareTo(BigDecimal.ZERO) > 0) {
+                    outstanding.put(item.getVoteheadCode(), target);
                 }
             }
             if (outstanding.isEmpty()) continue;

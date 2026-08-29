@@ -3,6 +3,7 @@ package com.schaccs.ui.reports;
 import com.schaccs.enums.AcademicTerm;
 import com.schaccs.enums.AccountType;
 import com.schaccs.model.receipt.Receipt;
+import com.schaccs.model.finance.FinancialTransaction;
 import com.schaccs.model.report.AgeingBucket;
 import com.schaccs.model.report.BalanceSheetRow;
 import com.schaccs.model.report.CashbookRow;
@@ -71,7 +72,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
     private final TableView<StudentBalance> defaultersTable = new TableView<>();
     private final TableView<CollectionSummary> dailyTable = new TableView<>();
     private final TableView<VoteheadSummary> voteheadTable = new TableView<>();
-    private final TableView<TrialBalanceRow> trialTable = new TableView<>();
+    private final TableView<TrialBalanceRow> trialTable = new 
+TableView<>();
+    private final TableView<ReportService.UnbalancedEntry> imbalanceTable = new TableView<>();
     private final TableView<CashbookRow> cashbookTable = new TableView<>();
     private final TableView<IncomeExpenditureRow> ieTable = new TableView<>();
     private final TableView<BalanceSheetRow> balanceSheetTable = new TableView<>();
@@ -556,6 +559,9 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         Button pdf = new Button("PDF Trial Balance");
         pdf.getStyleClass().add("secondary-button");
         pdf.setOnAction(e -> exportTrialBalancePdf());
+        Button audit = new Button("Find Unbalanced Entries");
+        audit.getStyleClass().add("danger-button");
+        audit.setOnAction(e -> refreshImbalance());
         Button exportLedger = new Button("Export Ledger Transactions");
         exportLedger.getStyleClass().add("secondary-button");
         exportLedger.setOnAction(e -> exportLedgerTransactions());
@@ -564,11 +570,56 @@ public class ReportsView extends VBox implements MainLayout.Refreshable {
         pdfLedger.setOnAction(e -> exportLedgerTransactionsPdf());
         HBox dateBar = new HBox(6, new Label("From:"), trialFromDate, new Label("To:"), trialToDate);
         dateBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        VBox box = new VBox(10, reportSectionTitle("Trial Balance", "Validate ledger equality and export trial balance or ledger transaction data."), dateBar, new FlowPane(10, 10, refresh, export, pdf, exportLedger, pdfLedger), trialTable);
+
+        TableColumn<ReportService.UnbalancedEntry, String> refU = new TableColumn<>("Reference");
+        refU.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getReference()));
+        TableColumn<ReportService.UnbalancedEntry, String> debitU = new TableColumn<>("Total Debit");
+        debitU.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getTotalDebit())));
+        TableColumn<ReportService.UnbalancedEntry, String> creditU = new TableColumn<>("Total Credit");
+        creditU.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getTotalCredit())));
+        TableColumn<ReportService.UnbalancedEntry, String> imb = new TableColumn<>("Imbalance");
+        imb.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getImbalance())));
+        Label imbalanceTitle = new Label("Audit: Unbalanced / Orphaned Journal Entries");
+        imbalanceTitle.getStyleClass().add("section-title");
+        Label imbalanceHint = new Label("Groups every journal line by its shared reference and flags any group whose "
+                + "debits do not equal credits. Empty means the entire ledger balances. Select a row to see the exact "
+                + "lines that broke it.");
+        imbalanceHint.getStyleClass().addAll("muted", "reports-hint");
+        imbalanceHint.setWrapText(true);
+        @SuppressWarnings("unchecked")
+        var imbalanceCols = new TableColumn[]{refU, debitU, creditU, imb};
+        imbalanceTable.getColumns().addAll(imbalanceCols);
+        imbalanceTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        imbalanceTable.setPrefHeight(150);
+        imbalanceTable.setPlaceholder(new Label("No unbalanced entries detected. The ledger is balanced."));
+        imbalanceTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n == null) return;
+            StringBuilder sb = new StringBuilder("Journal ").append(n.getReference())
+                    .append(" is out of balance by ").append(CurrencyUtil.format(n.getImbalance())).append("\n\n");
+            for (FinancialTransaction line : n.getLines()) {
+                sb.append(DateUtil.format(line.getDate())).append("  ")
+                        .append(line.getAccountType() != null ? line.getAccountType().getDisplayName() : "")
+                        .append("  Dr ").append(CurrencyUtil.format(line.getDebit()))
+                        .append("  Cr ").append(CurrencyUtil.format(line.getCredit()))
+                        .append("  ").append(line.getDescription()).append("\n");
+            }
+            AlertUtil.info("Unbalanced journal " + n.getReference(), sb.toString());
+        });
+
+        VBox box = new VBox(10, reportSectionTitle("Trial Balance", "Validate ledger equality and export trial balance or ledger transaction data."),
+                dateBar, new FlowPane(10, 10, refresh, export, pdf, exportLedger, pdfLedger, audit),
+                trialTable, imbalanceTitle, imbalanceHint, imbalanceTable);
         box.getStyleClass().add("reports-section-card");
         box.setPadding(new Insets(10));
         VBox.setVgrow(trialTable, Priority.ALWAYS);
         return box;
+    }
+
+    private void refreshImbalance() {
+        imbalanceTable.getItems().setAll(reportService.findUnbalancedEntries());
+        if (imbalanceTable.getItems().isEmpty()) {
+            AlertUtil.info("Ledger balanced", "All journal entries balance (debits == credits). No orphaned entries found.");
+        }
     }
 
     private VBox buildCashbook() {
