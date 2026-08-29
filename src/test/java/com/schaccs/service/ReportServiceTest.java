@@ -257,4 +257,37 @@ class ReportServiceTest {
         assertEquals(1, overYear.getStudents());
         assertTrue(buckets.size() >= 5, "Ageing schedule exposes at least the 5 AR buckets");
     }
+
+    @Test
+    @DisplayName("Votehead summary cross-references ring-fenced bank cash and flags overdraft")
+    void voteheadSummaryFlagsOverdraftAgainstBankCash() {
+        com.schaccs.store.FeeStructureStore.getInstance().addVotehead(
+                new com.schaccs.model.finance.Votehead("BOARD", "Boarding",
+                        AccountType.FEES_BOARDING_ACTIVITY, 1));
+        Student v1 = defaulter("V-1", "Form 1", "A", amount("10000"), amount("0"));
+        StudentFeeLedger v1Ledger = StudentStore.getInstance().getLedger(v1.getId());
+        v1Ledger.charge("BOARD", amount("10000"));
+        v1Ledger.pay("BOARD", amount("6000"));
+        // Bank holds only 6000 for boarding; votehead collected 6000 -> no overdraft.
+        post(LocalDate.of(2026, 4, 1), "V-BANK",
+                AccountType.BANK_BOARDING, AccountType.FEES_BOARDING_ACTIVITY, amount("6000"));
+
+        com.schaccs.model.report.VoteheadSummary boarding = report.voteheadSummaries().stream()
+                .filter(v -> "BOARD".equals(v.getVoteheadCode())).findFirst().orElseThrow();
+        assertEquals(0, boarding.getCollected().compareTo(amount("6000")));
+        assertEquals(0, boarding.getBankBalance().compareTo(amount("6000")),
+                "Bank cash column shows the ring-fenced boarding bank balance");
+        assertFalse(boarding.isOverdraft(), "Collected not greater than bank cash");
+
+        // Now add a second parent's payment so collected exceeds bank cash -> overdraft.
+        Student v2 = defaulter("V-2", "Form 1", "A", amount("10000"), amount("0"));
+        StudentFeeLedger v2Ledger = StudentStore.getInstance().getLedger(v2.getId());
+        v2Ledger.charge("BOARD", amount("10000"));
+        v2Ledger.pay("BOARD", amount("7000"));
+        com.schaccs.model.report.VoteheadSummary boarding2 = report.voteheadSummaries().stream()
+                .filter(v -> "BOARD".equals(v.getVoteheadCode())).findFirst().orElseThrow();
+        assertEquals(0, boarding2.getCollected().compareTo(amount("13000")));
+        assertEquals(0, boarding2.getBankBalance().compareTo(amount("6000")));
+        assertTrue(boarding2.isOverdraft(), "Collected exceeds available bank cash -> overdraft");
+    }
 }

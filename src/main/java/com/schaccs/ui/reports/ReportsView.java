@@ -285,8 +285,14 @@ private final DatePicker trialToDate = new DatePicker(LocalDate.of(
         coll.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getCollected())));
         TableColumn<VoteheadSummary, String> out = new TableColumn<>("Outstanding");
         out.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getOutstanding())));
+        TableColumn<VoteheadSummary, String> bank = new TableColumn<>("Bank Cash");
+        bank.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().getBankBalance() != null ? CurrencyUtil.format(c.getValue().getBankBalance()) : ""));
+        TableColumn<VoteheadSummary, String> overdraft = new TableColumn<>("Overdraft");
+        overdraft.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().isOverdraft() ? "YES" : ""));
         @SuppressWarnings("unchecked")
-        var columns3 = new TableColumn[]{code, name, charged, coll, out};
+        var columns3 = new TableColumn[]{code, name, charged, coll, out, bank, overdraft};
         voteheadTable.getColumns().addAll(columns3);
         voteheadTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 

@@ -254,7 +254,15 @@ public class ReportService {
         for (Votehead vh : feeStore.getVoteheads()) {
             BigDecimal c = charged.getOrDefault(vh.getCode(), CurrencyConfig.zero());
             BigDecimal p = collected.getOrDefault(vh.getCode(), CurrencyConfig.zero());
-            list.add(new VoteheadSummary(vh.getCode(), vh.getName(), c, p));
+            // Cross-reference the votehead's ring-fenced bank cash so the report can
+            // flag a votehead that has collected more than the cash actually held
+            // for it (i.e. an overdraft / misallocation signal).
+            AccountType bank = com.schaccs.accounting.DoubleEntryEngine
+                    .resolveBankForIncome(vh.getAccountType());
+            BigDecimal bankBalance = bank == null ? null
+                    : com.schaccs.config.CurrencyConfig.money(
+                            ledgerStore.getAccountBalance(bank));
+            list.add(new VoteheadSummary(vh.getCode(), vh.getName(), c, p, bankBalance));
         }
         if (advanceCollected.compareTo(CurrencyConfig.zero()) > 0) {
             list.add(new VoteheadSummary(StudentFeeLedger.ADVANCE_CODE, "Advance / Credit",

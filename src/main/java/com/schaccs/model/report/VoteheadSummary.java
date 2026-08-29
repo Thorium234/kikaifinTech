@@ -12,14 +12,23 @@ public class VoteheadSummary {
     private final BigDecimal charged;
     private final BigDecimal collected;
     private final BigDecimal outstanding;
+    private final BigDecimal bankBalance;
+    private final boolean overdraft;
 
     public VoteheadSummary(String voteheadCode, String voteheadName,
                            BigDecimal charged, BigDecimal collected) {
+        this(voteheadCode, voteheadName, charged, collected, null);
+    }
+
+    public VoteheadSummary(String voteheadCode, String voteheadName,
+                           BigDecimal charged, BigDecimal collected, BigDecimal bankBalance) {
         this.voteheadCode = voteheadCode;
         this.voteheadName = voteheadName;
         this.charged = CurrencyConfig.money(charged);
         this.collected = CurrencyConfig.money(collected);
         this.outstanding = CurrencyConfig.money(charged.subtract(collected).max(BigDecimal.ZERO));
+        this.bankBalance = bankBalance != null ? CurrencyConfig.money(bankBalance) : null;
+        this.overdraft = bankBalance != null && collected.compareTo(bankBalance) > 0;
     }
 
     public String getVoteheadCode() {
@@ -40,6 +49,15 @@ public class VoteheadSummary {
 
     public BigDecimal getOutstanding() {
         return outstanding;
+    }
+
+    public BigDecimal getBankBalance() {
+        return bankBalance;
+    }
+
+    /** True when collected income exceeds the cash held in the votehead's ring-fenced bank account. */
+    public boolean isOverdraft() {
+        return overdraft;
     }
 
     @Override
