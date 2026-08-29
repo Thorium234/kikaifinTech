@@ -14,4 +14,8 @@ public final class NumberGenerator {
     public static long nextCreditNoteNumber() {
         return AppConfig.getInstance().getSchoolProfile().allocateCreditNoteNumber();
     }
+
+    public static long nextWriteOffNumber() {
+        return AppConfig.getInstance().getSchoolProfile().allocateWriteOffNumber();
+    }
 }

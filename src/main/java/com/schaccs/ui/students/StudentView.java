@@ -15,6 +15,7 @@ import com.schaccs.service.importer.FeesBalanceRow;
 import com.schaccs.service.importer.StudentImportService;
 import com.schaccs.service.student.StudentService;
 import com.schaccs.service.student.StudentTransitionService;
+import com.schaccs.service.finance.BadDebtWriteOffService;
 import com.schaccs.store.CleanDataStore;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.StudentStore;
@@ -57,6 +58,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -149,7 +151,12 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         deleteBtn.setGraphic(new FontIcon(FontAwesomeSolid.TRASH));
         deleteBtn.setOnAction(e -> deleteSelected());
 
-        FlowPane toolbar = new FlowPane(10, 10, searchBar, addBtn, deleteBtn, importBtn, importBalanceBtn,
+        Button writeOffBtn = new Button("Write Off Bad Debt");
+        writeOffBtn.getStyleClass().add("secondary-button");
+        writeOffBtn.setGraphic(new FontIcon(FontAwesomeSolid.FILE_INVOICE_DOLLAR));
+        writeOffBtn.setOnAction(e -> writeOffSelected());
+
+        FlowPane toolbar = new FlowPane(10, 10, searchBar, addBtn, deleteBtn, writeOffBtn, importBtn, importBalanceBtn,
                 balanceTemplateBtn, cleanDataBtn, exportBtn, templateBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         this.cleanDataBtn = cleanDataBtn;
@@ -529,9 +536,58 @@ public class StudentView extends VBox implements MainLayout.Refreshable {
         }
         switchToList();
         table.refresh();
-        AlertUtil.info("Deleted",
-                selected.size() + " student(s) moved to the Recycle Bin. "
-                        + "Restore or purge them from the Recycle Bin anytime.");
+            AlertUtil.info("Deleted",
+                    selected.size() + " student(s) moved to the Recycle Bin. "
+                            + "Restore or purge them from the Recycle Bin anytime.");
+    }
+
+    private void writeOffSelected() {
+        List<Student> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
+        if (selected.isEmpty()) {
+            AlertUtil.warn("No selection", "Select one or more students, then click Write Off Bad Debt.");
+            return;
+        }
+        BadDebtWriteOffService service = new BadDebtWriteOffService();
+        StringBuilder preview = new StringBuilder();
+        BigDecimal grandTotal = BigDecimal.ZERO;
+        for (Student s : selected) {
+            Map<String, BigDecimal> outstanding = service.outstandingByVotehead(s.getId());
+            BigDecimal total = outstanding.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (total.compareTo(BigDecimal.ZERO) > 0) {
+                preview.append("• ").append(safe(s.getAdmissionNumber()))
+                        .append(" — ").append(safe(s.getName()))
+                        .append(": ").append(outstanding.toString()).append('\n');
+                grandTotal = grandTotal.add(total);
+            }
+        }
+        if (grandTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            AlertUtil.info("Nothing to write off",
+                    "None of the selected students have an outstanding balance.");
+            return;
+        }
+        javafx.scene.control.TextInputDialog reason = new javafx.scene.control.TextInputDialog("Dropped out");
+        reason.setTitle("Write Off Bad Debt");
+        reason.setHeaderText("Write off outstanding fees for:\n" + preview);
+        reason.setContentText("Reason (e.g. dropout, transfer):");
+        Optional<String> answer = reason.showAndWait();
+        if (answer.isEmpty() || answer.get().isBlank()) {
+            return;
+        }
+        String why = answer.get().trim();
+        String createdBy = com.schaccs.config.AppConfig.getInstance().getCurrentUser();
+        for (Student s : selected) {
+            BadDebtWriteOffService.WriteOffResult r = service.writeOff(s, why, createdBy, java.time.LocalDate.now());
+            if (!r.success()) {
+                AlertUtil.warn("Write-off skipped", "Could not write off " + safe(s.getName()) + ": "
+                        + String.join(" ", r.errors()));
+            }
+        }
+        PersistenceService.getInstance().saveAll();
+        table.refresh();
+        AlertUtil.info("Write-off complete",
+                "Wrote off outstanding balances for the selected student(s).\n"
+                        + "Journals are preserved (Bad Debts Expense dr / Accounts Receivable cr) "
+                        + "and student records remain intact.");
     }
 
     private void exportStudents() {

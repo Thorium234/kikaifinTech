@@ -18,7 +18,8 @@ public enum TransactionType {
     PAYROLL_REVERSAL("Payroll Reversal"),
     PROCUREMENT_GOODS_RECEIVED("Goods Received"),
     PROCUREMENT_INVOICE("Supplier Invoice"),
-    PROCUREMENT_PAYMENT("Supplier Payment");
+    PROCUREMENT_PAYMENT("Supplier Payment"),
+    WRITE_OFF("Bad-Debt Write-Off");
 
     private final String displayName;
 

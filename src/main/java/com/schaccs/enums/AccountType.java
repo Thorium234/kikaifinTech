@@ -86,6 +86,12 @@ public enum AccountType {
     INFRASTRUCTURE_EXPANSION("Infrastructure Expansion", "4010", NormalBalance.DEBIT,
             StatementCategory.INCOME_EXPENDITURE, "GOVT"),
 
+    // =====================================================================
+    // EXPENSES — Bad Debts (Debit Normal, I&E)
+    // =====================================================================
+    BAD_DEBTS_EXPENSE("Bad Debts Expense", "4020", NormalBalance.DEBIT,
+            StatementCategory.INCOME_EXPENDITURE, null),
+
     // Legacy expense accounts (kept for backward compatibility)
     SALARIES("Salaries & Wages", "SALARY", NormalBalance.DEBIT,
             StatementCategory.INCOME_EXPENDITURE, null),

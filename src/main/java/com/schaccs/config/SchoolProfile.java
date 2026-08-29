@@ -147,6 +147,12 @@ public final class SchoolProfile {
         return nextCreditNoteNumber++;
     }
 
+    private long nextWriteOffNumber = 1;
+
+    public synchronized long allocateWriteOffNumber() {
+        return nextWriteOffNumber++;
+    }
+
     public long getNextVoucherNumber() {
         return nextVoucherNumber;
     }
