@@ -242,4 +242,19 @@ class ReportServiceTest {
                 report.defaulters(null, amount("3000"), null, null);
         assertEquals(2, big.size(), "Only balances > 3000 remain (D-1A 8000, D-2A 1000 excluded)");
     }
+
+    @Test
+    @DisplayName("Ageing buckets include a chronic over-one-year tail")
+    void ageingIncludesOverOneYearBucket() {
+        Student s = defaulter("D-OLD", "Form 4", "A", amount("20000"), amount("5000"));
+        s.setYearOfAdmission(2024);
+        java.util.List<com.schaccs.model.report.AgeingBucket> buckets = report.ageing();
+        com.schaccs.model.report.AgeingBucket overYear =
+                buckets.stream().filter(b -> b.getLabel().contains("Over 1 year"))
+                        .findFirst().orElseThrow();
+        assertEquals(0, overYear.getAmount().compareTo(amount("15000")),
+                "Balance admitted in 2024 falls into the over-one-year bucket");
+        assertEquals(1, overYear.getStudents());
+        assertTrue(buckets.size() >= 5, "Ageing schedule exposes at least the 5 AR buckets");
+    }
 }

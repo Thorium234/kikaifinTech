@@ -132,17 +132,22 @@ public class ReportService {
     }
 
     /**
-     * Coarse ageing of outstanding balances based on the student's year of
-     * admission / academic year as the oldest known billing baseline. This is
-     * not invoice-level receivables ageing, but provides a useful operational
-     * view until dated charge lines are introduced.
+     * AR ageing of outstanding balances based on the student's year of admission
+     * / academic year as the oldest known billing baseline. This is not
+     * invoice-level receivables ageing, but provides a useful operational view
+     * with a full year-1 + over-1-year tail so chronic defaulters (e.g. students
+     * who have already completed Form 4) are visible. Dated charge lines will
+     * refine the baseline in a future release.
      */
     public List<AgeingBucket> ageing() {
-        long[] floors = {0, 31, 61, 91};
-        String[] labels = {"Current (0-30)", "31-60 days", "61-90 days", "90+ days"};
-        BigDecimal[] totals = {CurrencyConfig.zero(), CurrencyConfig.zero(),
-                CurrencyConfig.zero(), CurrencyConfig.zero()};
-        long[] counts = {0, 0, 0, 0};
+        long[] floors = {0, 31, 61, 91, 366};
+        String[] labels = {"Current (0-30)", "31-60 days", "61-90 days",
+                "91 days - 1 year", "Over 1 year"};
+        BigDecimal[] totals = new BigDecimal[labels.length];
+        long[] counts = new long[labels.length];
+        for (int i = 0; i < totals.length; i++) {
+            totals[i] = CurrencyConfig.zero();
+        }
 
         for (StudentBalance b : feeBalances()) {
             if (b.getBalance().compareTo(CurrencyConfig.zero()) <= 0) {
@@ -154,7 +159,12 @@ public class ReportService {
                     : AppConfig.getInstance().getAcademicYear();
             LocalDate baseline = LocalDate.of(year, 1, 1);
             long daysElapsed = java.time.temporal.ChronoUnit.DAYS.between(baseline, LocalDate.now());
-            int idx = daysElapsed <= 30 ? 0 : daysElapsed <= 60 ? 1 : daysElapsed <= 90 ? 2 : 3;
+            int idx;
+            if (daysElapsed <= 30) idx = 0;
+            else if (daysElapsed <= 60) idx = 1;
+            else if (daysElapsed <= 90) idx = 2;
+            else if (daysElapsed <= 365) idx = 3;
+            else idx = 4;
             totals[idx] = CurrencyConfig.money(totals[idx].add(b.getBalance()));
             counts[idx]++;
         }
