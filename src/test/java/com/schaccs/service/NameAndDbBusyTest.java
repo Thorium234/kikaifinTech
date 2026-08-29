@@ -50,12 +50,13 @@ class NameAndDbBusyTest {
     }
 
     @Test
-    void nameRejectsSpecialCharactersAndDigits() {
-        assertFalse(validator.validate(base("N-4", "Student#123"), false).isEmpty());
-        String digitErr = validator.validate(base("N-5", "Bob2"), false).stream()
+    void nameRejectsSpecialCharactersButAllowsDigits() {
+        assertTrue(validator.validate(base("N-4", "Student123"), false).isEmpty(),
+                "Digits within a name are acceptable (e.g. imported batch names)");
+        String err = validator.validate(base("N-5", "name#bad"), false).stream()
                 .filter(e -> e.contains("invalid characters")).findFirst().orElse(null);
-        assertNotNull(digitErr);
-        assertFalse(validator.validate(base("N-6", "name@bad"), false).isEmpty());
+        assertNotNull(err, "Hashtag is a rejected special character");
+        assertFalse(validator.validate(base("N-6", "bad<name>@x"), false).isEmpty());
     }
 
     @Test

@@ -11,8 +11,9 @@ public class StudentValidator {
 
     private static final Pattern KENYAN_PHONE = Pattern.compile("^(\\+254|254|0)(7\\d{8}|1\\d{8})$");
 
-    /** Letters (incl. accents), spaces, dots, apostrophes and hyphens only. */
-    private static final Pattern PERS_NAME = Pattern.compile("^[\\p{L} .'-]+$");
+    /** Letters, digits, spaces, dots, apostrophes, parentheses and hyphens; rejects
+     *  shell/HTML metacharacters and other problematic special characters. */
+    private static final Pattern PERS_NAME = Pattern.compile("^[\\p{L}\\p{Nd} .'()&+-]+$");
 
     private final StudentStore studentStore;
 
