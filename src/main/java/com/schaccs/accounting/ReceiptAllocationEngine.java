@@ -144,6 +144,77 @@ public class ReceiptAllocationEngine {
     }
 
     /**
+     * Cascade allocation across the full academic year. Satisfies the current
+     * term first, then pushes any overflow into the subsequent terms' voteheads
+     * in chronological order (e.g. an overpayment on Term 1 flows into Term 2,
+     * then Term 3), preserving the spec'd "push the remainder to the next term"
+     * behaviour. Only if every term for the year is fully covered does the
+     * remainder become an unallocated advance credit.
+     *
+     * <p>Step order per term: advance credit consumed first, then arrears, then
+     * equal distribution across that term's outstanding voteheads — with any
+     * residual cascading to the next term rather than to Advance immediately.
+     */
+    public List<FeeAllocation> allocateCascading(StudentFeeLedger ledger, BigDecimal paymentAmount,
+                                                  FeeStructure feeStructure, AcademicTerm fromTerm) {
+        List<FeeAllocation> allocations = new ArrayList<>();
+        if (paymentAmount == null || paymentAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return allocations;
+        }
+        if (fromTerm == null) {
+            return allocate(ledger, paymentAmount, feeStructure, fromTerm);
+        }
+
+        BigDecimal remaining = CurrencyConfig.money(paymentAmount);
+
+        // Priority: existing advance credit, then confessional arrears
+        if (ledger.getAdvance().compareTo(BigDecimal.ZERO) > 0 && remaining.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal take = ledger.getAdvance().min(remaining);
+            allocations.add(new FeeAllocation(StudentFeeLedger.ADVANCE_CODE, "Advance / Credit",
+                    ledger.getAdvance(), take));
+            remaining = remaining.subtract(take);
+        }
+        if (ledger.getArrears().compareTo(BigDecimal.ZERO) > 0 && remaining.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal take = ledger.getArrears().min(remaining);
+            allocations.add(new FeeAllocation("ARREARS", "Outstanding / Arrears",
+                    ledger.getArrears(), take));
+            remaining = remaining.subtract(take);
+        }
+
+        // Cascade through remaining terms of the academic year, in order.
+        List<AcademicTerm> terms = new ArrayList<>();
+        for (AcademicTerm t : AcademicTerm.values()) {
+            if (t != null && t.ordinal() >= fromTerm.ordinal()) {
+                terms.add(t);
+            }
+        }
+        for (AcademicTerm term : terms) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
+            List<FeeStructureItem> termItems = feeStructure.itemsForTerm(term);
+            Map<String, BigDecimal> outstanding = new LinkedHashMap<>();
+            for (FeeStructureItem item : termItems) {
+                BigDecimal due = ledger.getOutstanding(item.getVoteheadCode());
+                if (due != null && due.compareTo(BigDecimal.ZERO) > 0) {
+                    outstanding.put(item.getVoteheadCode(), due);
+                }
+            }
+            if (outstanding.isEmpty()) continue;
+            Map<String, String> names = new LinkedHashMap<>();
+            for (FeeStructureItem item : termItems) {
+                names.put(item.getVoteheadCode(), item.getVoteheadName());
+            }
+            remaining = distributeEqually(allocations, outstanding, remaining, names);
+        }
+
+        // Only after every term is satisfied does any remainder become Advance.
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            allocations.add(new FeeAllocation(StudentFeeLedger.ADVANCE_CODE, "Advance / Credit",
+                    CurrencyConfig.zero(), remaining));
+        }
+        return allocations;
+    }
+
+    /**
      * Legacy priority-based allocation — only used when term structure is unavailable.
      * Prefer allocate(ledger, amount, feeStructure, term) for equal distribution.
      */

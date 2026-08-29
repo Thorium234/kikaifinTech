@@ -92,7 +92,7 @@ public class ReceiptService {
         if (fs == null) {
             return allocationEngine.allocate(ledger, amount);
         }
-        return allocationEngine.allocate(ledger, amount, fs, ledger.getCurrentTerm());
+        return allocationEngine.allocateCascading(ledger, amount, fs, ledger.getCurrentTerm());
     }
 
     public Result receivePayment(Student student, BigDecimal amount, PaymentMode mode,
@@ -113,7 +113,7 @@ public class ReceiptService {
         StudentFeeLedger ledger = studentStore.getLedger(student.getId());
         FeeStructure fs = resolveFeeStructure(student);
         List<FeeAllocation> allocations = fs != null
-                ? allocationEngine.allocate(ledger, amount, fs, ledger.getCurrentTerm())
+                ? allocationEngine.allocateCascading(ledger, amount, fs, ledger.getCurrentTerm())
                 : allocationEngine.allocate(ledger, amount);
         List<ReceiptLine> createdLines = new ArrayList<>();
 
@@ -228,6 +228,146 @@ public class ReceiptService {
             LedgerStore.getInstance().removeByReceiptId(receipt.getId());
             receiptStore.getReceipts().remove(receipt);
             return Result.failure(List.of("Failed to post receipt: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Post a receipt with a manually overridden votehead allocation. The manual
+     * breakdown must exactly sum to the payment amount (validated here) — this is
+     * the "Manual Override Account Flag" from the spec. No auto-allocation runs.
+     * Only regular votehead codes are allowed; Advance/Arrears are handled too
+     * when the explicit list includes them.
+     */
+    public Result receivePaymentManual(Student student, BigDecimal amount, PaymentMode mode,
+                                       String bankReference, LocalDate date, String notes,
+                                       List<FeeAllocation> manualAllocations) {
+        com.schaccs.util.RoleGuard.requireReceiptCreation();
+
+        List<String> errors = validator.validate(student, amount, mode, bankReference);
+        if (!errors.isEmpty()) {
+            return Result.failure(errors);
+        }
+
+        if (manualAllocations == null || manualAllocations.isEmpty()) {
+            return Result.failure(List.of("No manual votehead allocations supplied."));
+        }
+
+        BigDecimal total = manualAllocations.stream()
+                .filter(a -> a != null && a.getAllocated() != null)
+                .map(FeeAllocation::getAllocated)
+                .reduce(CurrencyConfig.zero(), BigDecimal::add);
+        if (amount == null || total.compareTo(CurrencyConfig.money(amount)) != 0) {
+            return Result.failure(List.of("Manual allocations must exactly equal the payment amount "
+                    + "(sum: " + CurrencyConfig.format(CurrencyConfig.money(total)) + ", expected: "
+                    + CurrencyConfig.format(CurrencyConfig.money(amount)) + ")."));
+        }
+
+        LocalDate receiptDate = date != null ? date : LocalDate.now();
+        if (!fiscalYearService.isTransactionAllowed(receiptDate)) {
+            return Result.failure(List.of("Payment date " + receiptDate
+                    + " is outside the open fiscal year."));
+        }
+
+        StudentFeeLedger ledger = studentStore.getLedger(student.getId());
+        List<FeeAllocation> channelled = new ArrayList<>();
+        for (FeeAllocation alloc : manualAllocations) {
+            if (alloc.getAllocated() == null || alloc.getAllocated().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            FeeAllocation res = new FeeAllocation(alloc.getVoteheadCode(), alloc.getVoteheadName(),
+                    ledger.getOutstanding(alloc.getVoteheadCode()), alloc.getAllocated());
+            channelled.add(res);
+        }
+
+        List<ReceiptLine> createdLines = new ArrayList<>();
+        Receipt receipt = new Receipt();
+        receipt.setReceiptNumber(numberService.next());
+        receipt.setDate(receiptDate);
+        receipt.setStudentId(student.getId());
+        receipt.setAdmissionNumber(student.getAdmissionNumber());
+        receipt.setStudentName(student.getName());
+        receipt.setClassLabel(student.getClassLabel());
+        receipt.setAmount(CurrencyConfig.money(amount));
+        receipt.setPaymentMode(mode);
+        receipt.setBankReference(bankReference);
+        receipt.setReceivedBy(AppConfig.getInstance().getCurrentUser());
+        receipt.setNotes(notes);
+        receipt.setManualOverride(true);
+
+        String ref = "RCPT-" + receipt.getReceiptNumber();
+
+        try {
+            for (FeeAllocation alloc : channelled) {
+                ReceiptLine line = new ReceiptLine(alloc.getVoteheadCode(), alloc.getVoteheadName(),
+                        alloc.getAllocated(), alloc.getOutstandingBefore());
+                receipt.addLine(line);
+                createdLines.add(line);
+
+                if (StudentFeeLedger.ADVANCE_CODE.equals(alloc.getVoteheadCode())) {
+                    if (alloc.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
+                        ledger.consumeAdvance(alloc.getAllocated());
+                        ledger.pay(StudentFeeLedger.ADVANCE_CODE, alloc.getAllocated());
+                    } else {
+                        ledger.addAdvance(alloc.getAllocated());
+                    }
+                    accountingEngine.postFeeReceiptLine(ref,
+                            "Fee receipt " + receipt.getReceiptNumber() + " — Advance / Credit ("
+                                    + student.getAdmissionNumber() + ")",
+                            AccountType.DEFERRED_REVENUE, StudentFeeLedger.ADVANCE_CODE,
+                            alloc.getAllocated(), student.getId(), receipt.getId(), null, receipt.getDate());
+                    continue;
+                }
+
+                if ("ARREARS".equals(alloc.getVoteheadCode())) {
+                    ledger.setArrears(ledger.getArrears().subtract(alloc.getAllocated()).max(CurrencyConfig.zero()));
+                } else {
+                    ledger.pay(alloc.getVoteheadCode(), alloc.getAllocated());
+                }
+
+                AccountType accountType = feeStore.findVoteheadByCode(alloc.getVoteheadCode())
+                        .map(Votehead::getAccountType)
+                        .orElse(AccountType.SCHOOL_FUND);
+                AccountType bankAccount = DoubleEntryEngine.resolveBankForIncome(accountType);
+                String ringError = FinancialConstraintService.getInstance()
+                        .checkRingFencing(accountType, bankAccount);
+                if (ringError != null) {
+                    throw new IllegalStateException(ringError);
+                }
+                accountingEngine.postFeeReceiptLine(ref,
+                        "Fee receipt " + receipt.getReceiptNumber() + " — " + alloc.getVoteheadName()
+                                + " (" + student.getAdmissionNumber() + ") [manual]",
+                        accountType, alloc.getVoteheadCode(), alloc.getAllocated(),
+                        student.getId(), receipt.getId(), null, receipt.getDate());
+            }
+
+            receipt.computeVerificationHash();
+            receiptStore.add(receipt);
+            persistenceAction.run();
+            DisasterRecoveryEngine.getInstance().onReceiptPosted();
+            auditService.log("RECEIPT_CREATED_MANUAL", "Receipt", receipt.getId(),
+                    "{\"receiptNumber\":\"" + receipt.getReceiptNumber()
+                            + "\",\"studentId\":\"" + jsonEscape(student.getId())
+                            + "\",\"amount\":" + amount
+                            + ",\"mode\":\"manualOverride\"}");
+            return Result.success(receipt, channelled);
+        } catch (Exception e) {
+            for (ReceiptLine line : createdLines) {
+                if (StudentFeeLedger.ADVANCE_CODE.equals(line.getVoteheadCode())) {
+                    if (line.getOutstandingBefore().compareTo(BigDecimal.ZERO) > 0) {
+                        ledger.addAdvance(line.getAmount());
+                        ledger.reversePayment(StudentFeeLedger.ADVANCE_CODE, line.getAmount());
+                    } else {
+                        ledger.reduceAdvance(line.getAmount());
+                    }
+                } else if ("ARREARS".equals(line.getVoteheadCode())) {
+                    ledger.setArrears(ledger.getArrears().add(line.getAmount()));
+                } else {
+                    ledger.reversePayment(line.getVoteheadCode(), line.getAmount());
+                }
+            }
+            LedgerStore.getInstance().removeByReceiptId(receipt.getId());
+            receiptStore.getReceipts().remove(receipt);
+            return Result.failure(List.of("Failed to post manual receipt: " + e.getMessage()));
         }
     }
 

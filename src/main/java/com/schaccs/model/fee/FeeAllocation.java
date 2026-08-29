@@ -13,8 +13,8 @@ public class FeeAllocation {
     private final String voteheadCode;
     private final String voteheadName;
     private final BigDecimal outstandingBefore;
-    private final BigDecimal allocated;
-    private final BigDecimal outstandingAfter;
+    private BigDecimal allocated;
+    private BigDecimal outstandingAfter;
 
     public FeeAllocation(String voteheadCode, String voteheadName,
                          BigDecimal outstandingBefore, BigDecimal allocated) {
@@ -39,6 +39,15 @@ public class FeeAllocation {
 
     public BigDecimal getAllocated() {
         return allocated;
+    }
+
+    /**
+     * Update the manually overridden amount. Recomputes the outstanding-after
+     * figure so the table stays consistent during manual override editing.
+     */
+    public void setAllocated(BigDecimal allocated) {
+        this.allocated = CurrencyConfig.money(allocated);
+        this.outstandingAfter = CurrencyConfig.money(outstandingBefore.subtract(allocated));
     }
 
     public BigDecimal getOutstandingAfter() {

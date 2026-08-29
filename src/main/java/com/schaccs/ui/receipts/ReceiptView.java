@@ -1,6 +1,7 @@
 package com.schaccs.ui.receipts;
 
 import com.schaccs.config.AppConfig;
+import com.schaccs.config.CurrencyConfig;
 import com.schaccs.enums.PaymentMode;
 import com.schaccs.model.fee.FeeAllocation;
 import com.schaccs.model.receipt.Receipt;
@@ -25,6 +26,7 @@ import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
@@ -34,6 +36,8 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.util.StringConverter;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -68,6 +72,9 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
     private final TextArea previewArea = new TextArea();
     private final Label receiptModeBadge = new Label();
     private final Label paymentHint = new Label();
+    private final CheckBox manualOverrideBox = new CheckBox("Manual override votehead allocation");
+    private final Label overrideHint = new Label("Off by default. Toggle on to pin each amount to a specific votehead "
+            + "(must sum exactly to the payment amount).");
 
     private Student selected;
     private Receipt lastReceipt;
@@ -79,7 +86,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         studentFilteredList = new FilteredList<>(studentStore.getStudents(), s -> !s.isDeleted());
         studentTable.setItems(studentFilteredList);
 
-        Label heading = new Label("Receipting — Automatic Votehead Allocation");
+        Label heading = new Label("Receipting — Automatic & Manual Votehead Allocation");
         heading.getStyleClass().add("section-title");
         Label badge = new Label("Student Fee Collection Workspace");
         badge.getStyleClass().add("receipt-header-badge");
@@ -167,8 +174,12 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
 
         Label allocationTitle = new Label("Automatic Votehead Distribution");
         allocationTitle.getStyleClass().add("section-title");
+        overrideHint.getStyleClass().addAll("muted", "receipt-field-hint");
+        overrideHint.setWrapText(true);
+        VBox overrideCard = new VBox(4, manualOverrideBox, overrideHint);
+        overrideCard.getStyleClass().add("receipt-field-box");
         VBox payCard = new VBox(12, receiptModeBadge, studentSummary, balanceLabel, new Separator(), paymentHint, form, actions,
-                allocationTitle, allocationTable);
+                allocationTitle, overrideCard, allocationTable);
         payCard.getStyleClass().addAll("card", "receipt-pay-card");
         VBox.setVgrow(allocationTable, Priority.SOMETIMES);
 
@@ -244,7 +255,30 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         due.setPrefWidth(100);
 
         TableColumn<FeeAllocation, String> alloc = new TableColumn<>("Allocated");
+        alloc.setEditable(true);
         alloc.setCellValueFactory(c -> new SimpleStringProperty(CurrencyUtil.format(c.getValue().getAllocated())));
+        alloc.setCellFactory(TextFieldTableCell.forTableColumn(new StringConverter<>() {
+            @Override
+            public String toString(String object) {
+                return object;
+            }
+
+            @Override
+            public String fromString(String string) {
+                return string;
+            }
+        }));
+        alloc.setOnEditCommit(event -> {
+            FeeAllocation row = event.getRowValue();
+            BigDecimal newVal;
+            try {
+                newVal = CurrencyConfig.money(event.getNewValue());
+            } catch (Exception ex) {
+                newVal = BigDecimal.ZERO;
+            }
+            row.setAllocated(newVal != null ? newVal : BigDecimal.ZERO);
+            allocationTable.refresh();
+        });
         alloc.setPrefWidth(100);
 
         TableColumn<FeeAllocation, String> after = new TableColumn<>("Remaining");
@@ -254,8 +288,31 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
         @SuppressWarnings("unchecked")
         var columns2 = new TableColumn[]{vh, due, alloc, after};
         allocationTable.getColumns().addAll(columns2);
+        allocationTable.setEditable(true);
         allocationTable.setPrefHeight(180);
         allocationTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        manualOverrideBox.setSelected(false);
+        manualOverrideBox.selectedProperty().addListener((obs, o, n) -> {
+            allocationTable.setEditable(n);
+            if (!n) {
+                previewAllocation();
+                overrideHint.setText("Off by default. Toggle on to pin each amount to a specific votehead "
+                        + "(must sum exactly to the payment amount).");
+            } else {
+                overrideHint.setText("Manual override enabled — edit the Allocated column. Total must equal the payment amount.");
+            }
+        });
+    }
+
+    private BigDecimal manualTotal() {
+        BigDecimal total = BigDecimal.ZERO;
+        for (FeeAllocation a : allocationTable.getItems()) {
+            if (a != null && a.getAllocated() != null) {
+                total = total.add(a.getAllocated());
+            }
+        }
+        return total;
     }
 
     private void filterStudents(String q) {
@@ -353,9 +410,35 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
             AlertUtil.warn("Invalid amount", "Please enter an amount greater than zero.");
             return;
         }
-        ReceiptService.Result result = receiptService.receivePayment(
-                selected, amount, modeBox.getValue(), refField.getText(),
-                datePicker.getValue(), null);
+
+        ReceiptService.Result result;
+        if (manualOverrideBox.isSelected()) {
+            if (allocationTable.getItems().isEmpty()) {
+                AlertUtil.warn("No allocation", "Preview the allocation first, then adjust the Allocated column.");
+                return;
+            }
+            BigDecimal manualTotal = manualTotal();
+            if (manualTotal.compareTo(amount) != 0) {
+                AlertUtil.warn("Manual override mismatch",
+                        "Manual allocations total " + CurrencyUtil.format(manualTotal)
+                                + " but the payment amount is " + CurrencyUtil.format(amount)
+                                + ". Adjust the Allocated column so they match.");
+                return;
+            }
+            java.util.List<FeeAllocation> manualAllocs = new java.util.ArrayList<>();
+            for (FeeAllocation a : allocationTable.getItems()) {
+                if (a.getAllocated() != null && a.getAllocated().compareTo(BigDecimal.ZERO) > 0) {
+                    manualAllocs.add(a);
+                }
+            }
+            result = receiptService.receivePaymentManual(
+                    selected, amount, modeBox.getValue(), refField.getText(),
+                    datePicker.getValue(), "Manual votehead override", manualAllocs);
+        } else {
+            result = receiptService.receivePayment(
+                    selected, amount, modeBox.getValue(), refField.getText(),
+                    datePicker.getValue(), null);
+        }
 
         if (!result.isSuccess()) {
             AlertUtil.warn("Cannot receive payment", String.join("\n", result.getErrors()));
@@ -370,6 +453,7 @@ public class ReceiptView extends VBox implements MainLayout.Refreshable {
                 "Receipt No. " + receipt.getReceiptNumberDisplay() + " for "
                         + CurrencyUtil.format(receipt.getAmount()) + " posted successfully.");
 
+        manualOverrideBox.setSelected(false);
         amountField.clear();
         refField.clear();
         paymentHint.setText("Receipt posted successfully.");

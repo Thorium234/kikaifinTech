@@ -161,6 +161,16 @@ public class Receipt {
         this.reversed = reversed;
     }
 
+    private boolean manualOverride = false;
+
+    public boolean isManualOverride() {
+        return manualOverride;
+    }
+
+    public void setManualOverride(boolean manualOverride) {
+        this.manualOverride = manualOverride;
+    }
+
     public String getVerificationHash() {
         return verificationHash;
     }
