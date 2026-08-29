@@ -191,33 +191,49 @@ public class ReceiptAllocationEngine {
         for (AcademicTerm term : terms) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
             List<FeeStructureItem> termItems = feeStructure.itemsForTerm(term);
-            Map<String, BigDecimal> outstanding = new LinkedHashMap<>();
-            for (FeeStructureItem item : termItems) {
-                // Target is the planned term fee for this votehead, minus anything
-                // already charged/paid on it — so a cascade covers forward billing.
-                BigDecimal due = ledger.getOutstanding(item.getVoteheadCode());
-                BigDecimal planned = item.getAmount();
-                // Use the larger driver we have: either a live charged balance or the
-                // planned term fee for a not-yet-billed votehead.
-                BigDecimal target = due;
-                if (due == null) {
-                    target = planned;
-                } else if (planned != null && planned.compareTo(due) > 0) {
-                    BigDecimal charged = ledger.getCharged(item.getVoteheadCode());
-                    if (charged != null && charged.signum() == 0) {
-                        target = planned;
-                    }
-                }
-                if (target != null && target.compareTo(BigDecimal.ZERO) > 0) {
-                    outstanding.put(item.getVoteheadCode(), target);
-                }
-            }
-            if (outstanding.isEmpty()) continue;
+            if (termItems.isEmpty()) continue;
             Map<String, String> names = new LinkedHashMap<>();
             for (FeeStructureItem item : termItems) {
                 names.put(item.getVoteheadCode(), item.getVoteheadName());
             }
-            remaining = distributeEqually(allocations, outstanding, remaining, names);
+
+            if (term == fromTerm) {
+                // Current term: allocate only against voteheads the student is
+                // ALREADY charged for (equal distribution), so a payment for an
+                // existing balance is not diluted across unrelated planned fee
+                // items. Only genuine overflow cascades to later terms below.
+                Map<String, BigDecimal> outstanding = ledger.getOutstandingByVotehead().entrySet().stream()
+                        .filter(e -> termItems.stream().anyMatch(i -> i.getVoteheadCode().equals(e.getKey())))
+                        .filter(e -> e.getValue().compareTo(BigDecimal.ZERO) > 0)
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                                (a, b) -> a, LinkedHashMap::new));
+                if (!outstanding.isEmpty()) {
+                    remaining = distributeEqually(allocations, outstanding, remaining, names);
+                }
+            } else {
+                // Later terms: treat each planned term fee as a cascade target so an
+                // overpayment flows forward into future billing.
+                Map<String, BigDecimal> outstanding = new LinkedHashMap<>();
+                for (FeeStructureItem item : termItems) {
+                    BigDecimal due = ledger.getOutstanding(item.getVoteheadCode());
+                    BigDecimal planned = item.getAmount();
+                    BigDecimal target = due;
+                    if (due == null) {
+                        target = planned;
+                    } else if (planned != null && planned.compareTo(due) > 0) {
+                        BigDecimal charged = ledger.getCharged(item.getVoteheadCode());
+                        if (charged != null && charged.signum() == 0) {
+                            target = planned;
+                        }
+                    }
+                    if (target != null && target.compareTo(BigDecimal.ZERO) > 0) {
+                        outstanding.put(item.getVoteheadCode(), target);
+                    }
+                }
+                if (!outstanding.isEmpty()) {
+                    remaining = distributeEqually(allocations, outstanding, remaining, names);
+                }
+            }
         }
 
         // Only after every term is satisfied does any remainder become Advance.
