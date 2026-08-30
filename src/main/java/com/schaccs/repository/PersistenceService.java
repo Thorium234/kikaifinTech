@@ -71,6 +71,7 @@ import com.schaccs.store.ReceiptStore;
 import com.schaccs.store.StudentStore;
 import com.schaccs.store.AuditStore;
 import com.schaccs.store.BankReconciliationStore;
+import com.schaccs.store.BankStatementStore;
 import com.schaccs.store.SchoolCustomStore;
 import com.schaccs.store.VoucherStore;
 import com.schaccs.store.MidTermEnrollmentStore;
@@ -167,6 +168,7 @@ public final class PersistenceService {
             saveImprests(conn);
             saveAuditLog(conn);
             saveBankReconciliation(conn);
+            saveBankStatementEntries(conn);
             saveSchoolCustom(conn);
             saveAcademicCalendar(conn);
             saveMidTermEnrollments(conn);
@@ -224,6 +226,7 @@ public final class PersistenceService {
             VoucherStore.getInstance().clear();
             AuditStore.getInstance().clear();
             BankReconciliationStore.getInstance().clear();
+            BankStatementStore.getInstance().clear();
             SchoolCustomStore.getInstance().clear();
             MidTermEnrollmentStore.getInstance().clear();
             EmployeeStore.getInstance().clear();
@@ -248,6 +251,7 @@ public final class PersistenceService {
             loadImprests(conn);
             loadAuditLog(conn);
             loadBankReconciliation(conn);
+            loadBankStatementEntries(conn);
             loadSchoolCustom(conn);
             loadAcademicCalendar(conn);
             loadMidTermEnrollments(conn);
@@ -1508,17 +1512,23 @@ public final class PersistenceService {
     private void saveBankReconciliation(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO bank_reconciliation (id, statement_date, statement_balance, book_balance, "
-                        + "adjusted_balance, difference, status, created_at, reconciled_at, notes) "
-                        + "VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+                        + "adjusted_balance, difference, status, created_at, reconciled_at, notes, "
+                        + "bank_account_type, previous_month_variance) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
                         + "statement_date=excluded.statement_date, statement_balance=excluded.statement_balance, "
                         + "book_balance=excluded.book_balance, adjusted_balance=excluded.adjusted_balance, "
                         + "difference=excluded.difference, status=excluded.status, "
-                        + "created_at=excluded.created_at, reconciled_at=excluded.reconciled_at, notes=excluded.notes");
+                        + "created_at=excluded.created_at, reconciled_at=excluded.reconciled_at, notes=excluded.notes, "
+                        + "bank_account_type=excluded.bank_account_type, previous_month_variance=excluded.previous_month_variance");
              PreparedStatement itemPs = conn.prepareStatement(
                      "INSERT INTO bank_reconciliation_items (id, reconciliation_id, type, reference, description, "
-                             + "amount, cleared) VALUES (?,?,?,?,?,?,?) "
+                             + "amount, cleared, posted_date, clearing_date, matched_statement_ref, source, cleared_by) "
+                             + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
                              + "ON CONFLICT(id) DO UPDATE SET type=excluded.type, reference=excluded.reference, "
-                             + "description=excluded.description, amount=excluded.amount, cleared=excluded.cleared")) {
+                             + "description=excluded.description, amount=excluded.amount, cleared=excluded.cleared, "
+                             + "posted_date=excluded.posted_date, clearing_date=excluded.clearing_date, "
+                             + "matched_statement_ref=excluded.matched_statement_ref, "
+                             + "source=excluded.source, cleared_by=excluded.cleared_by")) {
             for (var rec : BankReconciliationStore.getInstance().getReconciliations()) {
                 ps.setString(1, rec.getId());
                 ps.setString(2, date(rec.getStatementDate()));
@@ -1530,6 +1540,8 @@ public final class PersistenceService {
                 ps.setString(8, dateTime(rec.getCreatedAt()));
                 ps.setString(9, dateTime(rec.getReconciledAt()));
                 ps.setString(10, rec.getNotes());
+                ps.setString(11, rec.getBankAccountType());
+                ps.setString(12, money(rec.getPreviousMonthVariance()));
                 ps.addBatch();
                 for (var item : rec.getItems()) {
                     itemPs.setString(1, item.getId());
@@ -1539,6 +1551,11 @@ public final class PersistenceService {
                     itemPs.setString(5, item.getDescription());
                     itemPs.setString(6, money(item.getAmount()));
                     itemPs.setInt(7, item.isCleared() ? 1 : 0);
+                    itemPs.setString(8, item.getPostedDate() != null ? date(item.getPostedDate()) : null);
+                    itemPs.setString(9, item.getClearingDate() != null ? date(item.getClearingDate()) : null);
+                    itemPs.setString(10, item.getMatchedStatementRef());
+                    itemPs.setString(11, item.getSource());
+                    itemPs.setString(12, item.getClearedBy());
                     itemPs.addBatch();
                 }
             }
@@ -1564,6 +1581,8 @@ public final class PersistenceService {
                 String ra = rs.getString("reconciled_at");
                 if (ra != null) rec.setReconciledAt(LocalDateTime.parse(ra));
                 rec.setNotes(rs.getString("notes"));
+                try { rec.setBankAccountType(rs.getString("bank_account_type")); } catch (Exception ignored) {}
+                try { rec.setPreviousMonthVariance(parseMoney(rs.getString("previous_month_variance"))); } catch (Exception ignored) {}
                 loadReconciliationItems(conn, rec);
                 store.add(rec);
             }
@@ -1582,8 +1601,59 @@ public final class PersistenceService {
                     item.setDescription(rs.getString("description"));
                     item.setAmount(parseMoney(rs.getString("amount")));
                     item.setCleared(rs.getInt("cleared") == 1);
+                    try {
+                        String pd = rs.getString("posted_date");
+                        if (pd != null) item.setPostedDate(parseDate(pd));
+                    } catch (Exception ignored) {}
+                    try {
+                        String cd = rs.getString("clearing_date");
+                        if (cd != null) item.setClearingDate(parseDate(cd));
+                    } catch (Exception ignored) {}
+                    try { item.setMatchedStatementRef(rs.getString("matched_statement_ref")); } catch (Exception ignored) {}
+                    try { item.setSource(rs.getString("source")); } catch (Exception ignored) {}
+                    try { item.setClearedBy(rs.getString("cleared_by")); } catch (Exception ignored) {}
                     rec.addItem(item);
                 }
+            }
+        }
+    }
+
+    private void saveBankStatementEntries(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO bank_statement_entry (id, statement_date, description, reference, debit, credit, "
+                        + "balance, reconciled) VALUES (?,?,?,?,?,?,?,?) "
+                        + "ON CONFLICT(id) DO UPDATE SET statement_date=excluded.statement_date, "
+                        + "description=excluded.description, reference=excluded.reference, debit=excluded.debit, "
+                        + "credit=excluded.credit, balance=excluded.balance, reconciled=excluded.reconciled")) {
+            for (var e : BankStatementStore.getInstance().getEntries()) {
+                ps.setString(1, e.getId());
+                ps.setString(2, date(e.getStatementDate()));
+                ps.setString(3, e.getDescription());
+                ps.setString(4, e.getReference());
+                ps.setString(5, money(e.getDebit()));
+                ps.setString(6, money(e.getCredit()));
+                ps.setString(7, money(e.getBalance()));
+                ps.setInt(8, e.isReconciled() ? 1 : 0);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadBankStatementEntries(Connection conn) throws SQLException {
+        BankStatementStore store = BankStatementStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM bank_statement_entry ORDER BY statement_date")) {
+            while (rs.next()) {
+                var e = new com.schaccs.model.finance.BankStatementEntry();
+                e.setStatementDate(parseDate(rs.getString("statement_date")));
+                e.setDescription(rs.getString("description"));
+                e.setReference(rs.getString("reference"));
+                e.setDebit(parseMoney(rs.getString("debit")));
+                e.setCredit(parseMoney(rs.getString("credit")));
+                e.setBalance(parseMoney(rs.getString("balance")));
+                e.setReconciled(rs.getInt("reconciled") == 1);
+                store.add(e);
             }
         }
     }

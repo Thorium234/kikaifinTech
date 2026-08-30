@@ -400,7 +400,8 @@ public final class Database {
                 new MigrationV26TermStatusAndCourseTracking(),
                 new com.schaccs.repository.migration.MigrationV27LedgerHashChain(),
                 new com.schaccs.repository.migration.MigrationV28StudentCohortLifecycle(),
-                new MigrationV30MultiYearFeeMatrix()
+                new MigrationV30MultiYearFeeMatrix(),
+                new com.schaccs.repository.migration.MigrationV31BankReconciliationV2()
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {

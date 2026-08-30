@@ -23,6 +23,8 @@ public enum AccountType {
     // Legacy generic bank (kept for backward compatibility and test seeding)
     CASH_AT_BANK("Cash at Bank", "CASH", NormalBalance.DEBIT,
             StatementCategory.BALANCE_SHEET, null),
+    MPESA_CLEARING("M-Pesa Clearing - In Transit", "1021", NormalBalance.DEBIT,
+            StatementCategory.BALANCE_SHEET, null),
     ACCOUNTS_RECEIVABLE("Accounts Receivable", "AR", NormalBalance.DEBIT,
             StatementCategory.BALANCE_SHEET, null),
     FEE_ARREARS("Fee Arrears", "ARREARS", NormalBalance.DEBIT,

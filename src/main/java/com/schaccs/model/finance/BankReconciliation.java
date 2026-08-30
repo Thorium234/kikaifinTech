@@ -18,6 +18,8 @@ public class BankReconciliation {
     private BigDecimal bookBalance = CurrencyConfig.zero();
     private BigDecimal adjustedBalance = CurrencyConfig.zero();
     private BigDecimal difference = CurrencyConfig.zero();
+    private BigDecimal previousMonthVariance = CurrencyConfig.zero();
+    private String bankAccountType;
     private String status = "DRAFT";
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime reconciledAt;
@@ -45,6 +47,10 @@ public class BankReconciliation {
     public void setAdjustedBalance(BigDecimal adjustedBalance) { this.adjustedBalance = CurrencyConfig.money(adjustedBalance); }
     public BigDecimal getDifference() { return difference; }
     public void setDifference(BigDecimal difference) { this.difference = CurrencyConfig.money(difference); }
+    public BigDecimal getPreviousMonthVariance() { return previousMonthVariance; }
+    public void setPreviousMonthVariance(BigDecimal previousMonthVariance) { this.previousMonthVariance = CurrencyConfig.money(previousMonthVariance); }
+    public String getBankAccountType() { return bankAccountType; }
+    public void setBankAccountType(String bankAccountType) { this.bankAccountType = bankAccountType; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
@@ -79,6 +85,11 @@ public class BankReconciliation {
         private String description;
         private BigDecimal amount = CurrencyConfig.zero();
         private boolean cleared;
+        private LocalDate postedDate;
+        private LocalDate clearingDate;
+        private String matchedStatementRef;
+        private String source;
+        private String clearedBy;
 
         public ReconciliationItem() { this.id = UUID.randomUUID().toString(); }
 
@@ -93,6 +104,16 @@ public class BankReconciliation {
         public void setAmount(BigDecimal amount) { this.amount = CurrencyConfig.money(amount); }
         public boolean isCleared() { return cleared; }
         public void setCleared(boolean cleared) { this.cleared = cleared; }
+        public LocalDate getPostedDate() { return postedDate; }
+        public void setPostedDate(LocalDate postedDate) { this.postedDate = postedDate; }
+        public LocalDate getClearingDate() { return clearingDate; }
+        public void setClearingDate(LocalDate clearingDate) { this.clearingDate = clearingDate; }
+        public String getMatchedStatementRef() { return matchedStatementRef; }
+        public void setMatchedStatementRef(String matchedStatementRef) { this.matchedStatementRef = matchedStatementRef; }
+        public String getSource() { return source; }
+        public void setSource(String source) { this.source = source; }
+        public String getClearedBy() { return clearedBy; }
+        public void setClearedBy(String clearedBy) { this.clearedBy = clearedBy; }
 
         @Override
         public boolean equals(Object o) {
