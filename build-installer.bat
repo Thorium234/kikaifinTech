@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set "APP_NAME=ThorCash"
-set "APP_VERSION=1.1.0"
+set "APP_VERSION=1.2.0"
 set "APP_VENDOR=Thor Technologies"
 set "APP_MAIN_CLASS=com.schaccs.Launcher"
 set "APP_JAR=thorcash-%APP_VERSION%.jar"
