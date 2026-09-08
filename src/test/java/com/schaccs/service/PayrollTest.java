@@ -74,29 +74,33 @@ class PayrollTest {
     }
 
     @Test
-    @DisplayName("NSSF is 6% of pensionable earnings, zero under 7,000, capped at 2,160")
+    @DisplayName("NSSF is 6% of pensionable earnings across Tier I + Tier II, capped at the 36,000 Tier II ceiling")
     void nssfFormula() {
         assertEquals(0, PayrollCalculationEngine.calculateNssf(CurrencyConfig.money("5000"))
-                .compareTo(BigDecimal.ZERO));
+                .compareTo(CurrencyConfig.money("300")));
+        assertEquals(0, PayrollCalculationEngine.calculateNssf(CurrencyConfig.money("7000"))
+                .compareTo(CurrencyConfig.money("420")));
         assertEquals(0, PayrollCalculationEngine.calculateNssf(CurrencyConfig.money("10000"))
                 .compareTo(CurrencyConfig.money("600")));
+        assertEquals(0, PayrollCalculationEngine.calculateNssf(CurrencyConfig.money("36000"))
+                .compareTo(CurrencyConfig.money("2160")));
         assertEquals(0, PayrollCalculationEngine.calculateNssf(CurrencyConfig.money("50000"))
                 .compareTo(CurrencyConfig.money("2160")));
     }
 
     @Test
-    @DisplayName("SHIF is 2.75% of gross, with a 300 floor and a 5,000 cap")
+    @DisplayName("SHIF is the absolute 2.75% of gross with no minimum-income floor or cap")
     void shifFormula() {
         assertEquals(0, PayrollCalculationEngine.calculateShif(CurrencyConfig.money("20000"))
                 .compareTo(CurrencyConfig.money("550")));
         assertEquals(0, PayrollCalculationEngine.calculateShif(CurrencyConfig.money("5000"))
-                .compareTo(CurrencyConfig.money("300")));
+                .compareTo(CurrencyConfig.money("137.50")));
         assertEquals(0, PayrollCalculationEngine.calculateShif(CurrencyConfig.money("200000"))
-                .compareTo(CurrencyConfig.money("5000")));
+                .compareTo(CurrencyConfig.money("5500")));
     }
 
     @Test
-    @DisplayName("Net pay equals gross pay minus all deductions")
+    @DisplayName("Net pay equals gross pay minus all deductions including AHL")
     void engineComputesNetPay() {
         SalaryStructure s = new SalaryStructure();
         s.setBasicSalary(CurrencyConfig.money("50000"));
@@ -107,7 +111,7 @@ class PayrollTest {
 
         assertEquals(0, item.getGrossPay().compareTo(CurrencyConfig.money("60000")));
         BigDecimal expectedDeductions = item.getPaye().add(item.getNssf()).add(item.getShif())
-                .add(item.getStaffLoanRepayment());
+                .add(item.getAhl()).add(item.getStaffLoanRepayment());
         assertEquals(0, item.getTotalDeductions().compareTo(expectedDeductions));
         assertEquals(0, item.getNetPay().compareTo(item.getGrossPay().subtract(item.getTotalDeductions())));
     }

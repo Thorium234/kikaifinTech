@@ -14,16 +14,21 @@ import java.util.List;
 /**
  * Posts payroll journal entries to the general ledger.
  *
- * When payroll is posted:
- *   DEBIT  Salaries Expense (total gross pay)
- *   CREDIT PAYE Payable (total PAYE)
- *   CREDIT NSSF Payable (total employee NSSF)
- *   CREDIT SHIF Payable (total SHIF)
- *   CREDIT Pension Payable (total pension)
- *   CREDIT Staff Loan Control (total loan repayments)
- *   CREDIT Bank Control Account (total net pay)
- *
- * This ensures balanced double-entry and no payroll bypasses the accounting engine.
+ * <p>Spec (payroll.md §5): the payroll run is converted into a unified, balanced
+ * double-entry journal voucher:
+ * <pre>
+ *   DEBIT  Expense: BOM Teacher Salaries (PE)      total gross pay
+ *   DEBIT  Expense: Employer AHL Contribution      employer matching share
+ *   CREDIT Liability: KRA PAYE Payable             deducted tax
+ *   CREDIT Liability: KRA AHL Payable              combined employee + employer
+ *   CREDIT Liability: SHIF Payable                 deducted medical levy
+ *   CREDIT Liability: NSSF Payable                 employee + employer
+ *   CREDIT Liability: Pension Payable
+ *   CREDIT Liability: Staff Loan Control           loan repayments
+ *   CREDIT Asset: Staff Advances Receivable        advance recovery credit-back
+ *   CREDIT Accounts Payable                        welfare/custom deductions
+ *   CREDIT Liability: Net Salary Clearing          net cash to staff banks
+ * </pre>
  */
 public class PayrollAccountingIntegration {
 
@@ -47,23 +52,15 @@ public class PayrollAccountingIntegration {
         BigDecimal totalPaye = run.getTotalPAYE();
         BigDecimal totalNssf = run.getTotalNSSF();
         BigDecimal totalShif = run.getTotalSHIF();
+        BigDecimal totalAhlEmployee = sum(items, PayrollItem::getAhl);
+        BigDecimal totalAhlEmployer = sum(items, PayrollItem::getEmployerAhl);
         BigDecimal totalPension = run.getTotalPension();
-        BigDecimal totalLoans = items.stream()
-                .map(PayrollItem::getStaffLoanRepayment)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalAdvances = items.stream()
-                .map(PayrollItem::getSalaryAdvanceRecovery)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalWelfare = items.stream()
-                .map(PayrollItem::getWelfareContribution)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalCustom = items.stream()
-                .map(PayrollItem::getCustomDeductions)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalLoans = sum(items, PayrollItem::getStaffLoanRepayment);
+        BigDecimal totalAdvances = sum(items, PayrollItem::getSalaryAdvanceRecovery);
+        BigDecimal totalWelfare = sum(items, PayrollItem::getWelfareContribution);
+        BigDecimal totalCustom = sum(items, PayrollItem::getCustomDeductions);
         BigDecimal totalNet = run.getTotalNetPay();
-        BigDecimal totalEmployerNssf = items.stream()
-                .map(PayrollItem::getEmployerNssf)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalEmployerNssf = sum(items, PayrollItem::getEmployerNssf);
 
         // Build the journal entry
         JournalEntry journal = new JournalEntry();
@@ -77,6 +74,13 @@ public class PayrollAccountingIntegration {
         journal.addLine(AccountType.SALARIES, "SALARY",
                 totalSalariesExpense, BigDecimal.ZERO,
                 "Salaries & Wages — " + run.getPeriodLabel());
+
+        // DEBIT: Employer AHL matching share
+        if (totalAhlEmployer.compareTo(BigDecimal.ZERO) > 0) {
+            journal.addLine(AccountType.EMPLOYER_AHL_EXPENSE, "AHLEXP",
+                    totalAhlEmployer, BigDecimal.ZERO,
+                    "Employer AHL contribution (matching 1.5%) — " + run.getPeriodLabel());
+        }
 
         // CREDIT: PAYE Payable
         if (totalPaye.compareTo(BigDecimal.ZERO) > 0) {
@@ -100,6 +104,14 @@ public class PayrollAccountingIntegration {
                     "SHIF contribution — " + run.getPeriodLabel());
         }
 
+        // CREDIT: AHL Payable (combined employee + employer)
+        BigDecimal totalAhlAll = totalAhlEmployee.add(totalAhlEmployer);
+        if (totalAhlAll.compareTo(BigDecimal.ZERO) > 0) {
+            journal.addLine(AccountType.AHL_PAYABLE, "AHL",
+                    BigDecimal.ZERO, totalAhlAll,
+                    "Affordable Housing Levy (employee + employer) — " + run.getPeriodLabel());
+        }
+
         // CREDIT: Pension Payable
         if (totalPension.compareTo(BigDecimal.ZERO) > 0) {
             journal.addLine(AccountType.PENSION_PAYABLE, "PENSION",
@@ -114,16 +126,23 @@ public class PayrollAccountingIntegration {
                     "Staff loan repayments — " + run.getPeriodLabel());
         }
 
+        // CREDIT: Staff Advances Receivable (credit-back to zero)
+        if (totalAdvances.compareTo(BigDecimal.ZERO) > 0) {
+            journal.addLine(AccountType.STAFF_ADVANCES_RECEIVABLE, "SADV",
+                    BigDecimal.ZERO, totalAdvances,
+                    "Staff advance recovery credit-back — " + run.getPeriodLabel());
+        }
+
         // CREDIT: Other deductions via general expenses clearing
-        BigDecimal otherDeductions = totalAdvances.add(totalWelfare).add(totalCustom);
+        BigDecimal otherDeductions = totalWelfare.add(totalCustom);
         if (otherDeductions.compareTo(BigDecimal.ZERO) > 0) {
             journal.addLine(AccountType.ACCOUNTS_PAYABLE, "AP",
                     BigDecimal.ZERO, otherDeductions,
-                    "Salary advances/welfare/custom — " + run.getPeriodLabel());
+                    "Welfare/custom deductions — " + run.getPeriodLabel());
         }
 
-        // CREDIT: Bank Control Account (net pay to be disbursed)
-        journal.addLine(AccountType.BANK_CONTROL, "BNKCTRL",
+        // CREDIT: Net Salary Clearing (net pay to be disbursed)
+        journal.addLine(AccountType.NET_SALARY_CLEARING, "NETPAY",
                 BigDecimal.ZERO, totalNet,
                 "Net pay — " + run.getPeriodLabel());
 
@@ -144,23 +163,15 @@ public class PayrollAccountingIntegration {
         BigDecimal totalPaye = originalRun.getTotalPAYE();
         BigDecimal totalNssf = originalRun.getTotalNSSF();
         BigDecimal totalShif = originalRun.getTotalSHIF();
+        BigDecimal totalAhlEmployee = sum(items, PayrollItem::getAhl);
+        BigDecimal totalAhlEmployer = sum(items, PayrollItem::getEmployerAhl);
         BigDecimal totalPension = originalRun.getTotalPension();
-        BigDecimal totalLoans = items.stream()
-                .map(PayrollItem::getStaffLoanRepayment)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalAdvances = items.stream()
-                .map(PayrollItem::getSalaryAdvanceRecovery)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalWelfare = items.stream()
-                .map(PayrollItem::getWelfareContribution)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalCustom = items.stream()
-                .map(PayrollItem::getCustomDeductions)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalLoans = sum(items, PayrollItem::getStaffLoanRepayment);
+        BigDecimal totalAdvances = sum(items, PayrollItem::getSalaryAdvanceRecovery);
+        BigDecimal totalWelfare = sum(items, PayrollItem::getWelfareContribution);
+        BigDecimal totalCustom = sum(items, PayrollItem::getCustomDeductions);
         BigDecimal totalNet = originalRun.getTotalNetPay();
-        BigDecimal totalEmployerNssf = items.stream()
-                .map(PayrollItem::getEmployerNssf)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalEmployerNssf = sum(items, PayrollItem::getEmployerNssf);
 
         // Reverse journal: swap debits and credits
         JournalEntry journal = new JournalEntry();
@@ -168,10 +179,17 @@ public class PayrollAccountingIntegration {
         journal.setReference("PAYROLL-REV-" + originalRun.getRunNumber());
         journal.setNarration("Payroll reversal for " + originalRun.getPeriodLabel());
 
-        // CREDIT: Salaries Expense (reversal — includes employer NSSF)
+        // CREDIT: Salaries Expense (reversal — gross + employer NSSF)
         journal.addLine(AccountType.SALARIES, "SALARY",
                 BigDecimal.ZERO, totalGross.add(totalEmployerNssf),
                 "Reversal — Salaries & Wages — " + originalRun.getPeriodLabel());
+
+        // CREDIT: Employer AHL matching share (reversal)
+        if (totalAhlEmployer.compareTo(BigDecimal.ZERO) > 0) {
+            journal.addLine(AccountType.EMPLOYER_AHL_EXPENSE, "AHLEXP",
+                    BigDecimal.ZERO, totalAhlEmployer,
+                    "Reversal — Employer AHL — " + originalRun.getPeriodLabel());
+        }
 
         // DEBIT: PAYE Payable (reversal)
         if (totalPaye.compareTo(BigDecimal.ZERO) > 0) {
@@ -195,6 +213,14 @@ public class PayrollAccountingIntegration {
                     "Reversal — SHIF — " + originalRun.getPeriodLabel());
         }
 
+        // DEBIT: AHL Payable (combined)
+        BigDecimal totalAhlAll = totalAhlEmployee.add(totalAhlEmployer);
+        if (totalAhlAll.compareTo(BigDecimal.ZERO) > 0) {
+            journal.addLine(AccountType.AHL_PAYABLE, "AHL",
+                    totalAhlAll, BigDecimal.ZERO,
+                    "Reversal — AHL (employee + employer) — " + originalRun.getPeriodLabel());
+        }
+
         // DEBIT: Pension Payable
         if (totalPension.compareTo(BigDecimal.ZERO) > 0) {
             journal.addLine(AccountType.PENSION_PAYABLE, "PENSION",
@@ -209,16 +235,23 @@ public class PayrollAccountingIntegration {
                     "Reversal — Staff Loans — " + originalRun.getPeriodLabel());
         }
 
-        // DEBIT: Other deductions
-        BigDecimal otherDeductions = totalAdvances.add(totalWelfare).add(totalCustom);
+        // DEBIT: Staff Advances Receivable (reversal)
+        if (totalAdvances.compareTo(BigDecimal.ZERO) > 0) {
+            journal.addLine(AccountType.STAFF_ADVANCES_RECEIVABLE, "SADV",
+                    totalAdvances, BigDecimal.ZERO,
+                    "Reversal — Staff Advances — " + originalRun.getPeriodLabel());
+        }
+
+        // DEBIT: Accounts Payable (welfare/custom)
+        BigDecimal otherDeductions = totalWelfare.add(totalCustom);
         if (otherDeductions.compareTo(BigDecimal.ZERO) > 0) {
             journal.addLine(AccountType.ACCOUNTS_PAYABLE, "AP",
                     otherDeductions, BigDecimal.ZERO,
-                    "Reversal — Advances/Welfare/Custom — " + originalRun.getPeriodLabel());
+                    "Reversal — Welfare/Custom — " + originalRun.getPeriodLabel());
         }
 
-        // DEBIT: Bank Control Account (reversal)
-        journal.addLine(AccountType.BANK_CONTROL, "BNKCTRL",
+        // DEBIT: Net Salary Clearing (reversal)
+        journal.addLine(AccountType.NET_SALARY_CLEARING, "NETPAY",
                 totalNet, BigDecimal.ZERO,
                 "Reversal — Net pay — " + originalRun.getPeriodLabel());
 
@@ -227,5 +260,9 @@ public class PayrollAccountingIntegration {
                 null, null, originalRun.getId());
 
         return journal.getId();
+    }
+
+    private static BigDecimal sum(List<PayrollItem> items, java.util.function.Function<PayrollItem, BigDecimal> amount) {
+        return items.stream().map(amount).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

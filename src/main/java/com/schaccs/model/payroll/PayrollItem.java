@@ -25,23 +25,31 @@ public class PayrollItem {
     private BigDecimal otherEarnings = CurrencyConfig.zero();
     private BigDecimal grossPay = CurrencyConfig.zero();
 
-    // Deductions
+// Deductions
     private BigDecimal paye = CurrencyConfig.zero();
     private BigDecimal nssf = CurrencyConfig.zero();
     private BigDecimal shif = CurrencyConfig.zero();
+    private BigDecimal ahl = CurrencyConfig.zero();
     private BigDecimal pension = CurrencyConfig.zero();
     private BigDecimal staffLoanRepayment = CurrencyConfig.zero();
     private BigDecimal salaryAdvanceRecovery = CurrencyConfig.zero();
     private BigDecimal welfareContribution = CurrencyConfig.zero();
     private BigDecimal customDeductions = CurrencyConfig.zero();
+    private BigDecimal unpaidLeaveDeduction = CurrencyConfig.zero();
     private BigDecimal totalDeductions = CurrencyConfig.zero();
 
     // Net Pay
     private BigDecimal netPay = CurrencyConfig.zero();
 
-    // Employer contributions (informational)
+    // Employer contributions (informational + accounting)
     private BigDecimal employerNssf = CurrencyConfig.zero();
+    private BigDecimal employerAhl = CurrencyConfig.zero();
     private BigDecimal employerPension = CurrencyConfig.zero();
+
+    // Proration / absence
+    private BigDecimal daysWorked;
+    private BigDecimal daysInMonth;
+    private BigDecimal unpaidLeaveDays;
 
     private String customDeductionName;
 
@@ -106,8 +114,11 @@ public class PayrollItem {
     public BigDecimal getNssf() { return nssf; }
     public void setNssf(BigDecimal nssf) { this.nssf = CurrencyConfig.money(nssf); }
 
-    public BigDecimal getShif() { return shif; }
+public BigDecimal getShif() { return shif; }
     public void setShif(BigDecimal shif) { this.shif = CurrencyConfig.money(shif); }
+
+    public BigDecimal getAhl() { return ahl; }
+    public void setAhl(BigDecimal ahl) { this.ahl = CurrencyConfig.money(ahl); }
 
     public BigDecimal getPension() { return pension; }
     public void setPension(BigDecimal pension) { this.pension = CurrencyConfig.money(pension); }
@@ -121,8 +132,20 @@ public class PayrollItem {
     public BigDecimal getWelfareContribution() { return welfareContribution; }
     public void setWelfareContribution(BigDecimal welfareContribution) { this.welfareContribution = CurrencyConfig.money(welfareContribution); }
 
-    public BigDecimal getCustomDeductions() { return customDeductions; }
+public BigDecimal getCustomDeductions() { return customDeductions; }
     public void setCustomDeductions(BigDecimal customDeductions) { this.customDeductions = CurrencyConfig.money(customDeductions); }
+
+    public BigDecimal getUnpaidLeaveDeduction() { return unpaidLeaveDeduction; }
+    public void setUnpaidLeaveDeduction(BigDecimal unpaidLeaveDeduction) { this.unpaidLeaveDeduction = CurrencyConfig.money(unpaidLeaveDeduction); }
+
+    public BigDecimal getDaysWorked() { return daysWorked; }
+    public void setDaysWorked(BigDecimal daysWorked) { this.daysWorked = daysWorked; }
+
+    public BigDecimal getDaysInMonth() { return daysInMonth; }
+    public void setDaysInMonth(BigDecimal daysInMonth) { this.daysInMonth = daysInMonth; }
+
+    public BigDecimal getUnpaidLeaveDays() { return unpaidLeaveDays; }
+    public void setUnpaidLeaveDays(BigDecimal unpaidLeaveDays) { this.unpaidLeaveDays = unpaidLeaveDays; }
 
     public String getCustomDeductionName() { return customDeductionName; }
     public void setCustomDeductionName(String customDeductionName) { this.customDeductionName = customDeductionName; }
@@ -133,8 +156,11 @@ public class PayrollItem {
     public BigDecimal getNetPay() { return netPay; }
     public void setNetPay(BigDecimal netPay) { this.netPay = CurrencyConfig.money(netPay); }
 
-    public BigDecimal getEmployerNssf() { return employerNssf; }
+public BigDecimal getEmployerNssf() { return employerNssf; }
     public void setEmployerNssf(BigDecimal employerNssf) { this.employerNssf = CurrencyConfig.money(employerNssf); }
+
+    public BigDecimal getEmployerAhl() { return employerAhl; }
+    public void setEmployerAhl(BigDecimal employerAhl) { this.employerAhl = CurrencyConfig.money(employerAhl); }
 
     public BigDecimal getEmployerPension() { return employerPension; }
     public void setEmployerPension(BigDecimal employerPension) { this.employerPension = CurrencyConfig.money(employerPension); }

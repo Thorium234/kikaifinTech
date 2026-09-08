@@ -44,10 +44,18 @@ public class PayrollRun {
     private LocalDateTime preparedAt;
     private LocalDateTime approvedAt;
     private LocalDateTime postedAt;
-    private String journalId;
+private String journalId;
     private String reversalOfId;
     private String notes;
     private LocalDateTime createdAt;
+
+    // PE votehead budget-overrun guard (payroll.md §2)
+    private boolean budgetOverrun;
+    private BigDecimal peAvailableBalance = CurrencyConfig.zero();
+    private BigDecimal overrunVariance = CurrencyConfig.zero();
+    private boolean budgetAuthorized;
+    private String budgetAuthorizationRef;
+    private String budgetAuthorizedBy;
 
     public PayrollRun() {
         this.id = UUID.randomUUID().toString();
@@ -134,8 +142,26 @@ public class PayrollRun {
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
+public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public boolean isBudgetOverrun() { return budgetOverrun; }
+    public void setBudgetOverrun(boolean budgetOverrun) { this.budgetOverrun = budgetOverrun; }
+
+    public BigDecimal getPeAvailableBalance() { return peAvailableBalance; }
+    public void setPeAvailableBalance(BigDecimal peAvailableBalance) { this.peAvailableBalance = CurrencyConfig.money(peAvailableBalance); }
+
+    public BigDecimal getOverrunVariance() { return overrunVariance; }
+    public void setOverrunVariance(BigDecimal overrunVariance) { this.overrunVariance = CurrencyConfig.money(overrunVariance); }
+
+    public boolean isBudgetAuthorized() { return budgetAuthorized; }
+    public void setBudgetAuthorized(boolean budgetAuthorized) { this.budgetAuthorized = budgetAuthorized; }
+
+    public String getBudgetAuthorizationRef() { return budgetAuthorizationRef; }
+    public void setBudgetAuthorizationRef(String budgetAuthorizationRef) { this.budgetAuthorizationRef = budgetAuthorizationRef; }
+
+    public String getBudgetAuthorizedBy() { return budgetAuthorizedBy; }
+    public void setBudgetAuthorizedBy(String budgetAuthorizedBy) { this.budgetAuthorizedBy = budgetAuthorizedBy; }
 
     public String getPeriodLabel() {
         return String.format("%02d/%d", month, year);

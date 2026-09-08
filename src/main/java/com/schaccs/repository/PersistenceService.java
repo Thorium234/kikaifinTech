@@ -40,6 +40,7 @@ import com.schaccs.model.payroll.Employee;
 import com.schaccs.model.payroll.PayrollItem;
 import com.schaccs.model.payroll.PayrollRun;
 import com.schaccs.model.payroll.SalaryStructure;
+import com.schaccs.model.payroll.StatutoryConfig;
 import com.schaccs.model.receipt.Receipt;
 import com.schaccs.model.receipt.ReceiptLine;
 import com.schaccs.model.student.Student;
@@ -77,6 +78,7 @@ import com.schaccs.store.VoucherStore;
 import com.schaccs.store.MidTermEnrollmentStore;
 import com.schaccs.store.EmployeeStore;
 import com.schaccs.store.PayrollStore;
+import com.schaccs.store.StatutoryConfigStore;
 import com.schaccs.store.ProcurementStore;
 import com.schaccs.store.RecycleBinStore;
 import com.schaccs.store.StudentTermBalanceStore;
@@ -91,7 +93,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -143,6 +147,7 @@ public final class PersistenceService {
         MidTermEnrollmentStore.getInstance().clear();
         EmployeeStore.getInstance().clear();
         PayrollStore.getInstance().clear();
+        StatutoryConfigStore.getInstance().clear();
         ProcurementStore.getInstance().clear();
         RecycleBinStore.getInstance().clear();
         StudentTermBalanceStore.getInstance().clear();
@@ -180,6 +185,7 @@ public final class PersistenceService {
             saveSalaryStructures(conn);
             savePayrollRuns(conn);
             savePayrollItems(conn);
+            saveStatutoryConfigs(conn);
             saveSuppliers(conn);
             saveProcurementRequests(conn);
             saveTenders(conn);
@@ -263,6 +269,7 @@ public final class PersistenceService {
             loadSalaryStructures(conn);
             loadPayrollRuns(conn);
             loadPayrollItems(conn);
+            loadStatutoryConfigs(conn);
             loadSuppliers(conn);
             loadProcurementRequests(conn);
             loadTenders(conn);
@@ -2340,13 +2347,100 @@ public final class PersistenceService {
         }
     }
 
+    private void saveStatutoryConfigs(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO statutory_config (id, label, active, paye_bands, paye_top_rate,
+                    personal_relief, shif_rate, ahl_employee_rate, ahl_employer_rate,
+                    nssf_tier_i_lower, nssf_tier_i_ceiling, nssf_tier_ii_ceiling,
+                    nssf_rate, nssf_employer_rate)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET label=excluded.label, active=excluded.active,
+                    paye_bands=excluded.paye_bands, paye_top_rate=excluded.paye_top_rate,
+                    personal_relief=excluded.personal_relief, shif_rate=excluded.shif_rate,
+                    ahl_employee_rate=excluded.ahl_employee_rate, ahl_employer_rate=excluded.ahl_employer_rate,
+                    nssf_tier_i_lower=excluded.nssf_tier_i_lower, nssf_tier_i_ceiling=excluded.nssf_tier_i_ceiling,
+                    nssf_tier_ii_ceiling=excluded.nssf_tier_ii_ceiling, nssf_rate=excluded.nssf_rate,
+                    nssf_employer_rate=excluded.nssf_employer_rate
+                """)) {
+            for (StatutoryConfig c : StatutoryConfigStore.getInstance().getConfigs()) {
+                ps.setString(1, c.getId());
+                ps.setString(2, c.getLabel());
+                ps.setInt(3, c.isActive() ? 1 : 0);
+                ps.setString(4, serializeBands(c.getPayeBands()));
+                ps.setString(5, money(c.getPayeTopRate()));
+                ps.setString(6, money(c.getPersonalRelief()));
+                ps.setString(7, money(c.getShifRate()));
+                ps.setString(8, money(c.getAhlEmployeeRate()));
+                ps.setString(9, money(c.getAhlEmployerRate()));
+                ps.setString(10, money(c.getNssfTierILower()));
+                ps.setString(11, money(c.getNssfTierICeiling()));
+                ps.setString(12, money(c.getNssfTierIICeiling()));
+                ps.setString(13, money(c.getNssfRate()));
+                ps.setString(14, money(c.getNssfEmployerRate()));
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private void loadStatutoryConfigs(Connection conn) throws SQLException {
+        StatutoryConfigStore store = StatutoryConfigStore.getInstance();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM statutory_config")) {
+            while (rs.next()) {
+                StatutoryConfig c = StatutoryConfig.withId(rs.getString("id"));
+                c.setLabel(rs.getString("label"));
+                c.setActive(rs.getInt("active") != 0);
+                c.setPayeBands(parseBands(rs.getString("paye_bands")));
+                c.setPayeTopRate(parseMoney(rs.getString("paye_top_rate")));
+                c.setPersonalRelief(parseMoney(rs.getString("personal_relief")));
+                c.setShifRate(parseMoney(rs.getString("shif_rate")));
+                c.setAhlEmployeeRate(parseMoney(rs.getString("ahl_employee_rate")));
+                c.setAhlEmployerRate(parseMoney(rs.getString("ahl_employer_rate")));
+                c.setNssfTierILower(parseMoney(rs.getString("nssf_tier_i_lower")));
+                c.setNssfTierICeiling(parseMoney(rs.getString("nssf_tier_i_ceiling")));
+                c.setNssfTierIICeiling(parseMoney(rs.getString("nssf_tier_ii_ceiling")));
+                c.setNssfRate(parseMoney(rs.getString("nssf_rate")));
+                c.setNssfEmployerRate(parseMoney(rs.getString("nssf_employer_rate")));
+                store.getConfigs().add(c);
+            }
+        }
+    }
+
+    private String serializeBands(List<StatutoryConfig.PayeBand> bands) {
+        if (bands == null || bands.isEmpty()) return "";
+        return bands.stream()
+                .map(b -> b.getCeiling().toPlainString() + ":" + b.getRate().toPlainString())
+                .reduce((a, b) -> a + ";" + b)
+                .orElse("");
+    }
+
+    private List<StatutoryConfig.PayeBand> parseBands(String raw) {
+        List<StatutoryConfig.PayeBand> bands = new ArrayList<>();
+        if (raw == null || raw.isBlank()) return bands;
+        for (String token : raw.split(";")) {
+            String[] parts = token.split(":");
+            if (parts.length == 2) {
+                try {
+                    bands.add(new StatutoryConfig.PayeBand(
+                            new BigDecimal(parts[0].trim()), new BigDecimal(parts[1].trim())));
+                } catch (NumberFormatException ignored) {
+                    // skip malformed band
+                }
+            }
+        }
+        return bands;
+    }
+
     private void savePayrollRuns(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO payroll_runs (id, run_number, month, year, period_start, period_end,
                     status, total_gross_pay, total_deductions, total_net_pay, total_paye, total_nssf,
                     total_shif, total_pension, employee_count, prepared_by, approved_by, posted_by,
-                    prepared_at, approved_at, posted_at, journal_id, reversal_of_id, notes, created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    prepared_at, approved_at, posted_at, journal_id, reversal_of_id, notes, created_at,
+                    budget_overrun, pe_available_balance, overrun_variance, budget_authorized,
+                    budget_authorization_ref, budget_authorized_by)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET run_number=excluded.run_number,
                     month=excluded.month, year=excluded.year, period_start=excluded.period_start,
                     period_end=excluded.period_end, status=excluded.status,
@@ -2358,7 +2452,11 @@ public final class PersistenceService {
                     posted_by=excluded.posted_by, prepared_at=excluded.prepared_at,
                     approved_at=excluded.approved_at, posted_at=excluded.posted_at,
                     journal_id=excluded.journal_id, reversal_of_id=excluded.reversal_of_id,
-                    notes=excluded.notes, created_at=excluded.created_at
+                    notes=excluded.notes, created_at=excluded.created_at,
+                    budget_overrun=excluded.budget_overrun, pe_available_balance=excluded.pe_available_balance,
+                    overrun_variance=excluded.overrun_variance, budget_authorized=excluded.budget_authorized,
+                    budget_authorization_ref=excluded.budget_authorization_ref,
+                    budget_authorized_by=excluded.budget_authorized_by
                 """)) {
             for (PayrollRun r : PayrollStore.getInstance().getPayrollRuns()) {
                 ps.setString(1, r.getId());
@@ -2386,6 +2484,12 @@ public final class PersistenceService {
                 ps.setString(23, r.getReversalOfId());
                 ps.setString(24, r.getNotes());
                 ps.setString(25, dateTime(r.getCreatedAt()));
+                ps.setInt(26, boolInt(r.isBudgetOverrun()));
+                ps.setString(27, money(r.getPeAvailableBalance()));
+                ps.setString(28, money(r.getOverrunVariance()));
+                ps.setInt(29, boolInt(r.isBudgetAuthorized()));
+                ps.setString(30, r.getBudgetAuthorizationRef());
+                ps.setString(31, r.getBudgetAuthorizedBy());
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -2423,6 +2527,12 @@ public final class PersistenceService {
                 r.setReversalOfId(rs.getString("reversal_of_id"));
                 r.setNotes(rs.getString("notes"));
                 r.setCreatedAt(parseDateTime(rs.getString("created_at")));
+                r.setBudgetOverrun(rs.getInt("budget_overrun") != 0);
+                r.setPeAvailableBalance(parseMoney(rs.getString("pe_available_balance")));
+                r.setOverrunVariance(parseMoney(rs.getString("overrun_variance")));
+                r.setBudgetAuthorized(rs.getInt("budget_authorized") != 0);
+                r.setBudgetAuthorizationRef(rs.getString("budget_authorization_ref"));
+                r.setBudgetAuthorizedBy(rs.getString("budget_authorized_by"));
                 store.getPayrollRuns().add(r);
             }
         }
@@ -2433,10 +2543,11 @@ public final class PersistenceService {
                 INSERT INTO payroll_items (id, payroll_run_id, employee_id, employee_number,
                     employee_name, department, basic_salary, house_allowance, responsibility_allowance,
                     transport_allowance, overtime, bonus, other_earnings, gross_pay,
-                    paye, nssf, shif, pension, staff_loan_repayment, salary_advance_recovery,
+                    paye, nssf, shif, ahl, pension, staff_loan_repayment, salary_advance_recovery,
                     welfare_contribution, custom_deductions, custom_deduction_name,
-                    total_deductions, net_pay, employer_nssf, employer_pension)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    total_deductions, net_pay, employer_nssf, employer_ahl, employer_pension,
+                    unpaid_leave_deduction, days_worked, days_in_month, unpaid_leave_days)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(id) DO UPDATE SET payroll_run_id=excluded.payroll_run_id,
                     employee_id=excluded.employee_id, employee_number=excluded.employee_number,
                     employee_name=excluded.employee_name, department=excluded.department,
@@ -2445,14 +2556,18 @@ public final class PersistenceService {
                     transport_allowance=excluded.transport_allowance, overtime=excluded.overtime,
                     bonus=excluded.bonus, other_earnings=excluded.other_earnings,
                     gross_pay=excluded.gross_pay, paye=excluded.paye, nssf=excluded.nssf,
-                    shif=excluded.shif, pension=excluded.pension,
+                    shif=excluded.shif, ahl=excluded.ahl, pension=excluded.pension,
                     staff_loan_repayment=excluded.staff_loan_repayment,
                     salary_advance_recovery=excluded.salary_advance_recovery,
                     welfare_contribution=excluded.welfare_contribution,
                     custom_deductions=excluded.custom_deductions,
                     custom_deduction_name=excluded.custom_deduction_name,
                     total_deductions=excluded.total_deductions, net_pay=excluded.net_pay,
-                    employer_nssf=excluded.employer_nssf, employer_pension=excluded.employer_pension
+                    employer_nssf=excluded.employer_nssf, employer_ahl=excluded.employer_ahl,
+                    employer_pension=excluded.employer_pension,
+                    unpaid_leave_deduction=excluded.unpaid_leave_deduction,
+                    days_worked=excluded.days_worked, days_in_month=excluded.days_in_month,
+                    unpaid_leave_days=excluded.unpaid_leave_days
                 """)) {
             for (PayrollItem item : PayrollStore.getInstance().getPayrollItems()) {
                 ps.setString(1, item.getId());
@@ -2472,16 +2587,22 @@ public final class PersistenceService {
                 ps.setString(15, money(item.getPaye()));
                 ps.setString(16, money(item.getNssf()));
                 ps.setString(17, money(item.getShif()));
-                ps.setString(18, money(item.getPension()));
-                ps.setString(19, money(item.getStaffLoanRepayment()));
-                ps.setString(20, money(item.getSalaryAdvanceRecovery()));
-                ps.setString(21, money(item.getWelfareContribution()));
-                ps.setString(22, money(item.getCustomDeductions()));
-                ps.setString(23, item.getCustomDeductionName());
-                ps.setString(24, money(item.getTotalDeductions()));
-                ps.setString(25, money(item.getNetPay()));
-                ps.setString(26, money(item.getEmployerNssf()));
-                ps.setString(27, money(item.getEmployerPension()));
+                ps.setString(18, money(item.getAhl()));
+                ps.setString(19, money(item.getPension()));
+                ps.setString(20, money(item.getStaffLoanRepayment()));
+                ps.setString(21, money(item.getSalaryAdvanceRecovery()));
+                ps.setString(22, money(item.getWelfareContribution()));
+                ps.setString(23, money(item.getCustomDeductions()));
+                ps.setString(24, item.getCustomDeductionName());
+                ps.setString(25, money(item.getTotalDeductions()));
+                ps.setString(26, money(item.getNetPay()));
+                ps.setString(27, money(item.getEmployerNssf()));
+                ps.setString(28, money(item.getEmployerAhl()));
+                ps.setString(29, money(item.getEmployerPension()));
+                ps.setString(30, money(item.getUnpaidLeaveDeduction()));
+                ps.setString(31, item.getDaysWorked() == null ? null : money(item.getDaysWorked()));
+                ps.setString(32, item.getDaysInMonth() == null ? null : money(item.getDaysInMonth()));
+                ps.setString(33, item.getUnpaidLeaveDays() == null ? null : money(item.getUnpaidLeaveDays()));
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -2519,7 +2640,13 @@ public final class PersistenceService {
                 item.setTotalDeductions(parseMoney(rs.getString("total_deductions")));
                 item.setNetPay(parseMoney(rs.getString("net_pay")));
                 item.setEmployerNssf(parseMoney(rs.getString("employer_nssf")));
+                item.setAhl(parseMoney(rs.getString("ahl")));
+                item.setEmployerAhl(parseMoney(rs.getString("employer_ahl")));
                 item.setEmployerPension(parseMoney(rs.getString("employer_pension")));
+                item.setUnpaidLeaveDeduction(parseMoney(rs.getString("unpaid_leave_deduction")));
+                item.setDaysWorked(parseNullableMoney(rs.getString("days_worked")));
+                item.setDaysInMonth(parseNullableMoney(rs.getString("days_in_month")));
+                item.setUnpaidLeaveDays(parseNullableMoney(rs.getString("unpaid_leave_days")));
                 store.getPayrollItems().add(item);
             }
         }
@@ -2559,6 +2686,13 @@ public final class PersistenceService {
     private static BigDecimal parseMoney(String s) {
         if (s == null || s.isBlank()) {
             return CurrencyConfig.zero();
+        }
+        return CurrencyConfig.money(s);
+    }
+
+    private static BigDecimal parseNullableMoney(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
         }
         return CurrencyConfig.money(s);
     }

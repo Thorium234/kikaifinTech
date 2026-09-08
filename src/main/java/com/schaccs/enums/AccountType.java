@@ -45,6 +45,8 @@ public enum AccountType {
             StatementCategory.BALANCE_SHEET, null),
     DEFERRED_REVENUE("Deferred Revenue", "DEF_REV", NormalBalance.CREDIT,
             StatementCategory.BALANCE_SHEET, null),
+    STAFF_ADVANCES_RECEIVABLE("Staff Advances Receivable", "SADV", NormalBalance.DEBIT,
+            StatementCategory.BALANCE_SHEET, null),
 
     // =====================================================================
     // INCOME — Government Capitation (Credit Normal, I&E)
@@ -125,10 +127,20 @@ public enum AccountType {
             StatementCategory.BALANCE_SHEET, null),
     PENSION_PAYABLE("Pension Payable", "PENSION", NormalBalance.CREDIT,
             StatementCategory.BALANCE_SHEET, null),
+    AHL_PAYABLE("Affordable Housing Levy Payable", "AHL", NormalBalance.CREDIT,
+            StatementCategory.BALANCE_SHEET, null),
+    NET_SALARY_CLEARING("Net Salary Clearing", "NETPAY", NormalBalance.CREDIT,
+            StatementCategory.BALANCE_SHEET, null),
     STAFF_LOAN_CONTROL("Staff Loan Control", "SLOAN", NormalBalance.CREDIT,
             StatementCategory.BALANCE_SHEET, null),
     BANK_CONTROL("Bank Control Account", "BNKCTRL", NormalBalance.CREDIT,
-            StatementCategory.BALANCE_SHEET, "GOVT");
+            StatementCategory.BALANCE_SHEET, "GOVT"),
+
+    // =====================================================================
+    // EXPENSES (Debit Normal, I&E)
+    // =====================================================================
+    EMPLOYER_AHL_EXPENSE("Employer AHL Contribution", "AHLEXP", NormalBalance.DEBIT,
+            StatementCategory.INCOME_EXPENDITURE, null);
 
     private final String displayName;
     private final String code;
