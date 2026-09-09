@@ -142,18 +142,23 @@ class FeesBalanceBatchClassTest {
             }
             billedToDate = billedToDate.add(termFee(term));
         }
-        BigDecimal expectedPaid = billedToDate.subtract(CurrencyConfig.money("9000"))
-                .max(BigDecimal.ZERO);
+        BigDecimal balance = CurrencyConfig.money("9000");
+        BigDecimal paid = billedToDate.subtract(balance).max(BigDecimal.ZERO);
+        // Waterfall: payments cover the current term's charge first; any
+        // surplus then settles the ended terms' fees by reducing arrears.
+        BigDecimal ledgerPaid = paid.min(termFee(current));
+        BigDecimal expectedArrears = billedToDate.subtract(termFee(current))
+                .subtract(paid.subtract(ledgerPaid)).max(BigDecimal.ZERO);
 
         assertEquals(current, ledger.getCurrentTerm(),
                 "The ledger must know the term the school is actually in");
         assertEquals(0, termFee(current).compareTo(ledger.getTotalCharged()),
                 "Charged is the CURRENT term's fee from the structure");
-        assertEquals(0, billedToDate.subtract(termFee(current)).compareTo(ledger.getArrears()),
-                "Arrears are the fees of the terms that already ended");
-        assertEquals(0, expectedPaid.compareTo(ledger.getTotalPaid()),
-                "Paid is billed-to-date minus the imported balance");
-        assertEquals(0, CurrencyConfig.money("9000").compareTo(ledger.getBalance()),
+        assertEquals(0, expectedArrears.compareTo(ledger.getArrears()),
+                "Arrears are the fees of the ended terms less any paid-down surplus");
+        assertEquals(0, ledgerPaid.compareTo(ledger.getTotalPaid()),
+                "Paid lands on the current term's voteheads first");
+        assertEquals(0, balance.compareTo(ledger.getBalance()),
                 "The closing balance equals the workbook figure exactly");
 
         var snapshots = StudentTermBalanceStore.getInstance().findByStudent(student.getId());
