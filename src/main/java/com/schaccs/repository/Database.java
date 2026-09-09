@@ -372,6 +372,10 @@ public final class Database {
     }
 
     private void migrate(Connection conn, int fromVersion) throws SQLException {
+        migrate(conn, fromVersion, Integer.MAX_VALUE);
+    }
+
+    private void migrate(Connection conn, int fromVersion, int targetVersion) throws SQLException {
         List<SchemaMigration> migrations = List.of(
                 new MigrationV1SchoolSettingsDiscount(),
                 new MigrationV2ReceiptReversed(),
@@ -406,6 +410,9 @@ public final class Database {
         );
         int version = fromVersion;
         for (SchemaMigration migration : migrations) {
+            if (migration.version() > targetVersion) {
+                continue;
+            }
             if (version < migration.version()) {
                 migration.apply(conn);
                 version = migration.version();
@@ -419,7 +426,7 @@ public final class Database {
         }
     }
 
-    private void initSchema(Connection conn) throws SQLException {
+    private void bootstrap(Connection conn) throws SQLException {
         try (Statement st = conn.createStatement()) {
             st.execute("""
                     CREATE TABLE IF NOT EXISTS meta (
@@ -739,7 +746,26 @@ public final class Database {
                     )
                     """);
         }
-        migrate(conn, schemaVersion(conn));
+    }
+
+    private void initSchema(Connection conn) throws SQLException {
+        bootstrap(conn);
+        migrate(conn, schemaVersion(conn), Integer.MAX_VALUE);
+    }
+
+    /**
+     * Bootstraps an empty database (meta + migration_history) and applies every
+     * schema migration up to {@code targetVersion}. Passing
+     * {@link Integer#MAX_VALUE} applies all known migrations.
+     * <p>
+     * This is the entry point for controlled upgrades (e.g. moving an existing
+     * database from an older release to the current schema) and for building a
+     * fresh schema on an arbitrary connection such as an in-memory
+     * {@code jdbc:sqlite::memory:} test database.
+     */
+    public void migrateDatabase(Connection conn, int targetVersion) throws SQLException {
+        bootstrap(conn);
+        migrate(conn, schemaVersion(conn), targetVersion);
     }
 
     public List<String[]> migrationHistory() throws SQLException {
